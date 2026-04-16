@@ -20,4 +20,7 @@ RUN dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Ensure Data directory exists and has correct permissions
+RUN mkdir -p /app/Data && chown -R $APP_UID:$APP_UID /app/Data
+VOLUME ["/app/Data"]
 ENTRYPOINT ["dotnet", "ShadowVPN2.dll"]

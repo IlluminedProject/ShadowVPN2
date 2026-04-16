@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Session;
+using Raven.Identity;
 using ShadowVPN2.Components;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
+using ShadowVPN2.Infrastructure.Configurations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,18 +25,20 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
-                       throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(connectionString));
-builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+var localConfiguration = await LocalConfiguration.Initialize();
+builder.Services.AddSingleton(localConfiguration);
 
-builder.Services.AddIdentityCore<ApplicationUser>(options =>
+// Initialize RavenDB
+builder.Services.AddSingleton(RavenDbInitializer.Initialize(LocalConfiguration.CertificatePfxPath.ToString()));
+builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
+
+// Configure Identity with RavenDB
+builder.Services
+    .AddIdentity<ApplicationUser, Raven.Identity.IdentityRole>(options =>
     {
         options.SignIn.RequireConfirmedAccount = true;
-        options.Stores.SchemaVersion = IdentitySchemaVersions.Version3;
     })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
 
@@ -42,14 +47,9 @@ builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSe
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseMigrationsEndPoint();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
@@ -62,7 +62,8 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Add additional endpoints required by the Identity /Account Razor components.
-app.MapAdditionalIdentityEndpoints();
+// Configure Authentication
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.Run();
+await app.RunAsync();

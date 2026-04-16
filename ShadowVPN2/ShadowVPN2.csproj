@@ -10,14 +10,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Update="Data\app.db" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.5"/>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.5"/>
+        <PackageReference Include="RavenDB.Embedded" Version="6.0.103" />
+        <PackageReference Include="RavenDB.Identity" Version="9.0.1" />
+        <PackageReference Include="TruePath.SystemIo" Version="1.12.0" />
     </ItemGroup>
 
     <ItemGroup>
