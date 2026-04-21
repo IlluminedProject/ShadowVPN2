@@ -5,7 +5,7 @@ namespace ShadowVPN2.Infrastructure;
 
 public static class DataUtils
 {
-    public static AbsolutePath DataFolder { get; } = new AbsolutePath("/data/");
+    public static AbsolutePath DataFolder { get; } = new LocalPath("data/").ResolveToCurrentDirectory();
 
     public static JsonSerializerOptions DefaultSerializerOptions { get; } = new()
         { WriteIndented = true, PropertyNameCaseInsensitive = true };
