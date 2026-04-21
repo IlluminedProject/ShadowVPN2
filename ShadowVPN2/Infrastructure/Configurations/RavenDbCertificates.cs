@@ -25,14 +25,13 @@ public static class RavenDbCertificates
     {
         var rsa = RSA.Create(4096);
         var req = new CertificateRequest(
-            $"CN=ShadowVPN-Cluster-Root-CA, O=ShadowVPN",
+            "CN=ShadowVPN-Cluster-Node, O=ShadowVPN",
             rsa,
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
 
-        req.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+        req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         req.CertificateExtensions.Add(new X509KeyUsageExtension(
-            X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign |
             X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
 
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
@@ -41,6 +40,16 @@ public static class RavenDbCertificates
                 new Oid("1.3.6.1.5.5.7.3.1"), // Server Auth
                 new Oid("1.3.6.1.5.5.7.3.2") // Client Auth
             }, false));
+
+        var sanBuilder = new SubjectAlternativeNameBuilder();
+        sanBuilder.AddDnsName("*");
+        sanBuilder.AddDnsName("localhost");
+        sanBuilder.AddDnsName(System.Net.Dns.GetHostName());
+        sanBuilder.AddIpAddress(System.Net.IPAddress.Loopback);
+        sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Loopback);
+        sanBuilder.AddIpAddress(System.Net.IPAddress.Any);
+        sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Any);
+        req.CertificateExtensions.Add(sanBuilder.Build());
 
         return (rsa, req);
     }
