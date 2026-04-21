@@ -34,10 +34,11 @@ builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<ID
 
 // Configure Identity with RavenDB
 builder.Services
-    .AddIdentity<ApplicationUser, Raven.Identity.IdentityRole>(options =>
+    .AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedAccount = true;
     })
+    .AddRoles<Raven.Identity.IdentityRole>()
     .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
