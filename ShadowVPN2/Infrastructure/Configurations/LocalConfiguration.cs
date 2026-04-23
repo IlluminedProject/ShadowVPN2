@@ -48,6 +48,7 @@ public class LocalConfiguration
         var configText = await ConfigPath.ReadAllTextAsync();
         var config = JsonSerializer.Deserialize<LocalConfiguration>(configText, DataUtils.DefaultSerializerOptions)
                ?? throw new Exception($"Failed to deserialize local configuration from {ConfigPath}");
+        config.Save();
 
         Logger.Information("Local configuration initialized successfully");
         return config;
@@ -59,4 +60,9 @@ public class LocalConfiguration
         var configText = JsonSerializer.Serialize(this, DataUtils.DefaultSerializerOptions);
         ConfigPath.WriteAllText(configText);
     }
+
+    /// <summary>
+    /// The unique identifier of the current node.
+    /// </summary>
+    public Guid NodeId { get; set; } = Guid.NewGuid();
 }
