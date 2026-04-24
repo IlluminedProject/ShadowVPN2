@@ -1,11 +1,14 @@
 using Raven.Client.Documents;
 using Raven.Embedded;
+using Serilog;
 using ShadowVPN2.Infrastructure;
 
 namespace ShadowVPN2.Data;
 
-public static class RavenDbInitializer
+public class RavenDbInitializer
 {
+    private static readonly Serilog.ILogger Logger = Log.ForContext<RavenDbInitializer>();
+    
     public const string DatabaseName = "ShadowVPN";
     public static IDocumentStore Initialize(string certificatePath)
     {
@@ -17,8 +20,10 @@ public static class RavenDbInitializer
 
         serverOptions.Secured(certificatePath);
         
+        Logger.Information("Starting RavenDB server at {ServerUrl}. Data: {DataDirectory}", serverOptions.ServerUrl, serverOptions.DataDirectory);
         EmbeddedServer.Instance.StartServer(serverOptions);
 
+        Logger.Information("RavenDB server started successfully");
         return EmbeddedServer.Instance.GetDocumentStore(DatabaseName);
     }
 }
