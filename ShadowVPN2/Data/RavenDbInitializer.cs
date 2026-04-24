@@ -24,6 +24,8 @@ public class RavenDbInitializer
         EmbeddedServer.Instance.StartServer(serverOptions);
 
         Logger.Information("RavenDB server started successfully");
-        return EmbeddedServer.Instance.GetDocumentStore(DatabaseName);
+        var documentStore = EmbeddedServer.Instance.GetDocumentStore(DatabaseName);
+        Logger.Information("Connecting to RavenDB server");
+        return documentStore;
     }
 }
