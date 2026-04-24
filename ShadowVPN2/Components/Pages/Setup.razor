@@ -1,0 +1,308 @@
+@page "/setup"
+@rendermode InteractiveServer
+@layout Layout.SetupLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject NavigationManager NavigationManager
+@inject ShadowVPN2.Data.SetupService SetupService
+@using ShadowVPN2.Data
+@using RandomFriendlyNameGenerator
+
+@if (currentStep == 1)
+{
+    <h4>Step 1: Network Information</h4>
+    <p>Please confirm your server's network details.</p>
+
+    <div class="mb-3">
+        <label class="form-label">Node Address</label>
+        <div class="input-group">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" @onclick="ToggleDropdown">
+                Select
+            </button>
+
+            @if (isDropdownOpen)
+            {
+                <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;" @onclick="() => isDropdownOpen = false"></div>
+            }
+
+            <ul class="dropdown-menu @(isDropdownOpen ? "show" : "")"
+                style="@(isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
+                <li>
+                    <button class="dropdown-item" type="button" @onclick="() => SelectAddress(hostname)">Browser
+                        Hostname (@hostname)
+                    </button>
+                </li>
+                @if (!string.IsNullOrEmpty(publicIp))
+                {
+                    <li>
+                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(publicIp)">Public IP
+                            (@publicIp)
+                        </button>
+                    </li>
+                }
+                else
+                {
+                    <li>
+                        <button class="dropdown-item disabled" type="button">Public IP (Loading...)</button>
+                    </li>
+                }
+            </ul>
+            <input type="text" class="form-control" value="@nodeAddress" @oninput="OnNodeAddressInput"
+                   placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
+            <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupPublicIp(true)"
+                    disabled="@isLookingUpIp">
+                @if (isLookingUpIp)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                }
+                else
+                {
+                    <span>Refresh IP</span>
+                }
+            </button>
+        </div>
+        <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
+            enter a custom address.
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Node Name</label>
+        <div class="input-group">
+            <input type="text" class="form-control" @bind="nodeNameInput" placeholder="@nodeNamePlaceholder" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName">
+                Random Name
+            </button>
+        </div>
+        <div class="form-text">A friendly name for this server in your cluster.</div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @((MarkupString)errorMessage)
+        </div>
+    }
+
+    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isConfiguringNode">
+        @if (isConfiguringNode)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <span>Continue</span>
+        }
+    </button>
+}
+else if (currentStep == 2)
+{
+    <h4>Step 2: Administrator Account</h4>
+    <p>Create the primary administrator account.</p>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @((MarkupString)errorMessage)
+        </div>
+    }
+
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-control" @bind="email"/>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" @bind="password"/>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Confirm Password</label>
+        <input type="password" class="form-control" @bind="confirmPassword"/>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <button class="btn btn-primary" @onclick="CreateAdmin" disabled="@isCreatingUser">
+            @if (isCreatingUser)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            }
+            else
+            {
+                <span>Complete Setup</span>
+            }
+        </button>
+    </div>
+}
+
+@code {
+    private bool isDropdownOpen = false;
+    private int currentStep = 1;
+
+    private string hostname = string.Empty;
+    private string publicIp = string.Empty;
+    private string nodeAddress = string.Empty;
+    private string nodeNameInput = string.Empty;
+    private string nodeNamePlaceholder = string.Empty;
+    private bool isLookingUpIp = false;
+
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string confirmPassword = string.Empty;
+    private string errorMessage = string.Empty;
+    private bool isCreatingUser = false;
+    private bool isConfiguringNode = false;
+
+    private void ToggleDropdown()
+    {
+        isDropdownOpen = !isDropdownOpen;
+    }
+
+    private void GenerateRandomNodeName()
+    {
+        nodeNameInput = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-node";
+    }
+
+    private void OnNodeAddressInput(ChangeEventArgs e)
+    {
+        SetNodeAddress(e.Value?.ToString() ?? string.Empty);
+    }
+
+    private void SelectAddress(string address)
+    {
+        SetNodeAddress(address);
+        isDropdownOpen = false;
+    }
+
+    private void SetNodeAddress(string address)
+    {
+        nodeAddress = address;
+
+        if (!string.IsNullOrEmpty(address))
+        {
+            if (!System.Net.IPAddress.TryParse(address, out _) && !string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = address.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0)
+                {
+                    nodeNamePlaceholder = parts[0];
+                }
+            }
+            else if (string.IsNullOrEmpty(nodeNamePlaceholder) || nodeNamePlaceholder == hostname)
+            {
+                nodeNamePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "primary-node";
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(NavigationManager.BaseUri);
+        hostname = uri.Host;
+        SetNodeAddress(hostname);
+
+        await LookupPublicIp(false);
+    }
+
+    private async Task LookupPublicIp(bool manualRefresh)
+    {
+        isLookingUpIp = true;
+        StateHasChanged();
+
+        var ip = await SetupService.GetPublicIpAsync();
+        publicIp = ip ?? string.Empty;
+
+        // Automatically switch to public IP if the current address is a local hostname (only on init)
+        if (!manualRefresh && nodeAddress == hostname && IsPrivateIpOrLocalhost(hostname) && !string.IsNullOrEmpty(publicIp))
+        {
+            nodeAddress = publicIp;
+        }
+
+        isLookingUpIp = false;
+    }
+
+    private bool IsPrivateIpOrLocalhost(string host)
+    {
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (System.Net.IPAddress.TryParse(host, out var ipAddress))
+        {
+            byte[] bytes = ipAddress.GetAddressBytes();
+            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                if (bytes[0] == 10 || bytes[0] == 127) return true;
+                if (bytes[0] == 192 && bytes[1] == 168) return true;
+                if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+                if (bytes[0] == 169 && bytes[1] == 254) return true;
+            }
+            else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            {
+                if (ipAddress.IsIPv6LinkLocal || ipAddress.IsIPv6SiteLocal) return true;
+                if (host == "::1") return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task NextStep()
+    {
+        errorMessage = string.Empty;
+
+        if (currentStep == 1)
+        {
+            isConfiguringNode = true;
+            try
+            {
+                var request = new NodeSetupRequest
+                {
+                    NodeAddress = nodeAddress,
+                    NodeName = string.IsNullOrWhiteSpace(nodeNameInput) ? nodeNamePlaceholder : nodeNameInput
+                };
+
+                await SetupService.ConfigureNodeAsync(request);
+                currentStep++;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+            }
+            finally
+            {
+                isConfiguringNode = false;
+            }
+        }
+        else
+        {
+            currentStep++;
+        }
+    }
+
+    private async Task CreateAdmin()
+    {
+        errorMessage = string.Empty;
+        isCreatingUser = true;
+
+        var request = new AdminSetupRequest
+        {
+            Email = email,
+            Password = password
+        };
+
+        try
+        {
+            await SetupService.CreateAdminAsync(request);
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isCreatingUser = false;
+        }
+    }
+
+}

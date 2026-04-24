@@ -8,6 +8,7 @@ using ShadowVPN2.Components;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Middleware;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -58,6 +59,10 @@ try
 
     builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<SetupService>();
+    builder.Services.AddControllers();
+
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
@@ -72,9 +77,12 @@ try
     app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
     app.UseHttpsRedirection();
 
+    app.UseMiddleware<SetupMiddleware>();
+
     app.UseAntiforgery();
 
     app.MapStaticAssets();
+    app.MapControllers();
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
 
