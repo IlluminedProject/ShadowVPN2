@@ -40,7 +40,12 @@ public static class ServiceExtensions
     public static void SetupIdentity(this WebApplicationBuilder builder)
     {
         builder.Services
-            .AddIdentityCore<ApplicationUser>()
+            .AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = false;
+                options.SignIn.RequireConfirmedEmail = false;
+                options.SignIn.RequireConfirmedPhoneNumber = false;
+            })
             .AddRoles<Raven.Identity.IdentityRole>()
             .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
             .AddSignInManager()

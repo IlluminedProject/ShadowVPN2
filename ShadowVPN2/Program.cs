@@ -36,8 +36,6 @@ try
     builder.SetupAuthentication();
     builder.SetupIdentity();
 
-    builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
-
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddControllers();

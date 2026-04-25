@@ -11,11 +11,13 @@ namespace ShadowVPN2.Infrastructure.Authentication;
 public class AdvancedUserStore<TUser, TRole> : UserStore<TUser, TRole>, IUserPasskeyStore<TUser>
     where TUser : AdvancedIdentityUser where TRole : IdentityRole, new()
 {
-    public AdvancedUserStore(Func<IAsyncDocumentSession> getSession, ILogger<AdvancedUserStore<TUser, TRole>> logger, IOptions<RavenDbIdentityOptions> options) : base(getSession, logger, options)
+    public AdvancedUserStore(Func<IAsyncDocumentSession> getSession, ILogger<AdvancedUserStore<TUser, TRole>> logger,
+        IOptions<RavenDbIdentityOptions> options) : base(getSession, logger, options)
     {
     }
 
-    public AdvancedUserStore(IAsyncDocumentSession session, ILogger<AdvancedUserStore<TUser, TRole>> logger, IOptions<RavenDbIdentityOptions> options) : base(session, logger, options)
+    public AdvancedUserStore(IAsyncDocumentSession session, ILogger<AdvancedUserStore<TUser, TRole>> logger,
+        IOptions<RavenDbIdentityOptions> options) : base(session, logger, options)
     {
     }
 
@@ -26,6 +28,7 @@ public class AdvancedUserStore<TUser, TRole> : UserStore<TUser, TRole>, IUserPas
         {
             user.Passkeys.Remove(existing);
         }
+
         user.Passkeys.Add(passkey);
         return Task.CompletedTask;
     }
