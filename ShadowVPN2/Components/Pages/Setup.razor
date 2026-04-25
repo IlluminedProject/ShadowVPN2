@@ -83,8 +83,8 @@
         </div>
     }
 
-    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isConfiguringNode">
-        @if (isConfiguringNode)
+    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isProcessing">
+        @if (isProcessing)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
         }
@@ -96,8 +96,95 @@
 }
 else if (currentStep == 2)
 {
-    <h4>Step 2: Administrator Account</h4>
-    <p>Create the primary administrator account.</p>
+    <h4>Step 2: Authentication</h4>
+    <p>Choose how users will log in. You can change this later in Settings.</p>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(useLocalLogin ? "active" : "")" type="button" @onclick="() => { useLocalLogin = true; useOidc = false; }">
+                Local Login
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(useOidc ? "active" : "")" type="button" @onclick="() => { useOidc = true; useLocalLogin = false; }">
+                OAuth2 / OpenID Connect
+            </button>
+        </li>
+    </ul>
+
+    @if (useLocalLogin)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Administrator Account</h5>
+
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" @bind="email"/>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control" @bind="password"/>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" class="form-control" @bind="confirmPassword"/>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (useOidc)
+    {
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">OIDC Provider</h5>
+                <div class="alert alert-info py-2 mb-3">The first user to log in via this provider will become the administrator.</div>
+
+                <div class="mb-3">
+                    <label class="form-label">Display Name</label>
+                    <input type="text" class="form-control" @bind="oidcDisplayName" placeholder="e.g. Corporate Login"/>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">OpenID Configuration Issuer URL</label>
+                    <input type="url" class="form-control" @bind="oidcAuthority" placeholder="e.g. https://accounts.google.com"/>
+                    <div class="form-text">The base issuer URL. The discovery document will be fetched from <code>/.well-known/openid-configuration</code>.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Client ID</label>
+                    <input type="text" class="form-control" @bind="oidcClientId" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Client Secret</label>
+                    <input type="password" class="form-control" @bind="oidcClientSecret" />
+                </div>
+
+                <button class="btn btn-outline-info" type="button" @onclick="TestOidcConnection" disabled="@isTestingOidc">
+                    @if (isTestingOidc)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span> Testing...</span>
+                    }
+                    else
+                    {
+                        <span>Test Provider Configuration</span>
+                    }
+                </button>
+
+                @if (!string.IsNullOrEmpty(oidcTestMessage))
+                {
+                    <div class="mt-2 small text-@(oidcTestSuccess ? "success" : "danger")">
+                        @((MarkupString)oidcTestMessage)
+                    </div>
+                }
+            </div>
+        </div>
+    }
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {
@@ -106,30 +193,49 @@ else if (currentStep == 2)
         </div>
     }
 
-    <div class="mb-3">
-        <label class="form-label">Email</label>
-        <input type="email" class="form-control" @bind="email"/>
+    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isProcessing">
+        @if (isProcessing)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <span>Continue</span>
+        }
+    </button>
+}
+else if (currentStep == 3)
+{
+    <h4>Step 3: Save Root Certificate</h4>
+
+    <div class="alert alert-warning">
+        <h5 class="alert-heading">Important Security Notice</h5>
+        <p>Before completing the setup, please download the <strong>Root CA Certificate</strong> (root-ca.pfx).</p>
+        <p>This certificate contains the private key needed to add new nodes to your ShadowVPN2 cluster in the future. Once you complete the setup, this file will be permanently deleted from this server for security reasons.</p>
+        <hr>
+        <p class="mb-0">Keep this file in a secure and secret location!</p>
     </div>
 
-    <div class="mb-3">
-        <label class="form-label">Password</label>
-        <input type="password" class="form-control" @bind="password"/>
-    </div>
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @((MarkupString)errorMessage)
+        </div>
+    }
 
-    <div class="mb-3">
-        <label class="form-label">Confirm Password</label>
-        <input type="password" class="form-control" @bind="confirmPassword"/>
-    </div>
+    <div class="d-flex justify-content-between align-items-center">
+        <a href="/api/setup/root-ca" class="btn btn-outline-success btn-lg" target="_blank" @onclick="() => hasDownloadedCert = true">
+            Download root-ca.pfx
+        </a>
 
-    <div class="d-flex justify-content-end">
-        <button class="btn btn-primary" @onclick="CreateAdmin" disabled="@isCreatingUser">
-            @if (isCreatingUser)
+        <button class="btn btn-danger btn-lg" @onclick="FinishSetup" disabled="@(isProcessing || !hasDownloadedCert)">
+            @if (isProcessing)
             {
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             }
             else
             {
-                <span>Complete Setup</span>
+                <span>Finish &amp; Delete File</span>
             }
         </button>
     </div>
@@ -146,12 +252,26 @@ else if (currentStep == 2)
     private string nodeNamePlaceholder = string.Empty;
     private bool isLookingUpIp = false;
 
+    // Step 2
+    private bool useLocalLogin = true;
+    private bool useOidc = false;
+    private string oidcDisplayName = "Login with OAuth";
+    private string oidcAuthority = string.Empty;
+    private string oidcClientId = string.Empty;
+    private string oidcClientSecret = string.Empty;
+    private bool isTestingOidc = false;
+    private string oidcTestMessage = string.Empty;
+    private bool oidcTestSuccess = false;
+
     private string email = string.Empty;
     private string password = string.Empty;
     private string confirmPassword = string.Empty;
+
+    // Step 3
+    private bool hasDownloadedCert = false;
+
     private string errorMessage = string.Empty;
-    private bool isCreatingUser = false;
-    private bool isConfiguringNode = false;
+    private bool isProcessing = false;
 
     private void ToggleDropdown()
     {
@@ -212,7 +332,6 @@ else if (currentStep == 2)
         var ip = await SetupService.GetPublicIpAsync();
         publicIp = ip ?? string.Empty;
 
-        // Automatically switch to public IP if the current address is a local hostname (only on init)
         if (!manualRefresh && nodeAddress == hostname && IsPrivateIpOrLocalhost(hostname) && !string.IsNullOrEmpty(publicIp))
         {
             nodeAddress = publicIp;
@@ -246,13 +365,29 @@ else if (currentStep == 2)
         return false;
     }
 
+    private async Task TestOidcConnection()
+    {
+        isTestingOidc = true;
+        oidcTestMessage = string.Empty;
+        StateHasChanged();
+
+        var discoveryUrl = oidcAuthority.TrimEnd('/') + "/.well-known/openid-configuration";
+        var success = await SetupService.TestOidcConnectionAsync(oidcAuthority);
+        oidcTestSuccess = success;
+        oidcTestMessage = success
+            ? "Successfully connected to OIDC discovery endpoint!"
+            : $"Failed to connect to <code>{discoveryUrl}</code>";
+
+        isTestingOidc = false;
+    }
+
     private async Task NextStep()
     {
         errorMessage = string.Empty;
 
         if (currentStep == 1)
         {
-            isConfiguringNode = true;
+            isProcessing = true;
             try
             {
                 var request = new NodeSetupRequest
@@ -270,29 +405,62 @@ else if (currentStep == 2)
             }
             finally
             {
-                isConfiguringNode = false;
+                isProcessing = false;
             }
         }
-        else
+        else if (currentStep == 2)
         {
-            currentStep++;
+            if (useLocalLogin && password != confirmPassword)
+            {
+                errorMessage = "Passwords do not match.";
+                return;
+            }
+
+            isProcessing = true;
+            try
+            {
+                if (useLocalLogin)
+                {
+                    await SetupService.ConfigureLocalAuthAsync(new LocalAuthSetupRequest
+                    {
+                        Email = email,
+                        Password = password
+                    });
+                }
+
+                if (useOidc)
+                {
+                    await SetupService.ConfigureOidcAsync(new OidcAuthSetupRequest
+                    {
+                        SchemeName = "OIDC",
+                        DisplayName = oidcDisplayName,
+                        Authority = oidcAuthority,
+                        ClientId = oidcClientId,
+                        ClientSecret = oidcClientSecret
+                    });
+                }
+
+                currentStep++;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+            }
+            finally
+            {
+                isProcessing = false;
+            }
         }
     }
 
-    private async Task CreateAdmin()
+    private async Task FinishSetup()
     {
         errorMessage = string.Empty;
-        isCreatingUser = true;
-
-        var request = new AdminSetupRequest
-        {
-            Email = email,
-            Password = password
-        };
+        isProcessing = true;
 
         try
         {
-            await SetupService.CreateAdminAsync(request);
+            await SetupService.FinishSetupAsync();
             NavigationManager.NavigateTo("/", forceLoad: true);
         }
         catch (Exception ex)
@@ -301,8 +469,7 @@ else if (currentStep == 2)
         }
         finally
         {
-            isCreatingUser = false;
+            isProcessing = false;
         }
     }
-
 }

@@ -22,9 +22,28 @@ public class SetupController(SetupService setupService) : ControllerBase
         await setupService.ConfigureNodeAsync(request);
     }
 
-    [HttpPost("admin")]
-    public async Task CreateAdmin([FromBody] AdminSetupRequest request)
+    [HttpPost("auth/local")]
+    public async Task ConfigureLocalAuth([FromBody] LocalAuthSetupRequest request)
     {
-        await setupService.CreateAdminAsync(request);
+        await setupService.ConfigureLocalAuthAsync(request);
+    }
+
+    [HttpPost("auth/oidc")]
+    public async Task ConfigureOidc([FromBody] OidcAuthSetupRequest request)
+    {
+        await setupService.ConfigureOidcAsync(request);
+    }
+
+    [HttpGet("root-ca")]
+    public async Task<IActionResult> DownloadRootCa()
+    {
+        var bytes = await setupService.GetRootCaBytesAsync();
+        return File(bytes, "application/x-pkcs12", "root-ca.pfx");
+    }
+
+    [HttpPost("finish")]
+    public async Task FinishSetup()
+    {
+        await setupService.FinishSetupAsync();
     }
 }

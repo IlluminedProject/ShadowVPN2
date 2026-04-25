@@ -61,6 +61,8 @@ try
 
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
+    builder.Services.AddSingleton<ShadowVPN2.Infrastructure.Authentication.DynamicAuthenticationManager>();
+    builder.Services.AddHostedService<ShadowVPN2.Infrastructure.Authentication.DynamicAuthInitializerService>();
     builder.Services.AddControllers();
 
     var app = builder.Build();
