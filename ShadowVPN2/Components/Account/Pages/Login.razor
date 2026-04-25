@@ -1,74 +1,107 @@
-﻿@page "/Account/Login"
+@page "/Account/Login"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using ShadowVPN2.Data
 @using ShadowVPN2.Infrastructure.Authentication
+@using Raven.Client.Documents.Session
+@using ShadowVPN2.Entities
+@using ShadowVPN2.Entities.Auth
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
+@inject IAsyncDocumentSession DocumentSession
 
 <PageTitle>Log in</PageTitle>
 
-<h1>Log in</h1>
-<div class="row">
-    <div class="col-lg-6">
-        <section>
-            <StatusMessage Message="@errorMessage"/>
-            <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator/>
-                <h2>Use a local account to log in.</h2>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6 col-xl-5">
+        <h1 class="text-center mb-4">Log in</h1>
+        <StatusMessage Message="@errorMessage"/>
+
+        @if (isLocalLoginEnabled)
+        {
+            <section class="mb-4">
+                <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                    <DataAnnotationsValidator/>
+                    <h2 class="h4 text-center">Use a local account</h2>
+                    <hr/>
+                    <ValidationSummary class="text-danger" role="alert"/>
+                    <div class="form-floating mb-3">
+                        <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
+                        <label for="Input.Email" class="form-label">Email</label>
+                        <ValidationMessage For="() => Input.Email" class="text-danger"/>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password"/>
+                        <label for="Input.Password" class="form-label">Password</label>
+                        <ValidationMessage For="() => Input.Password" class="text-danger"/>
+                    </div>
+                    <div class="checkbox mb-3">
+                        <label class="form-label">
+                            <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input"/>
+                            Remember me
+                        </label>
+                    </div>
+                    <div>
+                        <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+                    </div>
+
+                    <div class="d-flex flex-column mt-3 text-center">
+                        <div class="d-flex align-items-center mb-2">
+                            <hr class="flex-grow-1" />
+                            <span class="mx-2 text-secondary small">OR</span>
+                            <hr class="flex-grow-1" />
+                        </div>
+                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
+                    </div>
+                </EditForm>
+            </section>
+        }
+
+        @if (externalLogins.Length > 0)
+        {
+            @if (isLocalLoginEnabled)
+            {
+                <div class="d-flex align-items-center my-4">
+                    <hr class="flex-grow-1" />
+                    <span class="mx-3 text-secondary">OR</span>
+                    <hr class="flex-grow-1" />
+                </div>
+            }
+
+            <section class="text-center">
+                <h3 class="h4">Use another service</h3>
                 <hr/>
-                <ValidationSummary class="text-danger" role="alert"/>
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
-                    <label for="Input.Email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger"/>
-                </div>
-                <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password"/>
-                    <label for="Input.Password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger"/>
-                </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input"/>
-                        Remember me
-                    </label>
-                </div>
-                <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                </div>
-                <hr/>
-                <div class="d-flex flex-column">
-                    <span class="text-secondary mx-auto mt-2">OR</span>
-                    <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
-                </div>
-                <hr/>
-                <div>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-                    </p>
-                </div>
-            </EditForm>
-        </section>
-    </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr/>
-            <ExternalLoginPicker/>
-        </section>
+                <ExternalLoginPicker/>
+            </section>
+        }
+
+        @if (!isLocalLoginEnabled && externalLogins.Length == 0)
+        {
+            <div class="alert alert-warning text-center">
+                Authentication is currently disabled. Please contact the administrator.
+            </div>
+        }
+
+        <hr/>
+        <div class="text-center">
+            <p>
+                <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
+            </p>
+        </div>
     </div>
 </div>
 
 @code {
     private string? errorMessage;
     private EditContext editContext = default!;
+    private bool isLocalLoginEnabled = true;
+    private AuthenticationScheme[] externalLogins = [];
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -87,6 +120,11 @@
             // Clear the existing external cookie to ensure a clean login process
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }
+
+        var globalConfig = await DocumentSession.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
+        isLocalLoginEnabled = globalConfig?.Providers.OfType<LocalAuthProvider>().FirstOrDefault()?.IsEnabled ?? true;
+
+        externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
     }
 
     public async Task LoginUser()
@@ -146,7 +184,7 @@
         [DataType(DataType.Password)]
         public string Password { get; set; } = "";
 
-        [Display(Name = "Remember me?")] public bool RememberMe { get; set; }
+        [Display(Name = "Remember me?")] public bool RememberMe { get; set; } = true;
 
         public PasskeyInputModel? Passkey { get; set; }
     }
