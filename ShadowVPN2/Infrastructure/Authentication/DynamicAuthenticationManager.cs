@@ -10,15 +10,18 @@ public class DynamicAuthenticationManager
 {
     private readonly IAuthenticationSchemeProvider _schemeProvider;
     private readonly IOptionsMonitorCache<OpenIdConnectOptions> _oidcOptionsCache;
+    private readonly IEnumerable<IPostConfigureOptions<OpenIdConnectOptions>> _oidcPostConfigurers;
     private readonly ILogger<DynamicAuthenticationManager> _logger;
 
     public DynamicAuthenticationManager(
         IAuthenticationSchemeProvider schemeProvider,
         IOptionsMonitorCache<OpenIdConnectOptions> oidcOptionsCache,
+        IEnumerable<IPostConfigureOptions<OpenIdConnectOptions>> oidcPostConfigurers,
         ILogger<DynamicAuthenticationManager> logger)
     {
         _schemeProvider = schemeProvider;
         _oidcOptionsCache = oidcOptionsCache;
+        _oidcPostConfigurers = oidcPostConfigurers;
         _logger = logger;
     }
 
@@ -27,14 +30,8 @@ public class DynamicAuthenticationManager
         var schemeName = dbProvider.SchemeName;
         _logger.LogInformation("Adding or updating OIDC provider: {SchemeName} ({Authority})", schemeName, dbProvider.Authority);
 
-        // 1. Clear old cache if it exists
-        if (_oidcOptionsCache.TryRemove(schemeName))
-        {
-            _logger.LogDebug("Removed existing OIDC options cache for {SchemeName}", schemeName);
-        }
-
-        // 2. Add new settings to cache
-        _oidcOptionsCache.TryAdd(schemeName, new OpenIdConnectOptions
+        // 1. Create options manually to avoid premature validation in OptionsFactory
+        var options = new OpenIdConnectOptions
         {
             Authority = dbProvider.Authority,
             ClientId = dbProvider.ClientId,
@@ -42,8 +39,17 @@ public class DynamicAuthenticationManager
             ResponseType = "code",
             SaveTokens = true,
             CallbackPath = $"/signin-{schemeName}",
-            // Mapping default claims if necessary
-        });
+        };
+
+        // 2. Run post-configurers (this sets up NonceCookie, CorrelationCookie, DataProtection, etc.)
+        foreach (var postConfigurer in _oidcPostConfigurers)
+        {
+            postConfigurer.PostConfigure(schemeName, options);
+        }
+
+        // 3. Update cache
+        _oidcOptionsCache.TryRemove(schemeName);
+        _oidcOptionsCache.TryAdd(schemeName, options);
         _logger.LogDebug("Added new OIDC options cache for {SchemeName}", schemeName);
 
         // 3. Register scheme in ASP.NET Core if it doesn't exist

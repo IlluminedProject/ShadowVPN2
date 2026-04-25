@@ -30,33 +30,16 @@ try
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
 
-    builder.Services.AddCascadingAuthenticationState();
-    builder.Services.AddScoped<IdentityRedirectManager>();
-    builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-
-    builder.Services.AddAuthentication(options =>
-        {
-            options.DefaultScheme = IdentityConstants.ApplicationScheme;
-            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-        })
-        .AddIdentityCookies();
-
     var localConfiguration = await LocalConfiguration.Initialize();
     builder.Services.AddSingleton(localConfiguration);
-
-    // Initialize RavenDB
-    builder.Services.AddSingleton(RavenDbInitializer.Initialize(LocalConfiguration.CertificatePfxPath.ToString()));
-    builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
-
-    // Configure Identity with RavenDB
+    builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath);
+    builder.SetupAuthentication();
     builder.SetupIdentity();
 
     builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
-    builder.Services.AddSingleton<ShadowVPN2.Infrastructure.Authentication.DynamicAuthenticationManager>();
-    builder.Services.AddHostedService<ShadowVPN2.Infrastructure.Authentication.DynamicAuthInitializerService>();
     builder.Services.AddControllers();
 
     var app = builder.Build();
