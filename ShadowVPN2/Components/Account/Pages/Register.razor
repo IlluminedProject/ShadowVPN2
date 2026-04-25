@@ -1,4 +1,6 @@
-﻿@page "/Account/Register"
+@page "/Account/Register"
+@layout AccountLayout
+@attribute [AllowAnonymous]
 
 @using System.ComponentModel.DataAnnotations
 @using System.Text
@@ -17,42 +19,43 @@
 
 <PageTitle>Register</PageTitle>
 
-<h1>Register</h1>
+<h1 class="text-center mb-4">Register</h1>
 
-<div class="row">
-    <div class="col-lg-6">
-        <StatusMessage Message="@Message"/>
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
-            <DataAnnotationsValidator/>
-            <h2>Create a new account.</h2>
-            <hr/>
-            <ValidationSummary class="text-danger" role="alert"/>
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com"/>
-                <label for="Input.Email">Email</label>
-                <ValidationMessage For="() => Input.Email" class="text-danger"/>
-            </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password"/>
-                <label for="Input.Password">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger"/>
-            </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password"/>
-                <label for="Input.ConfirmPassword">Confirm Password</label>
-                <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger"/>
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
-        </EditForm>
+<StatusMessage Message="@Message"/>
+<EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+    <DataAnnotationsValidator/>
+    <h2 class="h4 text-center">Create a new account</h2>
+    <hr/>
+    <ValidationSummary class="text-danger" role="alert"/>
+    <div class="form-floating mb-3">
+        <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com"/>
+        <label for="Input.Email">Email</label>
+        <ValidationMessage For="() => Input.Email" class="text-danger"/>
     </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to register.</h3>
-            <hr/>
-            <ExternalLoginPicker/>
-        </section>
+    <div class="form-floating mb-3">
+        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password"/>
+        <label for="Input.Password">Password</label>
+        <ValidationMessage For="() => Input.Password" class="text-danger"/>
     </div>
+    <div class="form-floating mb-3">
+        <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password"/>
+        <label for="Input.ConfirmPassword">Confirm Password</label>
+        <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger"/>
+    </div>
+    <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
+</EditForm>
+
+<div class="d-flex align-items-center my-4">
+    <hr class="flex-grow-1" />
+    <span class="mx-3 text-secondary small">OR</span>
+    <hr class="flex-grow-1" />
 </div>
+
+<section class="text-center">
+    <h3 class="h4">Use another service</h3>
+    <hr/>
+    <ExternalLoginPicker/>
+</section>
 
 @code {
     private IEnumerable<IdentityError>? identityErrors;

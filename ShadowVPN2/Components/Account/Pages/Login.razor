@@ -1,4 +1,6 @@
 @page "/Account/Login"
+@layout AccountLayout
+@attribute [AllowAnonymous]
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
@@ -18,83 +20,79 @@
 
 <PageTitle>Log in</PageTitle>
 
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6 col-xl-5">
-        <h1 class="text-center mb-4">Log in</h1>
-        <StatusMessage Message="@errorMessage"/>
+<h1 class="text-center mb-4">Log in</h1>
+<StatusMessage Message="@errorMessage"/>
 
-        @if (isLocalLoginEnabled)
-        {
-            <section class="mb-4">
-                <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
-                    <DataAnnotationsValidator/>
-                    <h2 class="h4 text-center">Use a local account</h2>
-                    <hr/>
-                    <ValidationSummary class="text-danger" role="alert"/>
-                    <div class="form-floating mb-3">
-                        <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
-                        <label for="Input.Email" class="form-label">Email</label>
-                        <ValidationMessage For="() => Input.Email" class="text-danger"/>
-                    </div>
-                    <div class="form-floating mb-3">
-                        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password"/>
-                        <label for="Input.Password" class="form-label">Password</label>
-                        <ValidationMessage For="() => Input.Password" class="text-danger"/>
-                    </div>
-                    <div class="checkbox mb-3">
-                        <label class="form-label">
-                            <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input"/>
-                            Remember me
-                        </label>
-                    </div>
-                    <div>
-                        <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                    </div>
+@if (isLocalLoginEnabled)
+{
+    <section class="mb-4">
+        <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+            <DataAnnotationsValidator/>
+            <h2 class="h4 text-center">Use a local account</h2>
+            <hr/>
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
+                <label for="Input.Email" class="form-label">Email</label>
+                <ValidationMessage For="() => Input.Email" class="text-danger"/>
+            </div>
+            <div class="form-floating mb-3">
+                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password"/>
+                <label for="Input.Password" class="form-label">Password</label>
+                <ValidationMessage For="() => Input.Password" class="text-danger"/>
+            </div>
+            <div class="checkbox mb-3">
+                <label class="form-label">
+                    <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input"/>
+                    Remember me
+                </label>
+            </div>
+            <div>
+                <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+            </div>
 
-                    <div class="d-flex flex-column mt-3 text-center">
-                        <div class="d-flex align-items-center mb-2">
-                            <hr class="flex-grow-1" />
-                            <span class="mx-2 text-secondary small">OR</span>
-                            <hr class="flex-grow-1" />
-                        </div>
-                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
-                    </div>
-                </EditForm>
-            </section>
-        }
-
-        @if (externalLogins.Length > 0)
-        {
-            @if (isLocalLoginEnabled)
-            {
-                <div class="d-flex align-items-center my-4">
+            <div class="d-flex flex-column mt-3 text-center">
+                <div class="d-flex align-items-center mb-2">
                     <hr class="flex-grow-1" />
-                    <span class="mx-3 text-secondary">OR</span>
+                    <span class="mx-2 text-secondary small">OR</span>
                     <hr class="flex-grow-1" />
                 </div>
-            }
-
-            <section class="text-center">
-                <h3 class="h4">Use another service</h3>
-                <hr/>
-                <ExternalLoginPicker/>
-            </section>
-        }
-
-        @if (!isLocalLoginEnabled && externalLogins.Length == 0)
-        {
-            <div class="alert alert-warning text-center">
-                Authentication is currently disabled. Please contact the administrator.
+                <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
             </div>
-        }
+        </EditForm>
+    </section>
+}
 
-        <hr/>
-        <div class="text-center">
-            <p>
-                <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-            </p>
+@if (externalLogins.Length > 0)
+{
+    @if (isLocalLoginEnabled)
+    {
+        <div class="d-flex align-items-center my-4">
+            <hr class="flex-grow-1" />
+            <span class="mx-3 text-secondary">OR</span>
+            <hr class="flex-grow-1" />
         </div>
+    }
+
+    <section class="text-center">
+        <h3 class="h4">Use another service</h3>
+        <hr/>
+        <ExternalLoginPicker/>
+    </section>
+}
+
+@if (!isLocalLoginEnabled && externalLogins.Length == 0)
+{
+    <div class="alert alert-warning text-center">
+        Authentication is currently disabled. Please contact the administrator.
     </div>
+}
+
+<hr/>
+<div class="text-center">
+    <p>
+        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
+    </p>
 </div>
 
 @code {
