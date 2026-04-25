@@ -10,6 +10,7 @@ using Microsoft.Extensions.Primitives;
 using ShadowVPN2.Components.Account.Pages;
 using ShadowVPN2.Components.Account.Pages.Manage;
 using ShadowVPN2.Data;
+using ShadowVPN2.Infrastructure.Authentication;
 
 namespace Microsoft.AspNetCore.Routing;
 

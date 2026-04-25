@@ -7,6 +7,8 @@ using Serilog;
 using ShadowVPN2.Components;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
+using ShadowVPN2.Infrastructure;
+using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
 
@@ -47,12 +49,7 @@ try
     builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
 
     // Configure Identity with RavenDB
-    builder.Services
-        .AddIdentityCore<ApplicationUser>(options => { options.SignIn.RequireConfirmedAccount = true; })
-        .AddRoles<Raven.Identity.IdentityRole>()
-        .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
-        .AddSignInManager()
-        .AddDefaultTokenProviders();
+    builder.SetupIdentity();
 
     builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 

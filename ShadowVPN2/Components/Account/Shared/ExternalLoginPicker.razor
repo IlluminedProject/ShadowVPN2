@@ -1,6 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using ShadowVPN2.Data
+@using ShadowVPN2.Infrastructure.Authentication
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
@@ -19,7 +20,7 @@
 }
 else
 {
-    <form class="form-horizontal" action="Account/PerformExternalLogin" method="post">
+    <form class="form-horizontal" action="/Account/PerformExternalLogin" method="post">
         <div>
             <AntiforgeryToken/>
             <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>

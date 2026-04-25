@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Data;
+using ShadowVPN2.Infrastructure.Authentication;
 
 namespace ShadowVPN2.Components.Account;
 
