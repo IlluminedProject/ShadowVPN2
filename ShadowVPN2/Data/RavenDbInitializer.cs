@@ -14,7 +14,7 @@ public class RavenDbInitializer
     {
         var serverOptions = new ServerOptions
         {
-            ServerUrl = "https://0.0.0.0:8888",
+            ServerUrl = "https://127.0.0.1:8888",
             DataDirectory = (DataUtils.DataFolder / "ravendb").ToString()
         };
 
