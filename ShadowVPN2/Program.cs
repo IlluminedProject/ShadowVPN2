@@ -48,10 +48,7 @@ try
 
     // Configure Identity with RavenDB
     builder.Services
-        .AddIdentityCore<ApplicationUser>(options =>
-        {
-            options.SignIn.RequireConfirmedAccount = true;
-        })
+        .AddIdentityCore<ApplicationUser>(options => { options.SignIn.RequireConfirmedAccount = true; })
         .AddRoles<Raven.Identity.IdentityRole>()
         .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
         .AddSignInManager()
@@ -87,6 +84,7 @@ try
     app.MapControllers();
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
+    app.MapAdditionalIdentityEndpoints();
 
     // Configure Authentication
     app.UseAuthentication();
