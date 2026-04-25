@@ -55,6 +55,10 @@ try
     app.UseHttpsRedirection();
 
     app.UseMiddleware<SetupMiddleware>();
+    
+    // Configure Authentication
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.UseAntiforgery();
 
@@ -63,10 +67,6 @@ try
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();
-
-    // Configure Authentication
-    app.UseAuthentication();
-    app.UseAuthorization();
 
     await app.RunAsync();
 }
