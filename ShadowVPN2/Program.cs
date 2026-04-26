@@ -39,6 +39,7 @@ try
 
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
+    builder.Services.AddScoped<SettingsService>();
     builder.Services.AddSingleton<NodeService>();
     builder.Services.AddControllers();
     builder.Services.AddSignalR();

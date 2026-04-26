@@ -1,7 +1,5 @@
 @page "/"
 @using ShadowVPN2.Data
-@using ShadowVPN2.Infrastructure.Authentication
-@attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @implements IDisposable
 @inject NodeService NodeService
 

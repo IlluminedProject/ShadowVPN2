@@ -1,0 +1,26 @@
+﻿@page "/admin/settings"
+@using ShadowVPN2.Entities
+@using Microsoft.AspNetCore.Authorization
+@using ShadowVPN2.Infrastructure.Authentication
+@attribute [Authorize(Policy = AppPermissions.Settings.View)]
+@rendermode InteractiveServer
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <NavLink href="/admin/settings" class="list-group-item list-group-item-action" Match="NavLinkMatch.All">General</NavLink>
+                <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action">Authorization</NavLink>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <h3>General Settings</h3>
+            <p class="text-muted">Global application configuration.</p>
+
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Please select a category from the sidebar to manage settings.
+            </div>
+        </div>
+    </div>
+</div>
