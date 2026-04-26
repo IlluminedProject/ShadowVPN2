@@ -41,6 +41,7 @@ try
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddSingleton<NodeService>();
     builder.Services.AddControllers();
+    builder.Services.AddSignalR();
 
     var app = builder.Build();
 
@@ -66,6 +67,7 @@ try
 
     app.MapStaticAssets();
     app.MapControllers();
+    app.MapHub<ShadowVPN2.Hubs.NodeHub>("/api/node/hub");
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();
