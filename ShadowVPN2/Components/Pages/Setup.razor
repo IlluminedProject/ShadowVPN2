@@ -4,6 +4,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @inject NavigationManager NavigationManager
 @inject ShadowVPN2.Data.SetupService SetupService
+@inject IJSRuntime JSRuntime
 @using ShadowVPN2.Data
 @using RandomFriendlyNameGenerator
 
@@ -162,6 +163,17 @@ else if (currentStep == 2)
                 <div class="mb-3">
                     <label class="form-label">Client Secret</label>
                     <input type="password" class="form-control" @bind="oidcClientSecret" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Redirect URI</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control bg-light" value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly />
+                        <button class="btn btn-outline-secondary" type="button" @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">Configure this URL in your identity provider's allowed redirect URIs.</div>
                 </div>
 
                 <button class="btn btn-outline-info" type="button" @onclick="TestOidcConnection" disabled="@isTestingOidc">
@@ -471,5 +483,10 @@ else if (currentStep == 3)
         {
             isProcessing = false;
         }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 }

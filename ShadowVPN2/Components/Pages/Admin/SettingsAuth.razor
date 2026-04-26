@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 @inject SettingsService SettingsService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <div class="container-fluid">
     <div class="row">
@@ -68,6 +69,17 @@
                                 <div class="mb-3">
                                     <label class="form-label">Client Secret</label>
                                     <input type="password" class="form-control" @bind="request.OidcSettings!.ClientSecret" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Redirect URI</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control bg-light" value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly />
+                                        <button class="btn btn-outline-secondary" type="button" @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">Configure this URL in your identity provider's allowed redirect URIs.</div>
                                 </div>
 
                                 <div class="mb-3">
@@ -226,5 +238,10 @@
         {
             isSaving = false;
         }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 }
