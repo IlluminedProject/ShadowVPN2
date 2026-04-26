@@ -51,6 +51,8 @@ public static class ServiceExtensions
             .AddSignInManager()
             .AddDefaultTokenProviders();
 
+        builder.Services.Configure<RavenDbIdentityOptions>(options => options.AutoSaveChanges = true);
+
         builder.Services
             .AddScoped<IUserStore<ApplicationUser>, AdvancedUserStore<ApplicationUser, Raven.Identity.IdentityRole>>();
     }
