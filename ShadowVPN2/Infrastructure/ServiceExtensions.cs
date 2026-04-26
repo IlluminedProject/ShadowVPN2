@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Components.Authorization;
+﻿using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Identity;
@@ -18,13 +21,13 @@ public static class ServiceExtensions
         builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString()));
         builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
     }
-    
+
     public static void SetupAuthentication(this WebApplicationBuilder builder)
     {
+        builder.Services.AddDataProtection();
         builder.Services.AddCascadingAuthenticationState();
         builder.Services.AddScoped<IdentityRedirectManager>();
         builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-        
         builder.Services.AddSingleton<DynamicAuthenticationManager>();
         builder.Services.AddHostedService<DynamicAuthInitializerService>();
 
@@ -35,6 +38,9 @@ public static class ServiceExtensions
         });
 
         authBuilder.AddIdentityCookies();
+
+        // Register OIDC infrastructure without a real scheme to avoid NullReferenceException in handlers.
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
     }
 
     public static void SetupIdentity(this WebApplicationBuilder builder)
