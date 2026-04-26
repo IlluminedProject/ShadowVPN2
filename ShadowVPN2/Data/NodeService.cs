@@ -11,6 +11,7 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
     private IDisposable? _changesSubscription;
     private readonly HashSet<NodeSubscription> _subscriptions = new();
     private readonly Lock _lock = new();
+    private CancellationTokenSource? _disposalCts;
 
     public async Task<NodeSubscription> SubscribeAsync(Func<IReadOnlyList<NodeResponse>, Task>? onUpdate = null)
     {
@@ -23,7 +24,17 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
         lock (_lock)
         {
             _subscriptions.Add(subscription);
-            if (_subscriptions.Count == 1)
+
+            // Cancel any pending disposal
+            if (_disposalCts != null)
+            {
+                logger.LogInformation("New subscription received while disposal was pending. Cancelling disposal.");
+                _disposalCts.Cancel();
+                _disposalCts.Dispose();
+                _disposalCts = null;
+            }
+
+            if (_subscriptions.Count == 1 && _changesSubscription == null)
             {
                 logger.LogInformation("First subscription created. Opening RavenDB Changes subscription");
                 InitializeChangesSubscription();
@@ -41,9 +52,39 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
             {
                 if (_changesSubscription != null)
                 {
-                    logger.LogInformation("Last subscription removed. Closing RavenDB Changes subscription");
-                    _changesSubscription.Dispose();
-                    _changesSubscription = null;
+                    // Instead of immediate disposal, start a cooldown to prevent flapping (e.g. during Blazor pre-rendering)
+                    _disposalCts?.Cancel();
+                    _disposalCts?.Dispose();
+                    _disposalCts = new CancellationTokenSource();
+                    var token = _disposalCts.Token;
+
+                    logger.LogInformation("Last subscription removed. Starting 10s cooldown before closing RavenDB Changes subscription");
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(10), token);
+
+                            lock (_lock)
+                            {
+                                if (!token.IsCancellationRequested && _subscriptions.Count == 0 && _changesSubscription != null)
+                                {
+                                    logger.LogInformation("Cooldown finished. Closing RavenDB Changes subscription");
+                                    _changesSubscription.Dispose();
+                                    _changesSubscription = null;
+                                }
+                            }
+                        }
+                        catch (TaskCanceledException)
+                        {
+                            // Expected when a new subscriber joins
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "Error during RavenDB changes subscription disposal cooldown");
+                        }
+                    }, CancellationToken.None);
                 }
             }
         }
@@ -110,6 +151,10 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
     {
         lock (_lock)
         {
+            _disposalCts?.Cancel();
+            _disposalCts?.Dispose();
+            _disposalCts = null;
+
             _changesSubscription?.Dispose();
             _changesSubscription = null;
             _subscriptions.Clear();

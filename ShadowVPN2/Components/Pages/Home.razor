@@ -2,6 +2,7 @@
 @using ShadowVPN2.Data
 @implements IDisposable
 @inject NodeService NodeService
+@rendermode InteractiveServer
 
 <PageTitle>Nodes - ShadowVPN2</PageTitle>
 
@@ -65,9 +66,31 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _subscription = await NodeService.SubscribeAsync(OnNodesUpdated);
-        var initial = await _subscription.GetCurrentNodesAsync();
-        UpdateNodes(initial);
+        // Initial data fetch for pre-rendering or first interactive load
+        var nodes = await NodeService.GetNodesAsync();
+        UpdateNodesFromResponse(nodes.Select(n => new NodeResponse
+        {
+            Id = n.Id,
+            NodeId = n.NodeId,
+            Name = n.Name,
+            Address = n.Address,
+            Number = n.Number
+        }));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Subscribe only once the component is interactive
+            _subscription = await NodeService.SubscribeAsync(OnNodesUpdated);
+
+            // Refresh nodes to ensure we have the latest state and haven't missed any updates
+            // between OnInitialized and the subscription start.
+            var latest = await _subscription.GetCurrentNodesAsync();
+            UpdateNodes(latest);
+            StateHasChanged();
+        }
     }
 
     private Task OnNodesUpdated(IReadOnlyList<NodeResponse> nodes)
