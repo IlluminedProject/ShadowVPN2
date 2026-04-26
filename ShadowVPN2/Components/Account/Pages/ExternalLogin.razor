@@ -35,7 +35,7 @@
 @code {
     public const string LoginCallbackAction = "LoginCallback";
 
-    private string? message;
+    private string? message => RemoteError != null ? $"Error from external provider: {RemoteError}" : null;
     private ExternalLoginInfo? externalLoginInfo;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
