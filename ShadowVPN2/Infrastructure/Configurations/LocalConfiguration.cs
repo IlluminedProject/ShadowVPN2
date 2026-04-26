@@ -24,7 +24,7 @@ public class LocalConfiguration
             !CertificatePfxPath.ExistsFile() || !CertificatePemPath.ExistsFile() ||
             !ConfigPath.ExistsFile())
         {
-            Logger.Information("Local configuration or certificates not found. Starting first-run setup.");
+            Logger.Information("Local configuration or certificates not found. Starting first-run setup");
 
             // TODO: Handle joining another node
             Path.CreateDirectory();

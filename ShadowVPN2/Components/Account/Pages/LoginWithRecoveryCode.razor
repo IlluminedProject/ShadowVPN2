@@ -1,4 +1,4 @@
-@page "/Account/LoginWithRecoveryCode"
+﻿@page "/Account/LoginWithRecoveryCode"
 @layout AccountLayout
 @attribute [AllowAnonymous]
 
@@ -60,12 +60,12 @@
 
         if (result.Succeeded)
         {
-            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
+            Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code", userId);
             RedirectManager.RedirectTo(ReturnUrl);
         }
         else if (result.IsLockedOut)
         {
-            Logger.LogWarning("User account locked out.");
+            Logger.LogWarning("User account locked out");
             RedirectManager.RedirectTo("Account/Lockout");
         }
         else

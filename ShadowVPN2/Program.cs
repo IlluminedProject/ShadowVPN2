@@ -35,6 +35,7 @@ try
     builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath);
     builder.SetupAuthentication();
     builder.SetupIdentity();
+    builder.SetupAuthorization();
 
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();

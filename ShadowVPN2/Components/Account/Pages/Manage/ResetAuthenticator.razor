@@ -45,7 +45,7 @@
         await UserManager.SetTwoFactorEnabledAsync(user, false);
         await UserManager.ResetAuthenticatorKeyAsync(user);
         var userId = await UserManager.GetUserIdAsync(user);
-        Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", userId);
+        Logger.LogInformation("User with ID '{UserId}' has reset their authentication app key", userId);
 
         await SignInManager.RefreshSignInAsync(user);
 

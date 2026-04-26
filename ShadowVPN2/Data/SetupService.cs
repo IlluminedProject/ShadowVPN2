@@ -131,7 +131,10 @@ public class SetupService(
                 result.Errors.Select(e => e.Description)));
         }
 
-        logger.LogInformation("Local auth configured, admin user {Email} created", request.Email);
+        // Assign user to Administrator role
+        await userManager.AddToRoleAsync(user, AppRoles.Administrator);
+
+        logger.LogInformation("Local auth configured, admin user {Email} created and assigned to Administrator role", request.Email);
     }
 
     public async Task ConfigureOidcAsync(OidcAuthSetupRequest request)

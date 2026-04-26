@@ -54,4 +54,18 @@ public static class ServiceExtensions
         builder.Services
             .AddScoped<IUserStore<ApplicationUser>, AdvancedUserStore<ApplicationUser, Raven.Identity.IdentityRole>>();
     }
+
+    public static void SetupAuthorization(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddAuthorization(options =>
+        {
+            foreach (var permission in AppPermissions.All)
+            {
+                options.AddPolicy(permission, policy =>
+                    policy.RequireClaim(AppPermissions.PermissionClaimType, permission));
+            }
+        });
+
+        builder.Services.AddHostedService<RolePermissionInitializer>();
+    }
 }

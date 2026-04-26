@@ -73,7 +73,7 @@ else
         recoveryCodes = await UserManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
         message = "You have generated new recovery codes.";
 
-        Logger.LogInformation("User with ID '{UserId}' has generated new 2FA recovery codes.", userId);
+        Logger.LogInformation("User with ID '{UserId}' has generated new 2FA recovery codes", userId);
     }
 
 }
