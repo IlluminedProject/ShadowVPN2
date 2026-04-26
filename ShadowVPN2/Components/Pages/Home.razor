@@ -1,7 +1,92 @@
-﻿@page "/"
+@page "/"
+@using ShadowVPN2.Data
+@using ShadowVPN2.Entities
+@implements IDisposable
+@inject NodeService NodeService
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Nodes - ShadowVPN2</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Nodes</h1>
+        <span class="badge bg-primary">Live</span>
+    </div>
 
-Welcome to your new app.
+    @if (_nodes == null)
+    {
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!_nodes.Any())
+    {
+        <div class="alert alert-info" role="alert">
+            No nodes found. Go to <a href="/setup">Setup</a> to add your first node.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col" style="width: 50px;">#</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Address</th>
+                        <th scope="col">Node ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var node in _nodes)
+                    {
+                        <tr>
+                            <td>@node.Number</td>
+                            <td>
+                                <strong>@node.Name</strong>
+                            </td>
+                            <td>
+                                <code>@node.Address</code>
+                            </td>
+                            <td>
+                                <small class="text-muted">@node.NodeId</small>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<EntityClusterNode>? _nodes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNodes();
+        NodeService.NodesChanged += OnNodesChanged;
+    }
+
+    private async Task LoadNodes()
+    {
+        var nodes = await NodeService.GetNodesAsync();
+        // Sort by number for consistent display
+        _nodes = nodes.OrderBy(n => n.Number).ToList().AsReadOnly();
+    }
+
+    private async Task OnNodesChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadNodes();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        NodeService.NodesChanged -= OnNodesChanged;
+    }
+}
