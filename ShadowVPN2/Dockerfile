@@ -1,4 +1,18 @@
 ﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    libcap2-bin \
+    iproute2 \
+    iptables \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install amnezia-box (sing-box fork)
+RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/v1.13.8-awg2.0/sing-box-1.13.8-awg2.0-linux-amd64 \
+    && chmod +x /usr/local/bin/sing-box \
+    && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
+
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080

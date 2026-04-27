@@ -1,0 +1,23 @@
+services:
+  shadowvpn2:
+    build:
+      context: .
+      dockerfile: ShadowVPN2/Dockerfile
+    container_name: shadowvpn2
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - shadowvpn2-data:/app/Data
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+
+volumes:
+  shadowvpn2-data:
+    driver: local
