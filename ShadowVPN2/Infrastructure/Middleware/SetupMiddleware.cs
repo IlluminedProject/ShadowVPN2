@@ -32,11 +32,12 @@ public class SetupMiddleware
         var needsSetup = await setupService.NeedsSetupAsync();
         var isApi = path != null && path.StartsWith("/api/");
         var isSetupRoute = path == "/setup" || (path != null && path.StartsWith("/api/setup"));
+        var isStatusRoute = path != null && path.StartsWith("/api/node/status");
 
         if (needsSetup)
         {
-            // If setup is needed, block access to everything except setup routes
-            if (!isSetupRoute)
+            // If setup is needed, block access to everything except setup routes and status route
+            if (!isSetupRoute && !isStatusRoute)
             {
                 if (isApi)
                 {

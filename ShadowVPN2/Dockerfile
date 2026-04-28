@@ -37,4 +37,8 @@ COPY --from=publish /app/publish .
 # Ensure Data directory exists and has correct permissions
 RUN mkdir -p /app/Data && chown -R $APP_UID:$APP_UID /app/Data
 VOLUME ["/app/Data"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8080/api/node/status || exit 1
+
 ENTRYPOINT ["dotnet", "ShadowVPN2.dll"]

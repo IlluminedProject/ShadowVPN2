@@ -41,6 +41,8 @@ try
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddScoped<SettingsService>();
     builder.Services.AddSingleton<NodeService>();
+    builder.Services.AddSingleton<SingBoxService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
     builder.Services.AddControllers();
     builder.Services.AddSignalR();
 
