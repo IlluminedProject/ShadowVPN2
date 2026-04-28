@@ -122,7 +122,10 @@ public class SetupService(
         using var scope = serviceProvider.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var user = new ApplicationUser { UserName = request.Email, Email = request.Email };
+        var userNumber = (int)await documentStore.Maintenance.SendAsync(
+            new Raven.Client.Documents.Operations.Identities.NextIdentityForOperation("UserNumbers"));
+
+        var user = new ApplicationUser { UserName = request.Email, Email = request.Email, UserNumber = userNumber };
         var result = await userManager.CreateAsync(user, request.Password);
 
         if (!result.Succeeded)

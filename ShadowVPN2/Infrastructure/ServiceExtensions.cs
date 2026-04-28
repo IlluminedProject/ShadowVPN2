@@ -20,6 +20,7 @@ public static class ServiceExtensions
     {
         builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString()));
         builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
+        builder.Services.AddScoped<VpnClientService>();
     }
 
     public static void SetupAuthentication(this WebApplicationBuilder builder)
