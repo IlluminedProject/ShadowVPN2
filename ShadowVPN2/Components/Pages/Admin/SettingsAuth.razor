@@ -40,6 +40,14 @@
 
                         <hr />
 
+                        <div class="form-check form-switch mb-4">
+                            <input class="form-check-input" type="checkbox" role="switch" id="selfRegistrationSwitch" @bind="request.SelfRegistrationEnabled">
+                            <label class="form-check-label h5" for="selfRegistrationSwitch">Enable Self-Registration</label>
+                            <div class="form-text">Allow new users to automatically register when logging in via OAuth.</div>
+                        </div>
+
+                        <hr />
+
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" role="switch" id="oidcSwitch" @bind="request.EnableOidc">
                             <label class="form-check-label h5" for="oidcSwitch">Enable OAuth2 / OpenID Connect</label>
@@ -154,6 +162,7 @@
             var local = config.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
 
             request.EnableLocalLogin = local?.IsEnabled ?? false;
+            request.SelfRegistrationEnabled = config.SelfRegistrationEnabled;
             request.EnableOidc = oidc?.IsEnabled ?? false;
 
             if (oidc != null)

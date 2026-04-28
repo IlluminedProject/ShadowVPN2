@@ -6,5 +6,6 @@ namespace ShadowVPN2.Entities;
 public class EntityGlobalConfiguration
 {
     public string Id { get; set; } = "GlobalConfiguration";
+    public bool SelfRegistrationEnabled { get; set; } = true;
     public List<AuthProvider> Providers { get; set; } = new();
 }

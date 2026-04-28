@@ -3,6 +3,7 @@ namespace ShadowVPN2.Data;
 public class UpdateAuthSettingsRequest
 {
     public bool EnableLocalLogin { get; set; }
+    public bool SelfRegistrationEnabled { get; set; } = true;
     public bool EnableOidc { get; set; }
     public OidcAuthSettings? OidcSettings { get; set; }
 }

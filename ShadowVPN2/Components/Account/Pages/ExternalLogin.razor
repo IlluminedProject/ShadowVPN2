@@ -10,6 +10,8 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using ShadowVPN2.Data
 @using ShadowVPN2.Infrastructure.Authentication
+@using Raven.Client.Documents
+@using Raven.Client.Documents.Operations.Identities
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -17,22 +19,36 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<ExternalLogin> Logger
+@inject SettingsService SettingsService
+@inject IDocumentStore DocumentStore
 
 <PageTitle>Login</PageTitle>
 
-<StatusMessage Message="@message"/>
-<h1 class="text-center mb-4">Account Not Found</h1>
+<StatusMessage Message="@(registrationErrorMessage ?? message)"/>
 
-<div class="alert alert-warning text-center">
-    <p>You've successfully authenticated with <strong>@ProviderDisplayName</strong>.</p>
-    <p class="mb-0">However, there is no account associated with this login in our system. Self-registration is disabled. Please contact your administrator to create an account.</p>
-</div>
+@if (registrationErrorMessage != null)
+{
+    <h1 class="text-center mb-4">Registration Failed</h1>
+    <div class="alert alert-danger text-center">
+        <p>You've successfully authenticated with <strong>@ProviderDisplayName</strong>, but we couldn't create your account.</p>
+        <p class="mb-0">Please try again or contact your administrator.</p>
+    </div>
+}
+else
+{
+    <h1 class="text-center mb-4">Account Not Found</h1>
+    <div class="alert alert-warning text-center">
+        <p>You've successfully authenticated with <strong>@ProviderDisplayName</strong>.</p>
+        <p class="mb-0">However, there is no account associated with this login in our system. Self-registration is disabled. Please contact your administrator to create an account.</p>
+    </div>
+}
 
 <div class="text-center mt-4">
     <a href="Account/Login" class="btn btn-primary">Back to Login</a>
 </div>
 
 @code {
+    private string? registrationErrorMessage;
     public const string LoginCallbackAction = "LoginCallback";
 
     private string? message => RemoteError != null ? $"Error from external provider: {RemoteError}" : null;
@@ -109,6 +125,48 @@
             return;
         }
 
-        // If the user does not have an account, we simply stay on this page and show the "Account Not Found" message.
+        // If the user does not have an account, check if self-registration is enabled.
+        var config = await SettingsService.GetConfigurationAsync();
+        if (config.SelfRegistrationEnabled)
+        {
+            var email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
+            if (string.IsNullOrEmpty(email))
+            {
+                RedirectManager.RedirectToWithStatus("Account/Login", "Error: External provider did not provide an email address.", HttpContext);
+                return;
+            }
+
+            var userNumber = (int)await DocumentStore.Maintenance.SendAsync(
+                new NextIdentityForOperation("UserNumbers"));
+
+            var user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                UserNumber = userNumber
+            };
+
+            var createResult = await UserManager.CreateAsync(user);
+            if (createResult.Succeeded)
+            {
+                await UserManager.AddToRoleAsync(user, AppRoles.User);
+
+                createResult = await UserManager.AddLoginAsync(user, externalLoginInfo);
+                if (createResult.Succeeded)
+                {
+                    Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
+
+                    await SignInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
+                    RedirectManager.RedirectTo(ReturnUrl);
+                    return;
+                }
+            }
+
+            registrationErrorMessage = $"Error creating account: {string.Join(", ", createResult.Errors.Select(e => e.Description))}";
+            return;
+        }
+
+        // If the user does not have an account and registration is disabled, we simply stay on this page and show the "Account Not Found" message.
     }
 }

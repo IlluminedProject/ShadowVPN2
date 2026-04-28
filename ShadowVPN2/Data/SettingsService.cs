@@ -56,6 +56,8 @@ public class SettingsService(
             await session.StoreAsync(globalConfig);
         }
 
+        globalConfig.SelfRegistrationEnabled = request.SelfRegistrationEnabled;
+
         // 1. Handle Local Auth
         var local = globalConfig.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
         if (local == null)
