@@ -21,6 +21,10 @@ try
     Log.Information("Starting web application");
     var builder = WebApplication.CreateBuilder(args);
 
+    // Override the Serilog path to ensure logs are stored in the correct data directory
+    // (e.g. /app-data/logs in Docker, or data/logs locally) instead of polluting the project root.
+    builder.Configuration["Serilog:WriteTo:1:Args:path"] = (DataUtils.DataFolder / "logs" / "log-.txt").ToString();
+
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)

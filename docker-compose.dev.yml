@@ -10,13 +10,12 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     volumes:
-      - shadowvpn2-data:/app/Data
+      - shadowvpn2-data:/data
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "7241:7241"
+      - "5172:5172"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_HTTP_PORTS=8080
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/node/status"]
       interval: 30s

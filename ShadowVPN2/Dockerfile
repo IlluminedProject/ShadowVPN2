@@ -13,10 +13,13 @@ RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/rele
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
+# Ensure Data directory exists and has correct permissions for volumes
+RUN mkdir -p /data && chown -R $APP_UID:$APP_UID /data
+
 USER $APP_UID
 WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
+EXPOSE 5172
+EXPOSE 7241
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -34,9 +37,8 @@ RUN dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-# Ensure Data directory exists and has correct permissions
-RUN mkdir -p /app/Data && chown -R $APP_UID:$APP_UID /app/Data
-VOLUME ["/app/Data"]
+ENV SHADOWVPN_DATA_DIR=/data
+VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:8080/api/node/status || exit 1
