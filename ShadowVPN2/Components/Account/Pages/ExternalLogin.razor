@@ -125,17 +125,34 @@ else
             return;
         }
 
+        var email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrEmpty(email))
+        {
+            RedirectManager.RedirectToWithStatus("Account/Login", "Error: External provider did not provide an email address.", HttpContext);
+            return;
+        }
+
+        var existingUser = await UserManager.FindByEmailAsync(email);
+        if (existingUser != null)
+        {
+            var loginInfo = new UserLoginInfo(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey, externalLoginInfo.ProviderDisplayName);
+            var addLoginResult = await UserManager.AddLoginAsync(existingUser, loginInfo);
+            if (addLoginResult.Succeeded)
+            {
+                Logger.LogInformation("Linked {LoginProvider} login to existing user {Email}", externalLoginInfo.LoginProvider, email);
+                await SignInManager.SignInAsync(existingUser, isPersistent: false, externalLoginInfo.LoginProvider);
+                RedirectManager.RedirectTo(ReturnUrl);
+                return;
+            }
+
+            registrationErrorMessage = $"Error linking external login: {string.Join(", ", addLoginResult.Errors.Select(e => e.Description))}";
+            return;
+        }
+
         // If the user does not have an account, check if self-registration is enabled.
         var config = await SettingsService.GetConfigurationAsync();
         if (config.SelfRegistrationEnabled)
         {
-            var email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
-            if (string.IsNullOrEmpty(email))
-            {
-                RedirectManager.RedirectToWithStatus("Account/Login", "Error: External provider did not provide an email address.", HttpContext);
-                return;
-            }
-
             var userNumber = (int)await DocumentStore.Maintenance.SendAsync(
                 new NextIdentityForOperation("UserNumbers"));
 
@@ -156,7 +173,7 @@ else
                 createResult = await UserManager.AddLoginAsync(user, loginInfo);
                 if (createResult.Succeeded)
                 {
-                    Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
+                    Logger.LogInformation("User created an account using {Name} provider", externalLoginInfo.LoginProvider);
 
                     await SignInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
                     RedirectManager.RedirectTo(ReturnUrl);
