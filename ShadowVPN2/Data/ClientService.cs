@@ -46,15 +46,40 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             throw new InvalidOperationException($"User {user.Id} has no UserNumber assigned");
 
         using var session = documentStore.OpenAsyncSession();
+
+        var existingClients = await session.Advanced.LoadStartingWithAsync<EntityClient>(
+            $"Clients/{user.UserNumber}/", null, 0, int.MaxValue, null, null, ct);
+
+        var usedNumbers = existingClients
+            .Select(c => c.Id.Split('/'))
+            .Where(parts => parts.Length == 3)
+            .Select(parts => int.TryParse(parts[2], out var n) ? n : 0)
+            .Where(n => n > 0)
+            .ToHashSet();
+
+        var nextNumber = 1;
+        while (usedNumbers.Contains(nextNumber))
+        {
+            nextNumber++;
+        }
+
+        if (nextNumber > 254)
+        {
+            throw new InvalidOperationException("Maximum number of clients (254) reached for this user.");
+        }
+
+        var clientId = $"Clients/{user.UserNumber}/{nextNumber}";
+
         var client = new EntityClient
         {
-            Id = $"Clients/{user.UserNumber}|",
+            Id = clientId,
             UserId = user.Id!,
             Name = name,
             WireGuard = wireGuard,
         };
 
-        await session.StoreAsync(client, ct);
+        // Pass string.Empty as change vector to assert the document does not exist
+        await session.StoreAsync(client, string.Empty, clientId, ct);
         await session.SaveChangesAsync(ct);
 
         logger.LogInformation("Client {ClientId} created for user {UserId}", client.Id, user.Id);
