@@ -18,8 +18,7 @@ RUN mkdir -p /data && chown -R $APP_UID:$APP_UID /data
 
 USER $APP_UID
 WORKDIR /app
-EXPOSE 5172
-EXPOSE 7241
+EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release

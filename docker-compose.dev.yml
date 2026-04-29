@@ -12,8 +12,7 @@ services:
     volumes:
       - shadowvpn2-data:/data
     ports:
-      - "7241:7241"
-      - "5172:5172"
+      - "5172:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
     healthcheck:
