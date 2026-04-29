@@ -2,7 +2,7 @@ using System.Net;
 
 namespace ShadowVPN2.Entities.Proxy;
 
-public class EntityVpnClient
+public class EntityClient
 {
     public string Id { get; set; } = null!;
 
@@ -17,7 +17,7 @@ public class EntityVpnClient
     public WireGuardClientSettings? WireGuard { get; set; }
 
     /// <summary>
-    /// IP is computed from the Id: VpnClients/{userNumber}/{clientNumber} → 100.64.userNumber.clientNumber
+    /// IP is computed from the Id: Clients/{userNumber}/{clientNumber} → 100.64.userNumber.clientNumber
     /// </summary>
     public IPAddress GetAssignedIp()
     {

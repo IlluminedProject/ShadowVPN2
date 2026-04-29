@@ -2,7 +2,7 @@ using System.Net;
 
 namespace ShadowVPN2.Data;
 
-public class VpnClientResponse
+public class ClientResponse
 {
     public required string Id { get; set; }
     public required string Name { get; set; }

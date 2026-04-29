@@ -75,6 +75,7 @@ try
     app.MapStaticAssets();
     app.MapControllers();
     app.MapHub<ShadowVPN2.Hubs.NodeHub>("/api/node/hub");
+    app.MapHub<ShadowVPN2.Hubs.ClientHub>("/api/client/hub");
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();

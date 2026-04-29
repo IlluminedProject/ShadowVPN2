@@ -1,0 +1,230 @@
+@page "/clients/settings/{*ClientId}"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using ShadowVPN2.Data
+@using ShadowVPN2.Entities.Proxy
+@using ShadowVPN2.Infrastructure.Authentication
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ClientService ClientService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Client Settings - @(client?.Name ?? "Loading...")</PageTitle>
+
+<div class="mb-3">
+    <a href="/clients" class="btn btn-link ps-0">
+        <span class="bi bi-arrow-left" aria-hidden="true"></span> Back to Clients
+    </a>
+</div>
+
+@if (client is null)
+{
+    @if (notFound)
+    {
+        <div class="alert alert-danger">
+            Client not found or you don't have permission to access it.
+        </div>
+    }
+    else
+    {
+        <p><em>Loading...</em></p>
+    }
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h3 class="card-title mb-0">Client Settings</h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(statusMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            @statusMessage
+                            <button type="button" class="btn-close" @onclick="() => statusMessage = null" aria-label="Close"></button>
+                        </div>
+                    }
+
+                    <EditForm Model="Input" OnValidSubmit="SaveSettings">
+                        <DataAnnotationsValidator/>
+                        <ValidationSummary class="text-danger" role="alert"/>
+
+                        <div class="mb-4">
+                            <label for="name" class="form-label fw-bold">Device Name</label>
+                            <InputText @bind-Value="Input.Name" id="name" class="form-control" placeholder="e.g., My iPhone"/>
+                            <ValidationMessage For="() => Input.Name" class="text-danger"/>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <InputCheckbox @bind-Value="Input.IsEnabled" id="isEnabled" class="form-check-input"/>
+                                <label class="form-check-label fw-bold" for="isEnabled">Enable Client</label>
+                            </div>
+                            <div class="form-text">When disabled, this client will not be able to connect to the VPN.</div>
+                        </div>
+
+                        <hr class="my-4"/>
+                        <h5 class="mb-3">Advanced Settings</h5>
+
+                        <div class="mb-4">
+                            <label for="mtu" class="form-label">WireGuard MTU Override</label>
+                            <InputNumber @bind-Value="Input.WireGuardMtu" id="mtu" class="form-control" placeholder="1420"/>
+                            <div class="form-text">Leave empty to use the default MTU (usually 1420). Range: 576-9000.</div>
+                            <ValidationMessage For="() => Input.WireGuardMtu" class="text-danger"/>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary px-4" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <span>Save Changes</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+
+            <div class="card mt-4 border-danger">
+                <div class="card-body">
+                    <h5 class="text-danger mb-3">Danger Zone</h5>
+                    <p>Deleting this client will immediately revoke its access and remove its configuration.</p>
+                    <button class="btn btn-outline-danger" @onclick="DeleteClient">Delete Client</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-info mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><span class="bi bi-info-circle me-2"></span>Client Info</h5>
+                    <dl class="mb-0">
+                        <dt class="small text-muted">ID</dt>
+                        <dd class="text-truncate" title="@client.Id"><code>@client.Id</code></dd>
+
+                        <dt class="small text-muted mt-2">Assigned IP</dt>
+                        <dd><code>@client.GetAssignedIp()</code></dd>
+
+                        <dt class="small text-muted mt-2">Created</dt>
+                        <dd>@client.CreatedAt.LocalDateTime.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? ClientId { get; set; }
+
+    private ApplicationUser? user;
+    private EntityClient? client;
+    private bool notFound;
+    private string? statusMessage;
+    private bool isSaving;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateTask;
+        user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null)
+        {
+            NavigationManager.NavigateTo("Account/Login");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(ClientId))
+        {
+            notFound = true;
+            return;
+        }
+
+        client = await ClientService.GetClientAsync(Uri.UnescapeDataString(ClientId), user.Id!);
+
+        if (client is null)
+        {
+            notFound = true;
+        }
+        else
+        {
+            Input = new InputModel
+            {
+                Name = client.Name,
+                IsEnabled = client.IsEnabled,
+                WireGuardMtu = client.WireGuard?.Mtu
+            };
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        if (user is null || client is null) return;
+
+        isSaving = true;
+        statusMessage = null;
+
+        WireGuardClientSettings? wg = Input.WireGuardMtu.HasValue
+            ? new WireGuardClientSettings { Mtu = Input.WireGuardMtu.Value }
+            : null;
+
+        var updated = await ClientService.UpdateClientAsync(client.Id, user.Id!, Input.Name, Input.IsEnabled, wg);
+
+        if (updated is not null)
+        {
+            client = updated;
+            statusMessage = "Settings saved successfully.";
+        }
+        else
+        {
+            statusMessage = "Error saving settings.";
+        }
+
+        isSaving = false;
+    }
+
+    private async Task DeleteClient()
+    {
+        if (user is null || client is null) return;
+
+        // In a real app, we might want a confirmation modal here too,
+        // but for settings page it's okay to just redirect back to index where they can delete with confirmation
+        // OR we just do it here since it's a dedicated settings page.
+
+        // For now, let's just go back to the index page and let them delete from there if they want confirmation
+        // Or since we already have a Delete button in Index, we can just delete and redirect.
+
+        await ClientService.DeleteClientAsync(client.Id, user.Id!);
+        NavigationManager.NavigateTo("/clients");
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [StringLength(100, MinimumLength = 1)]
+        [Display(Name = "Device name")]
+        public string Name { get; set; } = string.Empty;
+
+        public bool IsEnabled { get; set; } = true;
+
+        [Range(576, 9000)]
+        [Display(Name = "WireGuard MTU")]
+        public int? WireGuardMtu { get; set; }
+    }
+}

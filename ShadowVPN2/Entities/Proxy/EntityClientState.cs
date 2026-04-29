@@ -1,11 +1,11 @@
 namespace ShadowVPN2.Entities.Proxy;
 
-public class EntityVpnClientState
+public class EntityClientState
 {
-    // Id mirrors the client: VpnClientStates/{userNumber}/{clientNumber}
+    // Id mirrors the client: ClientStates/{userNumber}/{clientNumber}
     public string Id { get; set; } = null!;
 
-    // Reference to EntityVpnClient document
+    // Reference to EntityClient document
     public string ClientId { get; set; } = null!;
 
     public bool IsOnline { get; set; }

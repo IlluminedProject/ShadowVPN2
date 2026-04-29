@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ShadowVPN2.Data;
 
-public class CreateVpnClientRequest
+public class CreateClientRequest
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]
@@ -11,11 +11,13 @@ public class CreateVpnClientRequest
     public WireGuardClientSettingsRequest? WireGuard { get; set; }
 }
 
-public class UpdateVpnClientRequest
+public class UpdateClientRequest
 {
     [Required]
     [StringLength(100, MinimumLength = 1)]
     public required string Name { get; set; }
+
+    public bool IsEnabled { get; set; } = true;
 
     public WireGuardClientSettingsRequest? WireGuard { get; set; }
 }

@@ -1,0 +1,251 @@
+@page "/clients"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using ShadowVPN2.Data
+@using ShadowVPN2.Entities.Proxy
+@using ShadowVPN2.Infrastructure.Authentication
+@using RandomFriendlyNameGenerator
+
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+@implements IDisposable
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ClientService ClientService
+@inject NavigationManager NavigationManager
+
+<PageTitle>VPN Clients</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>VPN Clients</h3>
+    <button class="btn btn-primary" @onclick="ShowCreateModal">
+        <span class="bi bi-plus-lg" aria-hidden="true"></span> New Client
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null" aria-label="Close"></button>
+    </div>
+}
+
+@if (clients is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (clients.Count > 0)
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-end">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var client in clients)
+            {
+                <tr>
+                    <td><strong>@client.Name</strong></td>
+                    <td><code>@client.GetAssignedIp()</code></td>
+                    <td>
+                        @if (client.IsEnabled)
+                        {
+                            <span class="badge bg-success">Enabled</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Disabled</span>
+                        }
+                    </td>
+                    <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                            <a href="/clients/settings/@(Uri.EscapeDataString(client.Id))" class="btn btn-outline-primary" title="Settings">
+                                <span class="bi bi-gear" aria-hidden="true"></span>
+                            </a>
+                            <button class="btn btn-outline-danger" @onclick="() => ConfirmDelete(client)" title="Delete this client">
+                                <span class="bi bi-trash" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="card bg-light">
+        <div class="card-body text-center py-5">
+            <h4 class="text-muted">No VPN clients configured yet</h4>
+            <p class="mb-4">Create your first client to start using the VPN.</p>
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                Create First Client
+            </button>
+        </div>
+    </div>
+}
+
+@if (showCreateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Client</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <EditForm Model="Input" OnValidSubmit="AddClient">
+                    <div class="modal-body">
+                        <DataAnnotationsValidator/>
+                        <ValidationSummary class="text-danger" role="alert"/>
+
+                        <div class="mb-3">
+                            <label for="clientName" class="form-label">Device name</label>
+                            <div class="input-group">
+                                <InputText @bind-Value="Input.Name" id="clientName" class="form-control" placeholder="@namePlaceholder"/>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="GenerateRandomName" title="Generate random name">
+                                    <span class="bi bi-shuffle" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                            <div class="form-text">Choose a name to identify this device. Leave empty to use the suggested name.</div>
+                            <ValidationMessage For="() => Input.Name" class="text-danger"/>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseCreateModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Client</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@if (clientToDelete is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content text-danger border-danger">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title">Delete Client</h5>
+                    <button type="button" class="btn-close" @onclick="() => clientToDelete = null"></button>
+                </div>
+                <div class="modal-body text-dark">
+                    Are you sure you want to delete client <strong>@clientToDelete.Name</strong>? This action cannot be undone.
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-secondary" @onclick="() => clientToDelete = null">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteClient">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ApplicationUser? user;
+    private IReadOnlyList<EntityClient>? clients;
+    private string? statusMessage;
+    private bool showCreateModal;
+    private EntityClient? clientToDelete;
+    private ClientService.ClientSubscription? subscription;
+    private string namePlaceholder = "random-client";
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateTask;
+        user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null)
+        {
+            NavigationManager.NavigateTo("Account/Login");
+            return;
+        }
+
+        subscription = await ClientService.SubscribeAsync(user, async updatedClients =>
+        {
+            clients = updatedClients;
+            await InvokeAsync(StateHasChanged);
+        });
+
+        await LoadClients();
+    }
+
+    private async Task LoadClients()
+    {
+        if (user is not null)
+        {
+            clients = await ClientService.GetClientsAsync(user);
+        }
+    }
+
+    private void ShowCreateModal()
+    {
+        Input = new();
+        GenerateRandomName();
+        showCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        showCreateModal = false;
+    }
+
+    private void GenerateRandomName()
+    {
+        namePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
+    }
+
+    private async Task AddClient()
+    {
+        if (user is null) return;
+
+        var name = string.IsNullOrWhiteSpace(Input.Name) ? namePlaceholder : Input.Name;
+        await ClientService.AddClientAsync(user, name);
+        statusMessage = "Client added successfully.";
+        showCreateModal = false;
+        // No need to call LoadClients here as the subscription will trigger it
+    }
+
+    private void ConfirmDelete(EntityClient client)
+    {
+        clientToDelete = client;
+    }
+
+    private async Task DeleteClient()
+    {
+        if (user is null || clientToDelete is null) return;
+
+        await ClientService.DeleteClientAsync(clientToDelete.Id, user.Id!);
+        statusMessage = $"Client '{clientToDelete.Name}' deleted.";
+        clientToDelete = null;
+        // No need to call LoadClients here as the subscription will trigger it
+    }
+
+    public void Dispose()
+    {
+        subscription?.Dispose();
+    }
+
+    private sealed class InputModel
+    {
+        [StringLength(100)]
+        [Display(Name = "Device name")]
+        public string Name { get; set; } = string.Empty;
+    }
+}
