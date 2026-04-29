@@ -197,7 +197,7 @@ else
     private void ShowCreateModal()
     {
         Input = new();
-        GenerateRandomName();
+        namePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
         showCreateModal = true;
     }
 
@@ -208,7 +208,7 @@ else
 
     private void GenerateRandomName()
     {
-        namePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
+        Input.Name = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
     }
 
     private async Task AddClient()
