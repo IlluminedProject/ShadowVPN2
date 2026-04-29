@@ -80,6 +80,12 @@
                                 </div>
 
                                 <div class="mb-3">
+                                    <label class="form-label">Scopes</label>
+                                    <input type="text" class="form-control" @bind="request.OidcSettings!.Scopes" placeholder="openid email profile" />
+                                    <div class="form-text">Space-separated scopes to request.</div>
+                                </div>
+
+                                <div class="mb-3">
                                     <label class="form-label">Redirect URI</label>
                                     <div class="input-group">
                                         <input type="text" class="form-control bg-light" value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly />
@@ -172,7 +178,8 @@
                     DisplayName = oidc.DisplayName,
                     Authority = oidc.Authority,
                     ClientId = oidc.ClientId,
-                    ClientSecret = oidc.ClientSecret
+                    ClientSecret = oidc.ClientSecret,
+                    Scopes = oidc.Scopes
                 };
             }
         }

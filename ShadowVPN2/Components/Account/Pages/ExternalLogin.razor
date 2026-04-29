@@ -152,7 +152,8 @@ else
             {
                 await UserManager.AddToRoleAsync(user, AppRoles.User);
 
-                createResult = await UserManager.AddLoginAsync(user, externalLoginInfo);
+                var loginInfo = new UserLoginInfo(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey, externalLoginInfo.ProviderDisplayName);
+                createResult = await UserManager.AddLoginAsync(user, loginInfo);
                 if (createResult.Succeeded)
                 {
                     Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);

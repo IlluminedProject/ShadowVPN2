@@ -85,6 +85,7 @@ public class SettingsService(
             current.Authority = request.OidcSettings.Authority;
             current.ClientId = request.OidcSettings.ClientId;
             current.ClientSecret = request.OidcSettings.ClientSecret;
+            current.Scopes = request.OidcSettings.Scopes;
             current.IsEnabled = true;
 
             await authManager.AddOrUpdateOidcProviderAsync(current);

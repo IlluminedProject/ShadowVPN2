@@ -41,6 +41,13 @@ public class DynamicAuthenticationManager
             CallbackPath = $"/signin-{schemeName}",
         };
 
+        options.Scope.Clear();
+        var scopes = dbProvider.Scopes?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? ["openid", "email", "profile"];
+        foreach (var scope in scopes)
+        {
+            options.Scope.Add(scope);
+        }
+
         // 2. Run post-configurers (this sets up NonceCookie, CorrelationCookie, DataProtection, etc.)
         foreach (var postConfigurer in _oidcPostConfigurers)
         {
