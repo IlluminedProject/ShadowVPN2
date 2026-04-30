@@ -1,15 +1,18 @@
 using Raven.Client.Documents;
+using Raven.Client.Documents.Conventions;
 using Raven.Embedded;
 using Serilog;
+using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
+using ILogger = Serilog.ILogger;
 
 namespace ShadowVPN2.Data;
 
 public class RavenDbInitializer
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext<RavenDbInitializer>();
-    
     public const string DatabaseName = "ShadowVPN";
+    private static readonly ILogger Logger = Log.ForContext<RavenDbInitializer>();
+
     public static IDocumentStore Initialize(string certificatePath)
     {
         var serverOptions = new ServerOptions
@@ -19,12 +22,21 @@ public class RavenDbInitializer
         };
 
         serverOptions.Secured(certificatePath);
-        
-        Logger.Information("Starting RavenDB server at {ServerUrl}. Data: {DataDirectory}", serverOptions.ServerUrl, serverOptions.DataDirectory);
+
+        Logger.Information("Starting RavenDB server at {ServerUrl}. Data: {DataDirectory}", serverOptions.ServerUrl,
+            serverOptions.DataDirectory);
         EmbeddedServer.Instance.StartServer(serverOptions);
 
         Logger.Information("RavenDB server started successfully");
-        var documentStore = EmbeddedServer.Instance.GetDocumentStore(DatabaseName);
+        var databaseOptions = new DatabaseOptions(DatabaseName)
+        {
+            Conventions = new DocumentConventions
+            {
+                FindCollectionName = type => typeof(ProtocolGlobalSettings).IsAssignableFrom(type) ? "Protocols" : null
+            }
+        };
+        var documentStore = EmbeddedServer.Instance.GetDocumentStore(databaseOptions);
+
         Logger.Information("Connecting to RavenDB server");
         return documentStore;
     }

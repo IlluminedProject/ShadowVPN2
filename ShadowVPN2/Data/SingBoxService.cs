@@ -1,5 +1,15 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Raven.Client.Documents;
+using Raven.Client.Documents.Changes;
+using ShadowVPN2.Data.Protocols;
+using ShadowVPN2.Data.SingBox;
+using ShadowVPN2.Data.SingBox.Models;
+using ShadowVPN2.Entities;
+using ShadowVPN2.Entities.Proxy;
 using ShadowVPN2.Infrastructure;
+using ShadowVPN2.Infrastructure.Authentication;
 using TruePath;
 using TruePath.SystemIo;
 
@@ -7,23 +17,42 @@ namespace ShadowVPN2.Data;
 
 public class SingBoxService : BackgroundService
 {
-    private readonly ILogger<SingBoxService> _logger;
-    private readonly IConfiguration _configuration;
-    private Process? _process;
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private bool _isManualRestart = false;
-
-    private string BinaryPath => _configuration["SingBox:BinaryPath"] ?? "sing-box";
     private static readonly AbsolutePath ConfigDir = DataUtils.DataFolder / "sing-box";
     private static readonly AbsolutePath ConfigPath = ConfigDir / "config.json";
 
-    public bool IsRunning { get; private set; }
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
 
-    public SingBoxService(ILogger<SingBoxService> logger, IConfiguration configuration)
+    private readonly IConfiguration _configuration;
+    private readonly IEnumerable<ISingBoxConfigContributor> _contributors;
+    private readonly IDocumentStore _documentStore;
+    private readonly ILogger<SingBoxService> _logger;
+    private readonly ProtocolSettingsService _protocolSettingsService;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private bool _isManualRestart = false;
+    private Process? _process;
+
+    public SingBoxService(
+        ILogger<SingBoxService> logger,
+        IConfiguration configuration,
+        IDocumentStore documentStore,
+        IEnumerable<ISingBoxConfigContributor> contributors,
+        ProtocolSettingsService protocolSettingsService)
     {
         _logger = logger;
         _configuration = configuration;
+        _documentStore = documentStore;
+        _contributors = contributors;
+        _protocolSettingsService = protocolSettingsService;
     }
+
+    private string BinaryPath => _configuration["SingBox:BinaryPath"] ?? "sing-box";
+
+    public bool IsRunning { get; private set; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -41,12 +70,33 @@ public class SingBoxService : BackgroundService
             ConfigDir.CreateDirectory();
         }
 
-        if (!ConfigPath.ExistsFile())
+        // Initial config generation
+        try
         {
-            _logger.LogInformation("sing-box config not found, generating minimal default config");
-            const string minimalConfig = "{\"log\":{\"level\":\"info\"},\"outbounds\":[{\"type\":\"direct\",\"tag\":\"direct\"}]}";
-            await ConfigPath.WriteAllTextAsync(minimalConfig, cancellationToken: stoppingToken);
+            await RegenerateAndApplyConfigAsync(stoppingToken);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform initial sing-box configuration");
+        }
+
+        // Subscribe to changes
+        using var protocolsSubscription = _documentStore.Changes()
+            .ForDocumentsInCollection<ProtocolGlobalSettings>()
+            .Subscribe(new ActionObserver<DocumentChange>(change =>
+            {
+                _logger.LogInformation("Global protocols configuration changed ({Id}), regenerating sing-box config",
+                    change.Id);
+                _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
+            }));
+
+        using var clientsSubscription = _documentStore.Changes()
+            .ForDocumentsInCollection<EntityClient>()
+            .Subscribe(new ActionObserver<DocumentChange>(change =>
+            {
+                _logger.LogInformation("Clients collection changed, regenerating sing-box config");
+                _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
+            }));
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -59,6 +109,7 @@ public class SingBoxService : BackgroundService
                 {
                     StartProcessInternal(binaryPath);
                 }
+
                 currentProcess = _process;
             }
             catch (Exception ex)
@@ -94,9 +145,31 @@ public class SingBoxService : BackgroundService
             else
             {
                 _logger.LogWarning("sing-box process exited unexpectedly. Restarting in 3 seconds...");
-                try { await Task.Delay(3000, stoppingToken); } catch { }
+                try
+                {
+                    await Task.Delay(3000, stoppingToken);
+                }
+                catch
+                {
+                }
             }
         }
+    }
+
+    public async Task RegenerateAndApplyConfigAsync(CancellationToken ct)
+    {
+        _logger.LogInformation("Regenerating sing-box configuration");
+
+        var protocols = await _protocolSettingsService.GetConfigurationAsync();
+
+        using var session = _documentStore.OpenAsyncSession();
+        var clients = await session.Query<EntityClient>().ToListAsync(ct);
+
+        var config = new SingBoxConfig();
+        foreach (var contributor in _contributors) await contributor.ContributeAsync(config, protocols, clients);
+
+        var configJson = JsonSerializer.Serialize(config, SerializerOptions);
+        await ApplyConfigAsync(configJson);
     }
 
     public async Task ApplyConfigAsync(string configJson)
@@ -139,6 +212,7 @@ public class SingBoxService : BackgroundService
                 {
                     File.Delete(tempConfigPath.Value);
                 }
+
                 throw new InvalidOperationException($"sing-box config validation failed: {stderr} {stdout}");
             }
 

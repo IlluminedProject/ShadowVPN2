@@ -13,6 +13,9 @@ public static class ClientMapper
         CreatedAt = client.CreatedAt,
         WireGuard = client.WireGuard is not null
             ? new WireGuardClientSettingsResponse { Mtu = client.WireGuard.Mtu }
+            : null,
+        Hysteria2 = client.Hysteria2 is not null
+            ? new Hysteria2ClientSettingsResponse { Password = client.Hysteria2.Password }
             : null
     };
 }

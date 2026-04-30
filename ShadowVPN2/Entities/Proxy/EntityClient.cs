@@ -15,6 +15,7 @@ public class EntityClient
 
     // Protocol-specific overrides (null = use cluster defaults)
     public WireGuardClientSettings? WireGuard { get; set; }
+    public Hysteria2ClientSettings? Hysteria2 { get; set; }
 
     /// <summary>
     /// IP is computed from the Id: Clients/{userNumber}/{clientNumber} → 100.64.userNumber.clientNumber

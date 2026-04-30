@@ -2,11 +2,12 @@
 @using ShadowVPN2.Data
 @using ShadowVPN2.Entities.Auth
 @using ShadowVPN2.Infrastructure.Authentication
-@attribute [Authorize(Policy = AppPermissions.Settings.Manage)]
+@attribute [Authorize(Policy = AppPermissions.Settings.View)]
 @rendermode InteractiveServer
 @inject SettingsService SettingsService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
+@inject IAuthorizationService AuthorizationService
 
 <div class="container-fluid">
     <div class="row">
@@ -14,11 +15,21 @@
             <div class="list-group">
                 <NavLink href="/admin/settings" class="list-group-item list-group-item-action" Match="NavLinkMatch.All">General</NavLink>
                 <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action active">Authorization</NavLink>
+                <NavLink href="/admin/settings/protocols" class="list-group-item list-group-item-action">Protocols
+                </NavLink>
             </div>
         </div>
         <div class="col-md-9">
             <h3>Authorization Settings</h3>
             <p class="text-muted">Configure how users authenticate with the system.</p>
+
+            @if (!canManage && !isLoading)
+            {
+                <div class="alert alert-warning py-2 mb-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    You have read-only access to these settings.
+                </div>
+            }
 
             @if (isLoading)
             {
@@ -30,98 +41,121 @@
             }
             else
             {
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="form-check form-switch mb-4">
-                            <input class="form-check-input" type="checkbox" role="switch" id="localLoginSwitch" @bind="request.EnableLocalLogin">
-                            <label class="form-check-label h5" for="localLoginSwitch">Enable Local Login</label>
-                            <div class="form-text">Users can log in with their email and password stored in the local database.</div>
-                        </div>
-
-                        <hr />
-
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" role="switch" id="oidcSwitch" @bind="request.EnableOidc">
-                            <label class="form-check-label h5" for="oidcSwitch">Enable OAuth2 / OpenID Connect</label>
-                            <div class="form-text">Allow users to log in using an external identity provider.</div>
-                        </div>
-
-                        @if (request.EnableOidc)
-                        {
-                            <div class="ms-4 p-3 border-start">
-                                <div class="mb-3">
-                                    <label class="form-label">Display Name</label>
-                                    <input type="text" class="form-control" @bind="request.OidcSettings!.DisplayName" placeholder="e.g. Corporate Login" />
-                                    <div class="form-text">The name displayed on the login button.</div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">OpenID Configuration Issuer URL</label>
-                                    <input type="url" class="form-control" @bind="request.OidcSettings!.Authority" placeholder="e.g. https://accounts.google.com" />
-                                    <div class="form-text">The base issuer URL. The discovery document will be fetched from <code>/.well-known/openid-configuration</code>.</div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Client ID</label>
-                                    <input type="text" class="form-control" @bind="request.OidcSettings!.ClientId" />
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Client Secret</label>
-                                    <input type="password" class="form-control" @bind="request.OidcSettings!.ClientSecret" />
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Scopes</label>
-                                    <input type="text" class="form-control" @bind="request.OidcSettings!.Scopes" placeholder="openid email profile" />
-                                    <div class="form-text">Space-separated scopes to request.</div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Redirect URI</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control bg-light" value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly />
-                                        <button class="btn btn-outline-secondary" type="button" @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
-                                            <i class="bi bi-clipboard"></i>
-                                        </button>
-                                    </div>
-                                    <div class="form-text">Configure this URL in your identity provider's allowed redirect URIs.</div>
-                                </div>
-
-                                <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" role="switch"
-                                           id="selfRegistrationSwitch" @bind="request.SelfRegistrationEnabled">
-                                    <label class="form-check-label" for="selfRegistrationSwitch">Enable
-                                        Self-Registration</label>
-                                    <div class="form-text">Allow new users to automatically register when logging in via
-                                        OAuth.
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <button class="btn btn-outline-info" type="button" @onclick="TestConnection" disabled="@isTesting">
-                                        @if (isTesting)
-                                        {
-                                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                            <span> Testing...</span>
-                                        }
-                                        else
-                                        {
-                                            <span>Test Provider Configuration</span>
-                                        }
-                                    </button>
-
-                                    @if (!string.IsNullOrEmpty(testMessage))
-                                    {
-                                        <div class="mt-2 small text-@(testSuccess ? "success" : "danger")">
-                                            @((MarkupString)testMessage)
-                                        </div>
-                                    }
+                <fieldset disabled="@(!canManage)">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" role="switch" id="localLoginSwitch"
+                                       @bind="request.EnableLocalLogin">
+                                <label class="form-check-label h5" for="localLoginSwitch">Enable Local Login</label>
+                                <div class="form-text">Users can log in with their email and password stored in the
+                                    local database.
                                 </div>
                             </div>
-                        }
+
+                            <hr/>
+
+                            <div class="form-check form-switch mb-4">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                       id="selfRegistrationSwitch" @bind="request.SelfRegistrationEnabled">
+                                <label class="form-check-label h5" for="selfRegistrationSwitch">Enable
+                                    Self-Registration</label>
+                                <div class="form-text">Allow new users to automatically register when logging in via
+                                    OAuth.
+                                </div>
+                            </div>
+
+                            @if (request.EnableOidc)
+                            {
+                                <div class="ms-4 p-3 border-start">
+                                    <div class="mb-3">
+                                        <label class="form-label">Display Name</label>
+                                        <input type="text" class="form-control"
+                                               @bind="request.OidcSettings!.DisplayName"
+                                               placeholder="e.g. Corporate Login"/>
+                                        <div class="form-text">The name displayed on the login button.</div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">OpenID Configuration Issuer URL</label>
+                                        <input type="url" class="form-control" @bind="request.OidcSettings!.Authority"
+                                               placeholder="e.g. https://accounts.google.com"/>
+                                        <div class="form-text">The base issuer URL. The discovery document will be
+                                            fetched from <code>/.well-known/openid-configuration</code>.
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Client ID</label>
+                                        <input type="text" class="form-control" @bind="request.OidcSettings!.ClientId"/>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Client Secret</label>
+                                        <input type="password" class="form-control"
+                                               @bind="request.OidcSettings!.ClientSecret"/>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Scopes</label>
+                                        <input type="text" class="form-control" @bind="request.OidcSettings!.Scopes"
+                                               placeholder="openid email profile"/>
+                                        <div class="form-text">Space-separated scopes to request.</div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Redirect URI</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control bg-light"
+                                                   value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")"
+                                                   readonly/>
+                                            <button class="btn btn-outline-secondary" type="button"
+                                                    @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
+                                        </div>
+                                        <div class="form-text">Configure this URL in your identity provider's allowed
+                                            redirect URIs.
+                                        </div>
+                                    </div>
+
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="oidcSwitch"
+                                               @bind="request.EnableOidc">
+                                        <label class="form-check-label h5" for="oidcSwitch">Enable OAuth2 / OpenID
+                                            Connect</label>
+                                        <div class="form-text">Allow users to log in using an external identity
+                                            provider.
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <button class="btn btn-outline-info" type="button" @onclick="TestConnection"
+                                                disabled="@isTesting">
+                                            @if (isTesting)
+                                            {
+                                                <span class="spinner-border spinner-border-sm" role="status"
+                                                      aria-hidden="true"></span>
+                                                <span> Testing...</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Test Provider Configuration</span>
+                                            }
+                                        </button>
+
+                                        @if (!string.IsNullOrEmpty(testMessage))
+                                        {
+                                            <div class="mt-2 small text-@(testSuccess ? "success" : "danger")">
+                                                @((MarkupString)testMessage)
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
                     </div>
-                </div>
+                </fieldset>
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
@@ -133,15 +167,18 @@
                     <div class="alert alert-success">@successMessage</div>
                 }
 
-                <div class="d-flex justify-content-end">
-                    <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
-                        @if (isSaving)
-                        {
-                            <span class="spinner-border spinner-border-sm me-1"></span>
-                        }
-                        Save Changes
-                    </button>
-                </div>
+                @if (canManage)
+                {
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Save Changes
+                        </button>
+                    </div>
+                }
             }
         </div>
     </div>
@@ -151,10 +188,13 @@
     private bool isLoading = true;
     private bool isSaving = false;
     private bool isTesting = false;
+    private bool canManage;
     private string? errorMessage;
     private string? successMessage;
     private string? testMessage;
     private bool testSuccess;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     private UpdateAuthSettingsRequest request = new()
     {
@@ -165,6 +205,13 @@
     {
         try
         {
+            if (AuthState != null)
+            {
+                var state = await AuthState;
+                var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
+                canManage = result.Succeeded;
+            }
+
             var config = await SettingsService.GetConfigurationAsync();
             var oidc = config.Providers.OfType<OidcAuthProvider>().FirstOrDefault();
             var local = config.Providers.OfType<LocalAuthProvider>().FirstOrDefault();

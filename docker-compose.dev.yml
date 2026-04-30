@@ -13,6 +13,7 @@ services:
       - shadowvpn2-data:/data
     ports:
       - "5172:8080"
+      - "8888:8888"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
     healthcheck:

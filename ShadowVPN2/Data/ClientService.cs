@@ -7,10 +7,23 @@ namespace ShadowVPN2.Data;
 
 public class ClientService(IDocumentStore documentStore, ILogger<ClientService> logger) : IDisposable
 {
-    private IDisposable? _changesSubscription;
-    private readonly HashSet<ClientSubscription> _subscriptions = new();
     private readonly Lock _lock = new();
+    private readonly HashSet<ClientSubscription> _subscriptions = new();
+    private IDisposable? _changesSubscription;
     private CancellationTokenSource? _disposalCts;
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _disposalCts?.Cancel();
+            _disposalCts?.Dispose();
+            _disposalCts = null;
+            _changesSubscription?.Dispose();
+            _changesSubscription = null;
+            _subscriptions.Clear();
+        }
+    }
 
     public async Task<IReadOnlyList<EntityClient>> GetClientsAsync(ApplicationUser user,
         CancellationToken ct = default)
@@ -27,7 +40,8 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         using var session = documentStore.OpenAsyncSession();
         // Since the user number is part of the ID: Clients/{userNumber}/...
         // We can use a starts-with query on the ID.
-        var results = await session.Advanced.LoadStartingWithAsync<EntityClient>($"Clients/{userNumber}/", null, 0, int.MaxValue, null, null, ct);
+        var results = await session.Advanced.LoadStartingWithAsync<EntityClient>($"Clients/{userNumber}/", null, 0,
+            int.MaxValue, null, null, ct);
         return results.ToList().AsReadOnly();
     }
 
@@ -76,6 +90,10 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             UserId = user.Id!,
             Name = name,
             WireGuard = wireGuard,
+            Hysteria2 = new Hysteria2ClientSettings
+            {
+                Password = Guid.NewGuid().ToString("N") // Simple secure random password
+            }
         };
 
         // Pass string.Empty as change vector to assert the document does not exist
@@ -97,6 +115,12 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         client.Name = name;
         client.IsEnabled = isEnabled;
         client.WireGuard = wireGuard;
+
+        if (client.Hysteria2 == null)
+            client.Hysteria2 = new Hysteria2ClientSettings
+            {
+                Password = Guid.NewGuid().ToString("N")
+            };
 
         await session.SaveChangesAsync(ct);
         return client;
@@ -121,7 +145,8 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return true;
     }
 
-    public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user, Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null)
+    public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user,
+        Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null)
     {
         var subscription = new ClientSubscription(this, user.Id!, user.UserNumber);
         if (onUpdate != null)
@@ -169,14 +194,17 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
                             await Task.Delay(TimeSpan.FromSeconds(10), token);
                             lock (_lock)
                             {
-                                if (!token.IsCancellationRequested && _subscriptions.Count == 0 && _changesSubscription != null)
+                                if (!token.IsCancellationRequested && _subscriptions.Count == 0 &&
+                                    _changesSubscription != null)
                                 {
                                     _changesSubscription.Dispose();
                                     _changesSubscription = null;
                                 }
                             }
                         }
-                        catch (TaskCanceledException) { }
+                        catch (TaskCanceledException)
+                        {
+                        }
                     }, CancellationToken.None);
                 }
             }
@@ -230,24 +258,20 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         });
     }
 
-    public void Dispose()
-    {
-        lock (_lock)
-        {
-            _disposalCts?.Cancel();
-            _disposalCts?.Dispose();
-            _disposalCts = null;
-            _changesSubscription?.Dispose();
-            _changesSubscription = null;
-            _subscriptions.Clear();
-        }
-    }
-
     public class ClientSubscription(ClientService service, string userId, int userNumber) : IDisposable
     {
         private bool _disposed;
         public string UserId { get; } = userId;
         public int UserNumber { get; } = userNumber;
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                service.Unsubscribe(this);
+                _disposed = true;
+            }
+        }
 
         public event Func<IReadOnlyList<EntityClient>, Task>? ClientsUpdated;
 
@@ -261,15 +285,6 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             if (!_disposed && ClientsUpdated != null)
             {
                 await ClientsUpdated.Invoke(clients);
-            }
-        }
-
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                service.Unsubscribe(this);
-                _disposed = true;
             }
         }
     }

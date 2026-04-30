@@ -11,6 +11,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject ClientService ClientService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Client Settings - @(client?.Name ?? "Loading...")</PageTitle>
 
@@ -117,6 +118,21 @@ else
 
                         <dt class="small text-muted mt-2">Created</dt>
                         <dd>@client.CreatedAt.LocalDateTime.ToString("g")</dd>
+
+                        @if (client.Hysteria2 != null)
+                        {
+                            <dt class="small text-muted mt-2">Hysteria2 Password</dt>
+                            <dd>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control font-monospace"
+                                           value="@client.Hysteria2.Password" readonly/>
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            @onclick='() => CopyToClipboard(client.Hysteria2.Password!)'>
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </dd>
+                        }
                     </dl>
                 </div>
             </div>
@@ -212,6 +228,11 @@ else
 
         await ClientService.DeleteClientAsync(client.Id, user.Id!);
         NavigationManager.NavigateTo("/clients");
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 
     private sealed class InputModel

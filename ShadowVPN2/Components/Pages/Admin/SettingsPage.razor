@@ -1,6 +1,4 @@
 ﻿@page "/admin/settings"
-@using ShadowVPN2.Entities
-@using Microsoft.AspNetCore.Authorization
 @using ShadowVPN2.Infrastructure.Authentication
 @attribute [Authorize(Policy = AppPermissions.Settings.View)]
 @rendermode InteractiveServer
@@ -11,6 +9,8 @@
             <div class="list-group">
                 <NavLink href="/admin/settings" class="list-group-item list-group-item-action" Match="NavLinkMatch.All">General</NavLink>
                 <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action">Authorization</NavLink>
+                <NavLink href="/admin/settings/protocols" class="list-group-item list-group-item-action">Protocols
+                </NavLink>
             </div>
         </div>
         <div class="col-md-9">

@@ -1,0 +1,268 @@
+@page "/admin/settings/protocols"
+@using ShadowVPN2.Data.Protocols
+@using ShadowVPN2.Entities
+@using ShadowVPN2.Infrastructure.Authentication
+@attribute [Authorize(Policy = AppPermissions.Settings.View)]
+@rendermode InteractiveServer
+@inject ProtocolSettingsService ProtocolSettingsService
+@inject NavigationManager NavigationManager
+@inject IAuthorizationService AuthorizationService
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <NavLink href="/admin/settings" class="list-group-item list-group-item-action" Match="NavLinkMatch.All">
+                    General
+                </NavLink>
+                <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action">Authorization
+                </NavLink>
+                <NavLink href="/admin/settings/protocols" class="list-group-item list-group-item-action active">
+                    Protocols
+                </NavLink>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h3>Protocol Settings</h3>
+                    <p class="text-muted mb-0">Configure VPN protocols globally for all nodes.</p>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" disabled="@(!canManage)">
+                        <i class="bi bi-plus-lg me-1"></i> Add Protocol
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                            <button class="dropdown-item" type="button" @onclick='() => AddProtocol("hysteria2")'>
+                                Hysteria2
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            @if (!canManage && !isLoading)
+            {
+                <div class="alert alert-warning py-2 mb-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    You have read-only access to these settings.
+                </div>
+            }
+
+            @if (isLoading)
+            {
+                <div class="d-flex justify-content-center my-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                @if (request.Protocols.Count == 0)
+                {
+                    <div class="alert alert-info text-center py-5">
+                        <i class="bi bi-info-circle fs-2 d-block mb-3"></i>
+                        <p>No protocols configured. Click the "Add Protocol" button to get started.</p>
+                    </div>
+                }
+                else
+                {
+                    <fieldset disabled="@(!canManage)">
+                        @foreach (var protocol in request.Protocols)
+                        {
+                            <div class="card mb-4 border-primary">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <span class="badge bg-primary me-2">@protocol.Protocol</span>
+                                        @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol.Id)
+                                    </h5>
+                                    @if (canManage)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveProtocol(protocol)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" role="switch"
+                                               id="enabled-@protocol.Id" @bind="protocol.Enabled">
+                                        <label class="form-check-label h5" for="enabled-@protocol.Id">Enable
+                                            Protocol</label>
+                                    </div>
+
+                                    @if (protocol is Hysteria2GlobalSettings h2Config)
+                                    {
+                                        <div class="ms-4 p-3 border-start">
+                                            <div class="row mb-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Listen Port</label>
+                                                    <input type="number" class="form-control"
+                                                           @bind="h2Config.ListenPort" min="1" max="65535"/>
+                                                    <div class="form-text">UDP port for Hysteria2.</div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Obfuscation Type</label>
+                                                    <select class="form-select" @bind="h2Config.ObfsType">
+                                                        <option value="salamander">salamander</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Obfuscation Password</label>
+                                                    <input type="text" class="form-control"
+                                                           @bind="h2Config.ObfsPassword" placeholder="Optional"/>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">TLS Certificate Path</label>
+                                                <input type="text" class="form-control"
+                                                       @bind="h2Config.TlsCertificatePath"
+                                                       placeholder="/etc/certs/cert.pem"/>
+                                                <div class="form-text">Full path to the .pem certificate file on the
+                                                    nodes.
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="form-label">TLS Key Path</label>
+                                                <input type="text" class="form-control" @bind="h2Config.TlsKeyPath"
+                                                       placeholder="/etc/certs/key.pem"/>
+                                                <div class="form-text">Full path to the private key file on the nodes.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </fieldset>
+                }
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success">@successMessage</div>
+                }
+
+                @if (canManage && request.Protocols.Count > 0)
+                {
+                    <div class="d-flex justify-content-end mt-4">
+                        <button class="btn btn-primary btn-lg px-5" @onclick="SaveSettings" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            Save All Changes
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool canManage;
+    private string? errorMessage;
+    private string? successMessage;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private readonly UpdateProtocolsSettingsRequest request = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (AuthState != null)
+            {
+                var state = await AuthState;
+                var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
+                canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
+            }
+
+            var settings = await ProtocolSettingsService.GetSettingsAsync();
+            request.Protocols = settings.Protocols;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load settings: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void AddProtocol(string type)
+    {
+        if (type == "hysteria2")
+        {
+            request.Protocols.Add(new Hysteria2GlobalSettings
+            {
+                Enabled = true,
+                ListenPort = GetNextAvailablePort()
+            });
+        }
+    }
+
+    private int GetNextAvailablePort()
+    {
+        var usedPorts = request.Protocols.OfType<Hysteria2GlobalSettings>().Select(p => p.ListenPort).ToHashSet();
+        var port = 4443;
+        while (usedPorts.Contains(port)) port++;
+        return port;
+    }
+
+    private void RemoveProtocol(ProtocolGlobalSettings protocol)
+    {
+        request.Protocols.Remove(protocol);
+    }
+
+    private async Task SaveSettings()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            foreach (var protocol in request.Protocols)
+            {
+                if (protocol is Hysteria2GlobalSettings h2 && h2.Enabled)
+                {
+                    if (string.IsNullOrWhiteSpace(h2.TlsCertificatePath) || string.IsNullOrWhiteSpace(h2.TlsKeyPath))
+                    {
+                        errorMessage = $"TLS Certificate and Key paths are required for Hysteria2 (Port {h2.ListenPort}).";
+                        isSaving = false;
+                        return;
+                    }
+                }
+            }
+
+            await ProtocolSettingsService.UpdateSettingsAsync(request);
+            successMessage = "Protocol settings saved successfully. Nodes will be updated automatically.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to save settings: " + ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+}

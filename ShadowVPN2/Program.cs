@@ -1,14 +1,11 @@
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Raven.Client.Documents;
-using Raven.Client.Documents.Session;
-using Raven.Identity;
 using Serilog;
 using ShadowVPN2.Components;
-using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
+using ShadowVPN2.Data.Protocols;
+using ShadowVPN2.Data.SingBox;
+using ShadowVPN2.Data.SingBox.Contributors;
+using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
-using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
 
@@ -45,8 +42,11 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddScoped<SettingsService>();
+    builder.Services.AddSingleton<ProtocolSettingsService>();
     builder.Services.AddSingleton<NodeService>();
     builder.Services.AddSingleton<SingBoxService>();
+    builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
+    builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
     builder.Services.AddControllers();
     builder.Services.AddSignalR();
@@ -66,7 +66,7 @@ try
     app.UseHttpsRedirection();
 
     app.UseMiddleware<SetupMiddleware>();
-    
+
     // Configure Authentication
     app.UseAuthentication();
     app.UseAuthorization();
@@ -75,8 +75,8 @@ try
 
     app.MapStaticAssets();
     app.MapControllers();
-    app.MapHub<ShadowVPN2.Hubs.NodeHub>("/api/node/hub");
-    app.MapHub<ShadowVPN2.Hubs.ClientHub>("/api/client/hub");
+    app.MapHub<NodeHub>("/api/node/hub");
+    app.MapHub<ClientHub>("/api/client/hub");
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();
