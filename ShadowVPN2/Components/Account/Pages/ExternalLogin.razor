@@ -1,17 +1,12 @@
 @page "/Account/ExternalLogin"
-@layout AccountLayout
-@attribute [AllowAnonymous]
-
-@using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
-@using System.Text
-@using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.WebUtilities
-@using ShadowVPN2.Data
-@using ShadowVPN2.Infrastructure.Authentication
 @using Raven.Client.Documents
 @using Raven.Client.Documents.Operations.Identities
+@using ShadowVPN2.Data
+@using ShadowVPN2.Infrastructure.Authentication
+@layout AccountLayout
+@attribute [AllowAnonymous]
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -149,9 +144,11 @@ else
             return;
         }
 
-        // If the user does not have an account, check if self-registration is enabled.
-        var config = await SettingsService.GetConfigurationAsync();
-        if (config.SelfRegistrationEnabled)
+        // If the user does not have an account, check if this should be the first administrator or if self-registration is enabled.
+        var admins = await UserManager.GetUsersInRoleAsync(AppRoles.Administrator);
+        var isFirstAdmin = admins.Count == 0;
+
+        if (isFirstAdmin || (await SettingsService.GetConfigurationAsync()).SelfRegistrationEnabled)
         {
             var userNumber = (int)await DocumentStore.Maintenance.SendAsync(
                 new NextIdentityForOperation("UserNumbers"));
@@ -167,13 +164,13 @@ else
             var createResult = await UserManager.CreateAsync(user);
             if (createResult.Succeeded)
             {
-                await UserManager.AddToRoleAsync(user, AppRoles.User);
+                await UserManager.AddToRoleAsync(user, isFirstAdmin ? AppRoles.Administrator : AppRoles.User);
 
                 var loginInfo = new UserLoginInfo(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey, externalLoginInfo.ProviderDisplayName);
                 createResult = await UserManager.AddLoginAsync(user, loginInfo);
                 if (createResult.Succeeded)
                 {
-                    Logger.LogInformation("User created an account using {Name} provider", externalLoginInfo.LoginProvider);
+                    Logger.LogInformation("User created an account using {Name} provider. IsFirstAdmin: {IsFirstAdmin}", externalLoginInfo.LoginProvider, isFirstAdmin);
 
                     await SignInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
                     RedirectManager.RedirectTo(ReturnUrl);

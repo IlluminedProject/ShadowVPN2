@@ -1,23 +1,26 @@
 using Microsoft.AspNetCore.Identity;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Operations.Identities;
 using Raven.Client.Documents.Session;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Auth;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Configurations;
+using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
 namespace ShadowVPN2.Data;
 
 public class SetupService(
     IServiceProvider serviceProvider,
     IHttpClientFactory httpClientFactory,
-    Infrastructure.Configurations.LocalConfiguration localConfiguration,
+    LocalConfiguration localConfiguration,
     IDocumentStore documentStore,
     DynamicAuthenticationManager authManager,
     ILogger<SetupService> logger)
 {
     public Task<bool> NeedsSetupAsync()
     {
-        return Task.FromResult(File.Exists(Infrastructure.Configurations.LocalConfiguration.RootCaPfxPath.Value));
+        return Task.FromResult(File.Exists(LocalConfiguration.RootCaPfxPath.Value));
     }
 
     public async Task<string?> GetPublicIpAsync()
@@ -47,7 +50,7 @@ public class SetupService(
             throw new ArgumentException("Node Address and Node Name are required.");
         }
 
-        using var session = documentStore.OpenAsyncSession(new Raven.Client.Documents.Session.SessionOptions
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
 
         var node = new EntityClusterNode
@@ -102,7 +105,7 @@ public class SetupService(
             throw new ArgumentException("Password is required for local login.");
         }
 
-        using var session = documentStore.OpenAsyncSession(new Raven.Client.Documents.Session.SessionOptions
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
 
         var globalConfig = await session.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
@@ -123,7 +126,7 @@ public class SetupService(
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var userNumber = (int)await documentStore.Maintenance.SendAsync(
-            new Raven.Client.Documents.Operations.Identities.NextIdentityForOperation("UserNumbers"));
+            new NextIdentityForOperation("UserNumbers"));
 
         var user = new ApplicationUser { UserName = request.Email, Email = request.Email, UserNumber = userNumber };
         var result = await userManager.CreateAsync(user, request.Password);
@@ -135,9 +138,13 @@ public class SetupService(
         }
 
         // Assign user to Administrator role
-        await userManager.AddToRoleAsync(user, AppRoles.Administrator);
+        var roleResult = await userManager.AddToRoleAsync(user, AppRoles.Administrator);
+        if (!roleResult.Succeeded)
+            throw new InvalidOperationException(
+                $"Failed to assign Administrator role: {string.Join(", ", roleResult.Errors.Select(e => e.Description))}");
 
-        logger.LogInformation("Local auth configured, admin user {Email} created and assigned to Administrator role", request.Email);
+        logger.LogInformation("Local auth configured, admin user {Email} created and assigned to Administrator role",
+            request.Email);
     }
 
     public async Task ConfigureOidcAsync(OidcAuthSetupRequest request)
@@ -154,7 +161,7 @@ public class SetupService(
             throw new ArgumentException("Authority, Client ID, and Client Secret are required for OIDC.");
         }
 
-        using var session = documentStore.OpenAsyncSession(new Raven.Client.Documents.Session.SessionOptions
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
 
         var globalConfig = await session.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
@@ -191,7 +198,8 @@ public class SetupService(
 
         await session.SaveChangesAsync();
 
-        logger.LogInformation("OIDC provider {SchemeName} configured with authority {Authority}", request.SchemeName, request.Authority);
+        logger.LogInformation("OIDC provider {SchemeName} configured with authority {Authority}", request.SchemeName,
+            request.Authority);
         await authManager.AddOrUpdateOidcProviderAsync(existingOidc);
     }
 
@@ -202,7 +210,7 @@ public class SetupService(
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        return await File.ReadAllBytesAsync(Infrastructure.Configurations.LocalConfiguration.RootCaPfxPath.Value);
+        return await File.ReadAllBytesAsync(LocalConfiguration.RootCaPfxPath.Value);
     }
 
     public async Task FinishSetupAsync()
@@ -212,7 +220,7 @@ public class SetupService(
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        File.Delete(Infrastructure.Configurations.LocalConfiguration.RootCaPfxPath.Value);
+        File.Delete(LocalConfiguration.RootCaPfxPath.Value);
         await Task.CompletedTask;
     }
 }
