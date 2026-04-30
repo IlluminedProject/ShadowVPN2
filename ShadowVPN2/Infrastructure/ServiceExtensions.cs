@@ -77,4 +77,13 @@ public static class ServiceExtensions
 
         builder.Services.AddHostedService<RolePermissionInitializer>();
     }
+
+    public static void SetupContainerValidation(this WebApplicationBuilder builder)
+    {
+        builder.Host.UseDefaultServiceProvider((context, options) =>
+        {
+            options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
+            options.ValidateOnBuild = context.HostingEnvironment.IsDevelopment();
+        });
+    }
 }

@@ -40,6 +40,7 @@ try
     builder.SetupAuthentication();
     builder.SetupIdentity();
     builder.SetupAuthorization();
+    builder.SetupContainerValidation();
 
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
