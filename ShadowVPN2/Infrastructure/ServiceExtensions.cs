@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -9,8 +10,8 @@ using Raven.Identity;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
-using ShadowVPN2.Infrastructure.Configurations;
 using TruePath;
+using IdentityRole = Raven.Identity.IdentityRole;
 
 namespace ShadowVPN2.Infrastructure;
 
@@ -19,13 +20,16 @@ public static class ServiceExtensions
     public static void SetupRavenDb(this WebApplicationBuilder builder, AbsolutePath certificatePath)
     {
         builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString()));
-        builder.Services.AddScoped<IAsyncDocumentSession>(sp => sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
+        builder.Services.AddScoped<IAsyncDocumentSession>(sp =>
+            sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
         builder.Services.AddSingleton<ClientService>();
     }
 
     public static void SetupAuthentication(this WebApplicationBuilder builder)
     {
-        builder.Services.AddDataProtection();
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo((DataUtils.DataFolder / "keys").ToString()))
+            .SetApplicationName("ShadowVPN2");
         builder.Services.AddCascadingAuthenticationState();
         builder.Services.AddScoped<IdentityRedirectManager>();
         builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
@@ -41,7 +45,8 @@ public static class ServiceExtensions
         authBuilder.AddIdentityCookies();
 
         // Register OIDC infrastructure without a real scheme to avoid NullReferenceException in handlers.
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
     }
 
     public static void SetupIdentity(this WebApplicationBuilder builder)
@@ -53,15 +58,15 @@ public static class ServiceExtensions
                 options.SignIn.RequireConfirmedEmail = false;
                 options.SignIn.RequireConfirmedPhoneNumber = false;
             })
-            .AddRoles<Raven.Identity.IdentityRole>()
-            .AddRavenDbIdentityStores<ApplicationUser, Raven.Identity.IdentityRole>()
+            .AddRoles<IdentityRole>()
+            .AddRavenDbIdentityStores<ApplicationUser, IdentityRole>()
             .AddSignInManager()
             .AddDefaultTokenProviders();
 
         builder.Services.Configure<RavenDbIdentityOptions>(options => options.AutoSaveChanges = true);
 
         builder.Services
-            .AddScoped<IUserStore<ApplicationUser>, AdvancedUserStore<ApplicationUser, Raven.Identity.IdentityRole>>();
+            .AddScoped<IUserStore<ApplicationUser>, AdvancedUserStore<ApplicationUser, IdentityRole>>();
     }
 
     public static void SetupAuthorization(this WebApplicationBuilder builder)
