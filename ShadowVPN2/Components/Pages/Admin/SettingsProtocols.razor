@@ -115,13 +115,17 @@
                                                     <label class="form-label">Obfuscation Type</label>
                                                     <select class="form-select" @bind="h2Config.ObfsType">
                                                         <option value="salamander">salamander</option>
+                                                        <option value="none">none</option>
                                                     </select>
                                                 </div>
-                                                <div class="col-md-4">
-                                                    <label class="form-label">Obfuscation Password</label>
-                                                    <input type="text" class="form-control"
-                                                           @bind="h2Config.ObfsPassword" placeholder="Optional"/>
-                                                </div>
+                                                @if (h2Config.ObfsType != "none")
+                                                {
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Obfuscation Password</label>
+                                                        <input type="text" class="form-control"
+                                                               @bind="h2Config.ObfsPassword"/>
+                                                    </div>
+                                                }
                                             </div>
 
                                             <div class="mb-3">

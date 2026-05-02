@@ -28,13 +28,13 @@ public class Hysteria2ConfigContributor : ISingBoxConfigContributor
                 Listen = "::",
                 ListenPort = h2.ListenPort,
                 Users = users,
-                Obfs = string.IsNullOrWhiteSpace(h2.ObfsPassword)
-                    ? null
-                    : new Hysteria2ObfsConfig
+                Obfs = h2.ObfsType != "none" && !string.IsNullOrWhiteSpace(h2.ObfsPassword)
+                    ? new Hysteria2ObfsConfig
                     {
                         Type = h2.ObfsType,
                         Password = h2.ObfsPassword
-                    },
+                    }
+                    : null,
                 Tls = new InboundTlsConfig
                 {
                     Enabled = true,
