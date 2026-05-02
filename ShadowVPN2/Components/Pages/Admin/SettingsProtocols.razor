@@ -29,11 +29,17 @@
                     <p class="text-muted mb-0">Configure VPN protocols globally for all nodes.</p>
                 </div>
                 <div class="dropdown">
-                    <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown"
-                            aria-expanded="false" disabled="@(!canManage)">
+                    <button class="btn btn-outline-primary dropdown-toggle" type="button"
+                            @onclick="ToggleDropdown" aria-expanded="@isDropdownOpen" disabled="@(!canManage)">
                         <i class="bi bi-plus-lg me-1"></i> Add Protocol
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
+                    @if (isDropdownOpen)
+                    {
+                        <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;"
+                             @onclick="() => isDropdownOpen = false"></div>
+                    }
+                    <ul class="dropdown-menu dropdown-menu-end @(isDropdownOpen ? "show" : "")"
+                        style="@(isDropdownOpen ? "display: block; z-index: 1050;" : "display: none;")">
                         <li>
                             <button class="dropdown-item" type="button" @onclick='() => AddProtocol("hysteria2")'>
                                 Hysteria2
@@ -174,6 +180,7 @@
     private bool isLoading = true;
     private bool isSaving;
     private bool canManage;
+    private bool isDropdownOpen;
     private string? errorMessage;
     private string? successMessage;
 
@@ -205,8 +212,14 @@
         }
     }
 
+    private void ToggleDropdown()
+    {
+        isDropdownOpen = !isDropdownOpen;
+    }
+
     private void AddProtocol(string type)
     {
+        isDropdownOpen = false;
         if (type == "hysteria2")
         {
             request.Protocols.Add(new Hysteria2GlobalSettings
