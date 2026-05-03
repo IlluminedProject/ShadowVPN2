@@ -65,6 +65,7 @@ try
     app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
     app.UseHttpsRedirection();
 
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<SetupMiddleware>();
 
     // Configure Authentication

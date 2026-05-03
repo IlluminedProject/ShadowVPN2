@@ -35,7 +35,7 @@ public class SetupController(SetupService setupService) : ControllerBase
     }
 
     [HttpGet("root-ca")]
-    public async Task<IActionResult> DownloadRootCa()
+    public async Task<FileContentResult> DownloadRootCa()
     {
         var bytes = await setupService.GetRootCaBytesAsync();
         return File(bytes, "application/x-pkcs12", "root-ca.pfx");

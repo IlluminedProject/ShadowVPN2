@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Extensions;
 
 namespace ShadowVPN2.Hubs;
 
@@ -11,12 +12,7 @@ public class ClientHub(ClientService clientService, UserManager<ApplicationUser>
 {
     public override async Task OnConnectedAsync()
     {
-        var user = await userManager.GetUserAsync(Context.User!);
-        if (user == null)
-        {
-            Context.Abort();
-            return;
-        }
+        var user = await userManager.GetRequiredUserAsync(Context.User!);
 
         // Create a subscription for this specific connection
         var subscription = await clientService.SubscribeAsync(user, async clients =>

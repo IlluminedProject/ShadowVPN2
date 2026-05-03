@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Primitives;
 using ShadowVPN2.Components.Account.Pages;
 using ShadowVPN2.Components.Account.Pages.Manage;
-using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Extensions;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -60,12 +60,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             [FromServices] IAntiforgery antiforgery) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-
-            var user = await userManager.GetUserAsync(context.User);
-            if (user is null)
-            {
-                return Results.NotFound($"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
-            }
+            var user = await userManager.GetRequiredUserAsync(context.User);
 
             var userId = await userManager.GetUserIdAsync(user);
             var userName = await userManager.GetUserNameAsync(user) ?? "User";
@@ -120,12 +115,7 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             [FromServices] UserManager<ApplicationUser> userManager,
             [FromServices] AuthenticationStateProvider authenticationStateProvider) =>
         {
-            var user = await userManager.GetUserAsync(context.User);
-            if (user is null)
-            {
-                return Results.NotFound($"Unable to load user with ID '{userManager.GetUserId(context.User)}'.");
-            }
-
+            var user = await userManager.GetRequiredUserAsync(context.User);
             var userId = await userManager.GetUserIdAsync(user);
             downloadLogger.LogInformation("User with ID '{UserId}' asked for their personal data", userId);
 

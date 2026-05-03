@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ShadowVPN2.Data;
+using ShadowVPN2.Exceptions;
 
 namespace ShadowVPN2.Controllers;
 
@@ -17,13 +18,11 @@ public class StatusController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetStatus()
+    public void GetStatus()
     {
-        if (_singBoxService.IsRunning)
+        if (!_singBoxService.IsRunning)
         {
-            return Ok();
+            throw new AppException(StatusCodes.Status503ServiceUnavailable, "Service unavailable");
         }
-
-        return StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 }
