@@ -129,20 +129,30 @@
                                             </div>
 
                                             <div class="mb-3">
-                                                <label class="form-label">TLS Certificate Path</label>
-                                                <input type="text" class="form-control"
-                                                       @bind="h2Config.TlsCertificatePath"
-                                                       placeholder="/etc/certs/cert.pem"/>
-                                                <div class="form-text">Full path to the .pem certificate file on the
-                                                    nodes.
+                                                <label class="form-label">TLS Certificate</label>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="text-muted small">
+                                                        @if (!string.IsNullOrEmpty(h2Config.TlsCertificatePem))
+                                                        {
+                                                            <i class="bi bi-check-circle text-success me-1"></i>
+                                                            <text>Self-signed certificate generated</text>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="bi bi-x-circle text-danger me-1"></i>
+                                                            <text>No certificate</text>
+                                                        }
+                                                    </span>
+                                                    @if (canManage)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                                @onclick="() => h2Config.GenerateSelfSignedCertificate()">
+                                                            <i class="bi bi-arrow-clockwise me-1"></i> Regenerate
+                                                        </button>
+                                                    }
                                                 </div>
-                                            </div>
-
-                                            <div class="mb-3">
-                                                <label class="form-label">TLS Key Path</label>
-                                                <input type="text" class="form-control" @bind="h2Config.TlsKeyPath"
-                                                       placeholder="/etc/certs/key.pem"/>
-                                                <div class="form-text">Full path to the private key file on the nodes.
+                                                <div class="form-text">Auto-generated self-signed certificate.
+                                                    Regenerate if needed.
                                                 </div>
                                             </div>
                                         </div>
@@ -226,11 +236,13 @@
         isDropdownOpen = false;
         if (type == "hysteria2")
         {
-            request.Protocols.Add(new Hysteria2GlobalSettings
+            var settings = new Hysteria2GlobalSettings
             {
                 Enabled = true,
                 ListenPort = GetNextAvailablePort()
-            });
+            };
+            settings.GenerateSelfSignedCertificate();
+            request.Protocols.Add(settings);
         }
     }
 
@@ -260,9 +272,9 @@
             {
                 if (protocol is Hysteria2GlobalSettings h2 && h2.Enabled)
                 {
-                    if (string.IsNullOrWhiteSpace(h2.TlsCertificatePath) || string.IsNullOrWhiteSpace(h2.TlsKeyPath))
+                    if (string.IsNullOrWhiteSpace(h2.TlsCertificatePem) || string.IsNullOrWhiteSpace(h2.TlsKeyPem))
                     {
-                        errorMessage = $"TLS Certificate and Key paths are required for Hysteria2 (Port {h2.ListenPort}).";
+                        errorMessage = $"TLS certificate is missing for Hysteria2 (Port {h2.ListenPort}). Click Regenerate.";
                         isSaving = false;
                         return;
                     }

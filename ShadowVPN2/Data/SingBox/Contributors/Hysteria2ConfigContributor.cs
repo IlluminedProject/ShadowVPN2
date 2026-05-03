@@ -38,8 +38,8 @@ public class Hysteria2ConfigContributor : ISingBoxConfigContributor
                 Tls = new InboundTlsConfig
                 {
                     Enabled = true,
-                    CertificatePath = h2.TlsCertificatePath,
-                    KeyPath = h2.TlsKeyPath
+                    Certificate = PemToLines(h2.TlsCertificatePem),
+                    Key = PemToLines(h2.TlsKeyPem)
                 }
             };
 
@@ -47,5 +47,10 @@ public class Hysteria2ConfigContributor : ISingBoxConfigContributor
         }
 
         return Task.CompletedTask;
+    }
+
+    private static List<string> PemToLines(string pem)
+    {
+        return pem.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.TrimEnd('\r')).ToList();
     }
 }

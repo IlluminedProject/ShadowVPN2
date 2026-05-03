@@ -29,4 +29,8 @@ public class InboundTlsConfig
     [JsonPropertyName("certificate_path")] public string? CertificatePath { get; set; }
 
     [JsonPropertyName("key_path")] public string? KeyPath { get; set; }
+
+    [JsonPropertyName("certificate")] public List<string>? Certificate { get; set; }
+
+    [JsonPropertyName("key")] public List<string>? Key { get; set; }
 }
