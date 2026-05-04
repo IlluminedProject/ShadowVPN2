@@ -10,6 +10,7 @@ public class EntityClient
     public string UserId { get; set; } = null!;
 
     public string Name { get; set; } = null!;
+    public Guid SubscriptionId { get; set; } = Guid.NewGuid();
     public bool IsEnabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

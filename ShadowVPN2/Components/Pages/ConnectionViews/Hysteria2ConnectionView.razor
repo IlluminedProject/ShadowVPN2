@@ -1,0 +1,97 @@
+@using ShadowVPN2.Data.Subscription
+<div class="mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">
+            <i class="bi bi-shield-lock me-2 text-primary"></i> Hysteria 2
+        </h4>
+        <span class="badge bg-primary">Recommended</span>
+    </div>
+
+    <div class="bg-light border rounded p-3 mb-3 text-break user-select-all"
+         style="font-family: monospace; cursor: pointer;" title="Click to copy" @onclick="CopyUrlAsync">
+        @Info.ShareUrl
+    </div>
+
+    @if (_copied)
+    {
+        <div class="alert alert-success py-2 mb-3">
+            <i class="bi bi-check-circle me-1"></i> Link copied to clipboard!
+        </div>
+    }
+
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0">
+            <tbody>
+            <tr>
+                <th scope="row" class="bg-light" style="width: 30%">Server</th>
+                <td>@Info.ServerAddress</td>
+            </tr>
+            <tr>
+                <th scope="row" class="bg-light">Port</th>
+                <td>@Info.ServerPort</td>
+            </tr>
+            <tr>
+                <th scope="row" class="bg-light">Password</th>
+                <td class="text-break user-select-all">@Info.Password</td>
+            </tr>
+            @if (!string.IsNullOrEmpty(Info.ObfsType) && Info.ObfsType != "none")
+            {
+                <tr>
+                    <th scope="row" class="bg-light">Obfuscation Type</th>
+                    <td>@Info.ObfsType</td>
+                </tr>
+                <tr>
+                    <th scope="row" class="bg-light">Obfuscation Password</th>
+                    <td class="text-break user-select-all">@Info.ObfsPassword</td>
+                </tr>
+            }
+            @if (!string.IsNullOrEmpty(Info.Sni))
+            {
+                <tr>
+                    <th scope="row" class="bg-light">SNI</th>
+                    <td>@Info.Sni</td>
+                </tr>
+            }
+            <tr>
+                <th scope="row" class="bg-light">Insecure (Self-Signed)</th>
+                <td>Yes</td>
+            </tr>
+            @if (!string.IsNullOrEmpty(Info.PinSHA256))
+            {
+                <tr>
+                    <th scope="row" class="bg-light">Certificate Pin (SHA256)</th>
+                    <td class="text-break user-select-all" style="font-family: monospace;">@Info.PinSHA256</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@inject IJSRuntime JSRuntime
+
+@code {
+    [Parameter] public required Hysteria2ConnectionInfo Info { get; set; }
+
+    private bool _copied = false;
+
+    private async Task CopyUrlAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", Info.ShareUrl);
+            _copied = true;
+            StateHasChanged();
+
+            // Reset after 3 seconds
+            await Task.Delay(3000);
+            _copied = false;
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // Ignore if copy fails
+        }
+    }
+
+}

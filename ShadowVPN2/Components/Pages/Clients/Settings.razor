@@ -113,6 +113,18 @@ else
                         <dt class="small text-muted">ID</dt>
                         <dd class="text-truncate" title="@client.Id"><code>@client.Id</code></dd>
 
+                        <dt class="small text-muted mt-2">Subscription Link</dt>
+                        <dd>
+                            <div class="btn-group btn-group-sm w-100">
+                                <a href="/s/@client.SubscriptionId" target="_blank" class="btn btn-outline-info">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i> Open
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="CopySubscriptionLink">
+                                    <i class="bi bi-link-45deg me-1"></i> Copy Link
+                                </button>
+                            </div>
+                        </dd>
+
                         <dt class="small text-muted mt-2">Assigned IP</dt>
                         <dd><code>@client.GetAssignedIp()</code></dd>
 
@@ -233,6 +245,14 @@ else
     private async Task CopyToClipboard(string text)
     {
         await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+    }
+
+    private async Task CopySubscriptionLink()
+    {
+        if (client is null) return;
+        var url = NavigationManager.ToAbsoluteUri($"/s/{client.SubscriptionId}");
+        await CopyToClipboard(url.ToString());
+        statusMessage = "Subscription link copied to clipboard.";
     }
 
     private sealed class InputModel

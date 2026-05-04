@@ -1,17 +1,35 @@
-using Microsoft.AspNetCore.SignalR;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Extensions;
 
 namespace ShadowVPN2.Data;
 
-public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logger) : IDisposable
+public class NodeService(
+    IDocumentStore documentStore,
+    LocalConfiguration localConfiguration,
+    ILogger<NodeService> logger) : IDisposable
 {
-    private IDisposable? _changesSubscription;
-    private readonly HashSet<NodeSubscription> _subscriptions = new();
     private readonly Lock _lock = new();
+    private readonly HashSet<NodeSubscription> _subscriptions = new();
+    private IDisposable? _changesSubscription;
     private CancellationTokenSource? _disposalCts;
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            _disposalCts?.Cancel();
+            _disposalCts?.Dispose();
+            _disposalCts = null;
+
+            _changesSubscription?.Dispose();
+            _changesSubscription = null;
+            _subscriptions.Clear();
+        }
+    }
 
     public async Task<NodeSubscription> SubscribeAsync(Func<IReadOnlyList<NodeResponse>, Task>? onUpdate = null)
     {
@@ -58,7 +76,8 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
                     _disposalCts = new CancellationTokenSource();
                     var token = _disposalCts.Token;
 
-                    logger.LogInformation("Last subscription removed. Starting 10s cooldown before closing RavenDB Changes subscription");
+                    logger.LogInformation(
+                        "Last subscription removed. Starting 10s cooldown before closing RavenDB Changes subscription");
 
                     _ = Task.Run(async () =>
                     {
@@ -68,7 +87,8 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
 
                             lock (_lock)
                             {
-                                if (!token.IsCancellationRequested && _subscriptions.Count == 0 && _changesSubscription != null)
+                                if (!token.IsCancellationRequested && _subscriptions.Count == 0 &&
+                                    _changesSubscription != null)
                                 {
                                     logger.LogInformation("Cooldown finished. Closing RavenDB Changes subscription");
                                     _changesSubscription.Dispose();
@@ -147,23 +167,27 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
         return nodes.AsReadOnly();
     }
 
-    public void Dispose()
+    public async Task<EntityClusterNode> GetLocalNodeAsync()
     {
-        lock (_lock)
-        {
-            _disposalCts?.Cancel();
-            _disposalCts?.Dispose();
-            _disposalCts = null;
+        using var session = documentStore.OpenAsyncSession();
+        var node = await session.Query<EntityClusterNode>()
+            .FirstOrDefaultAsync(n => n.NodeId == localConfiguration.NodeId);
 
-            _changesSubscription?.Dispose();
-            _changesSubscription = null;
-            _subscriptions.Clear();
-        }
+        return node.OrThrowNotFound("Local node not found in database");
     }
 
     public class NodeSubscription(NodeService service) : IDisposable
     {
         private bool _disposed;
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                service.Unsubscribe(this);
+                _disposed = true;
+            }
+        }
 
         public event Func<IReadOnlyList<NodeResponse>, Task>? NodesUpdated;
 
@@ -185,15 +209,6 @@ public class NodeService(IDocumentStore documentStore, ILogger<NodeService> logg
             if (!_disposed && NodesUpdated != null)
             {
                 await NodesUpdated.Invoke(nodes);
-            }
-        }
-
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                service.Unsubscribe(this);
-                _disposed = true;
             }
         }
     }

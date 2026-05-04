@@ -14,6 +14,7 @@ services:
     ports:
       - "5172:8080"
       - "8888:8888"
+      - "4443:4443/udp"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
     healthcheck:

@@ -3,6 +3,7 @@ namespace ShadowVPN2.Data;
 public class ClientResponse
 {
     public required string Id { get; set; }
+    public required Guid SubscriptionId { get; set; }
     public required string Name { get; set; }
     public required string AssignedIp { get; set; }
     public required bool IsEnabled { get; set; }

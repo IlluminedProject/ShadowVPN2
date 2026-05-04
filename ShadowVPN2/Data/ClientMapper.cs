@@ -7,6 +7,7 @@ public static class ClientMapper
     public static ClientResponse MapToResponse(EntityClient client) => new()
     {
         Id = client.Id,
+        SubscriptionId = client.SubscriptionId,
         Name = client.Name,
         AssignedIp = client.GetAssignedIp().ToString(),
         IsEnabled = client.IsEnabled,

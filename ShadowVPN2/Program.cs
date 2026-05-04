@@ -4,6 +4,7 @@ using ShadowVPN2.Data;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
+using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -42,6 +43,7 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddScoped<SettingsService>();
+    builder.Services.AddScoped<SubscriptionService>();
     builder.Services.AddSingleton<ProtocolSettingsService>();
     builder.Services.AddSingleton<NodeService>();
     builder.Services.AddSingleton<SingBoxService>();

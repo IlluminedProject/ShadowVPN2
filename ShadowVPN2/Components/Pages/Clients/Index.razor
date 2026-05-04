@@ -1,19 +1,20 @@
 @page "/clients"
-@using System.ComponentModel.DataAnnotations
-@using Microsoft.AspNetCore.Identity
-@using ShadowVPN2.Data
-@using ShadowVPN2.Entities.Proxy
-@using ShadowVPN2.Infrastructure.Authentication
-@using RandomFriendlyNameGenerator
 
 @attribute [Authorize]
 @rendermode InteractiveServer
 
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using RandomFriendlyNameGenerator
+@using ShadowVPN2.Data
+@using ShadowVPN2.Entities.Proxy
+@using ShadowVPN2.Infrastructure.Authentication
 @implements IDisposable
 
 @inject UserManager<ApplicationUser> UserManager
 @inject ClientService ClientService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <PageTitle>VPN Clients</PageTitle>
 
@@ -68,10 +69,20 @@ else if (clients.Count > 0)
                     <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
                     <td class="text-end">
                         <div class="btn-group btn-group-sm">
-                            <a href="/clients/settings/@(Uri.EscapeDataString(client.Id))" class="btn btn-outline-primary" title="Settings">
+                            <a href="/clients/settings/@(Uri.EscapeDataString(client.Id))"
+                               class="btn btn-outline-primary" title="Settings">
                                 <span class="bi bi-gear" aria-hidden="true"></span>
                             </a>
-                            <button class="btn btn-outline-danger" @onclick="() => ConfirmDelete(client)" title="Delete this client">
+                            <a href="/s/@client.SubscriptionId" target="_blank" class="btn btn-outline-info"
+                               title="View connection details">
+                                <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                            </a>
+                            <button class="btn btn-outline-secondary" @onclick="() => CopySubscriptionLink(client)"
+                                    title="Copy subscription link">
+                                <span class="bi bi-link-45deg" aria-hidden="true"></span>
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="() => ConfirmDelete(client)"
+                                    title="Delete this client">
                                 <span class="bi bi-trash" aria-hidden="true"></span>
                             </button>
                         </div>
@@ -235,6 +246,13 @@ else
         statusMessage = $"Client '{clientToDelete.Name}' deleted.";
         clientToDelete = null;
         // No need to call LoadClients here as the subscription will trigger it
+    }
+
+    private async Task CopySubscriptionLink(EntityClient client)
+    {
+        var url = NavigationManager.ToAbsoluteUri($"/s/{client.SubscriptionId}");
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", url.ToString());
+        statusMessage = $"Subscription link for '{client.Name}' copied to clipboard.";
     }
 
     public void Dispose()

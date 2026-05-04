@@ -12,6 +12,21 @@ public class Hysteria2GlobalSettings : ProtocolGlobalSettings
     public string TlsCertificatePem { get; set; } = "";
     public string TlsKeyPem { get; set; } = "";
 
+    public string? GetCertificateFingerprint()
+    {
+        if (string.IsNullOrEmpty(TlsCertificatePem)) return null;
+        try
+        {
+            using var cert = X509Certificate2.CreateFromPem(TlsCertificatePem);
+            var hash = cert.GetCertHash(HashAlgorithmName.SHA256);
+            return BitConverter.ToString(hash).Replace("-", ":");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static string GeneratePassword()
     {
         return Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
