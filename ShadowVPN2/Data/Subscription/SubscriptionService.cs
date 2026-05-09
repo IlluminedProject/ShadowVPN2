@@ -5,7 +5,10 @@ using ShadowVPN2.Entities.Proxy;
 
 namespace ShadowVPN2.Data.Subscription;
 
-public class SubscriptionService(IAsyncDocumentSession session, NodeService nodeService)
+public class SubscriptionService(
+    IAsyncDocumentSession session,
+    NodeService nodeService,
+    GlobalConfigurationService globalConfigService)
 {
     public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId)
     {
@@ -20,10 +23,12 @@ public class SubscriptionService(IAsyncDocumentSession session, NodeService node
 
         if (client.Hysteria2 is not null)
         {
-            var h2Global = await session.LoadAsync<Hysteria2GlobalSettings>("Global/Settings/Hysteria2")
+            var globalConfig = await globalConfigService.GetAsync();
+            var h2Global = globalConfig.Protocols.OfType<Hysteria2GlobalSettings>().FirstOrDefault(h => h.Enabled)
+                           ?? globalConfig.Protocols.OfType<Hysteria2GlobalSettings>().FirstOrDefault()
                            ?? new Hysteria2GlobalSettings(); // Fallback if not set yet
 
-            var password = $"{client.Name}:{client.Hysteria2.Password}";
+            var password = client.Hysteria2.Password;
             var port = h2Global.ListenPort;
             var obfsType = h2Global.ObfsType;
             var obfsPass = h2Global.ObfsPassword;

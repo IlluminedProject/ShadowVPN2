@@ -1,12 +1,9 @@
-﻿namespace ShadowVPN2.Entities;
+﻿using ShadowVPN2.Entities.Base;
 
-public class EntityClusterNode
+namespace ShadowVPN2.Entities;
+
+public class EntityClusterNode : IEntityId
 {
-    /// <summary>
-    /// Node ID
-    /// </summary>
-    public required string Id { get; set; }
-
     /// <summary>
     /// The unique identifier of the physical node (from LocalConfiguration)
     /// </summary>
@@ -16,14 +13,19 @@ public class EntityClusterNode
     /// Node label
     /// </summary>
     public required string Name { get; set; }
-    
+
     /// <summary>
     /// Public IP/domain name of the node
     /// </summary>
     public required string Address { get; set; }
-    
+
     /// <summary>
     /// Sequential number of the node
     /// </summary>
     public int Number => Id.EndsWith('|') ? 0 : int.Parse(Id.Split('/')[1]);
+
+    /// <summary>
+    ///     Node ID
+    /// </summary>
+    public required string Id { get; init; }
 }

@@ -41,6 +41,8 @@ try
     builder.SetupContainerValidation();
 
     builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<GlobalConfigurationService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());
     builder.Services.AddSingleton<SetupService>();
     builder.Services.AddScoped<SettingsService>();
     builder.Services.AddScoped<SubscriptionService>();

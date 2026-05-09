@@ -15,6 +15,7 @@ public class SetupService(
     IHttpClientFactory httpClientFactory,
     LocalConfiguration localConfiguration,
     IDocumentStore documentStore,
+    GlobalConfigurationService globalConfigService,
     DynamicAuthenticationManager authManager,
     ILogger<SetupService> logger)
 {
@@ -105,22 +106,11 @@ public class SetupService(
             throw new ArgumentException("Password is required for local login.");
         }
 
-        using var session = documentStore.OpenAsyncSession(new SessionOptions
-            { TransactionMode = TransactionMode.ClusterWide });
-
-        var globalConfig = await session.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
-        if (globalConfig == null)
+        await globalConfigService.UpdateAsync(globalConfig =>
         {
-            globalConfig = new EntityGlobalConfiguration();
-            await session.StoreAsync(globalConfig);
-        }
-
-        if (!globalConfig.Providers.OfType<LocalAuthProvider>().Any())
-        {
-            globalConfig.Providers.Add(new LocalAuthProvider());
-        }
-
-        await session.SaveChangesAsync();
+            if (!globalConfig.Providers.OfType<LocalAuthProvider>().Any())
+                globalConfig.Providers.Add(new LocalAuthProvider());
+        });
 
         using var scope = serviceProvider.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -161,46 +151,38 @@ public class SetupService(
             throw new ArgumentException("Authority, Client ID, and Client Secret are required for OIDC.");
         }
 
-        using var session = documentStore.OpenAsyncSession(new SessionOptions
-            { TransactionMode = TransactionMode.ClusterWide });
-
-        var globalConfig = await session.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
-        if (globalConfig == null)
+        await globalConfigService.UpdateAsync(async globalConfig =>
         {
-            globalConfig = new EntityGlobalConfiguration();
-            await session.StoreAsync(globalConfig);
-        }
+            var existingOidc = globalConfig.Providers.OfType<OidcAuthProvider>()
+                .FirstOrDefault(p => p.SchemeName == request.SchemeName);
 
-        var existingOidc = globalConfig.Providers.OfType<OidcAuthProvider>()
-            .FirstOrDefault(p => p.SchemeName == request.SchemeName);
-
-        if (existingOidc != null)
-        {
-            existingOidc.DisplayName = request.DisplayName;
-            existingOidc.Authority = request.Authority;
-            existingOidc.ClientId = request.ClientId;
-            existingOidc.ClientSecret = request.ClientSecret;
-            existingOidc.IsEnabled = true;
-        }
-        else
-        {
-            existingOidc = new OidcAuthProvider
+            if (existingOidc != null)
             {
-                SchemeName = request.SchemeName,
-                DisplayName = request.DisplayName,
-                Authority = request.Authority,
-                ClientId = request.ClientId,
-                ClientSecret = request.ClientSecret,
-                IsEnabled = true
-            };
-            globalConfig.Providers.Add(existingOidc);
-        }
+                existingOidc.DisplayName = request.DisplayName;
+                existingOidc.Authority = request.Authority;
+                existingOidc.ClientId = request.ClientId;
+                existingOidc.ClientSecret = request.ClientSecret;
+                existingOidc.IsEnabled = true;
+            }
+            else
+            {
+                existingOidc = new OidcAuthProvider
+                {
+                    SchemeName = request.SchemeName,
+                    DisplayName = request.DisplayName,
+                    Authority = request.Authority,
+                    ClientId = request.ClientId,
+                    ClientSecret = request.ClientSecret,
+                    IsEnabled = true
+                };
+                globalConfig.Providers.Add(existingOidc);
+            }
 
-        await session.SaveChangesAsync();
-
-        logger.LogInformation("OIDC provider {SchemeName} configured with authority {Authority}", request.SchemeName,
-            request.Authority);
-        await authManager.AddOrUpdateOidcProviderAsync(existingOidc);
+            logger.LogInformation("OIDC provider {SchemeName} configured with authority {Authority}",
+                request.SchemeName,
+                request.Authority);
+            await authManager.AddOrUpdateOidcProviderAsync(existingOidc);
+        });
     }
 
     public async Task<byte[]> GetRootCaBytesAsync()

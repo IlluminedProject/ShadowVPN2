@@ -24,8 +24,8 @@ public class Hysteria2ConfigContributor : ISingBoxConfigContributor
         {
             var inbound = new Hysteria2InboundConfig
             {
-                Tag = h2.Id ?? $"hysteria2-{h2.ListenPort}",
-                Listen = "::",
+                Tag = $"hysteria2-{h2.ListenPort}",
+                Listen = "0.0.0.0",
                 ListenPort = h2.ListenPort,
                 Users = users,
                 Obfs = h2.ObfsType != "none" && !string.IsNullOrWhiteSpace(h2.ObfsPassword)

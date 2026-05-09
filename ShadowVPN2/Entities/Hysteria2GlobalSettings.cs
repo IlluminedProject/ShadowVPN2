@@ -29,7 +29,7 @@ public class Hysteria2GlobalSettings : ProtocolGlobalSettings
 
     public static string GeneratePassword()
     {
-        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+        return RandomNumberGenerator.GetString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 32);
     }
 
     public void GenerateSelfSignedCertificate()

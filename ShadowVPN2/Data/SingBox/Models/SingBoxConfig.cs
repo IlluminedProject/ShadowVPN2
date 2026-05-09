@@ -6,11 +6,27 @@ public class SingBoxConfig
 {
     [JsonPropertyName("log")] public SingBoxLogConfig Log { get; set; } = new();
 
+    [JsonPropertyName("dns")] public SingBoxDnsConfig Dns { get; set; } = new();
+
     [JsonPropertyName("inbounds")] public List<InboundConfig> Inbounds { get; set; } = new();
 
     [JsonPropertyName("outbounds")] public List<OutboundConfig> Outbounds { get; set; } = new();
 
     [JsonPropertyName("route")] public SingBoxRouteConfig? Route { get; set; }
+}
+
+public class SingBoxDnsConfig
+{
+    [JsonPropertyName("servers")]
+    public List<SingBoxDnsServerConfig> Servers { get; set; } = new()
+    {
+        new SingBoxDnsServerConfig { Type = "local" }
+    };
+}
+
+public class SingBoxDnsServerConfig
+{
+    [JsonPropertyName("type")] public string Type { get; set; } = "local";
 }
 
 public class SingBoxLogConfig

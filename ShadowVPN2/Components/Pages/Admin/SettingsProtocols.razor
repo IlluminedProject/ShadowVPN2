@@ -83,7 +83,7 @@
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0">
                                         <span class="badge bg-primary me-2">@protocol.Protocol</span>
-                                        @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol.Id)
+                                        @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol.Protocol)
                                     </h5>
                                     @if (canManage)
                                     {
@@ -96,8 +96,8 @@
                                 <div class="card-body">
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch"
-                                               id="enabled-@protocol.Id" @bind="protocol.Enabled">
-                                        <label class="form-check-label h5" for="enabled-@protocol.Id">Enable
+                                               id="enabled-@protocol.Protocol" @bind="protocol.Enabled">
+                                        <label class="form-check-label h5" for="enabled-@protocol.Protocol">Enable
                                             Protocol</label>
                                     </div>
 

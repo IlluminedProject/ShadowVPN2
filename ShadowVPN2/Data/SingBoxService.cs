@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Raven.Client.Documents;
@@ -22,6 +23,7 @@ public class SingBoxService : BackgroundService
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
@@ -30,10 +32,11 @@ public class SingBoxService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IEnumerable<ISingBoxConfigContributor> _contributors;
     private readonly IDocumentStore _documentStore;
+    private readonly GlobalConfigurationService _globalConfigurationService;
     private readonly ILogger<SingBoxService> _logger;
     private readonly ProtocolSettingsService _protocolSettingsService;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private bool _isManualRestart = false;
+    private bool _isManualRestart;
     private Process? _process;
 
     public SingBoxService(
@@ -41,13 +44,15 @@ public class SingBoxService : BackgroundService
         IConfiguration configuration,
         IDocumentStore documentStore,
         IEnumerable<ISingBoxConfigContributor> contributors,
-        ProtocolSettingsService protocolSettingsService)
+        ProtocolSettingsService protocolSettingsService,
+        GlobalConfigurationService globalConfigurationService)
     {
         _logger = logger;
         _configuration = configuration;
         _documentStore = documentStore;
         _contributors = contributors;
         _protocolSettingsService = protocolSettingsService;
+        _globalConfigurationService = globalConfigurationService;
     }
 
     private string BinaryPath => _configuration["SingBox:BinaryPath"] ?? "sing-box";
@@ -81,14 +86,7 @@ public class SingBoxService : BackgroundService
         }
 
         // Subscribe to changes
-        using var protocolsSubscription = _documentStore.Changes()
-            .ForDocumentsInCollection<ProtocolGlobalSettings>()
-            .Subscribe(new ActionObserver<DocumentChange>(change =>
-            {
-                _logger.LogInformation("Global protocols configuration changed ({Id}), regenerating sing-box config",
-                    change.Id);
-                _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
-            }));
+        _globalConfigurationService.ConfigurationChanged += OnConfigurationChanged;
 
         using var clientsSubscription = _documentStore.Changes()
             .ForDocumentsInCollection<EntityClient>()
@@ -154,6 +152,12 @@ public class SingBoxService : BackgroundService
                 }
             }
         }
+    }
+
+    private void OnConfigurationChanged(object? sender, EntityGlobalConfiguration e)
+    {
+        _logger.LogInformation("Global configuration changed, regenerating sing-box config");
+        _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
     }
 
     public async Task RegenerateAndApplyConfigAsync(CancellationToken ct)
@@ -305,12 +309,14 @@ public class SingBoxService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        _globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         await StopSingBoxAsync();
         await base.StopAsync(cancellationToken);
     }
 
     public override void Dispose()
     {
+        _globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         _process?.Dispose();
         base.Dispose();
     }
