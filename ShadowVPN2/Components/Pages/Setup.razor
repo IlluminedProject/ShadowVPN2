@@ -1,12 +1,14 @@
 @page "/setup"
-@rendermode InteractiveServer
-@layout Layout.SetupLayout
-@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
-@inject NavigationManager NavigationManager
-@inject ShadowVPN2.Data.SetupService SetupService
-@inject IJSRuntime JSRuntime
-@using ShadowVPN2.Data
+@using System.Net
+@using System.Net.Sockets
 @using RandomFriendlyNameGenerator
+@using ShadowVPN2.Data
+@rendermode InteractiveServer
+@layout SetupLayout
+@attribute [AllowAnonymous]
+@inject NavigationManager NavigationManager
+@inject SetupService SetupService
+@inject IJSRuntime JSRuntime
 
 @if (currentStep == 1)
 {
@@ -258,6 +260,7 @@ else if (currentStep == 3)
     private int currentStep = 1;
 
     private string hostname = string.Empty;
+    private string portSuffix = string.Empty;
     private string publicIp = string.Empty;
     private string nodeAddress = string.Empty;
     private string nodeNameInput = string.Empty;
@@ -312,7 +315,7 @@ else if (currentStep == 3)
 
         if (!string.IsNullOrEmpty(address))
         {
-            if (!System.Net.IPAddress.TryParse(address, out _) && !string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
+            if (!IPAddress.TryParse(address, out _) && !string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
             {
                 var parts = address.Split('.', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length > 0)
@@ -331,7 +334,8 @@ else if (currentStep == 3)
     {
         var uri = new Uri(NavigationManager.BaseUri);
         hostname = uri.Host;
-        SetNodeAddress(hostname);
+        portSuffix = uri.Port is not 443 ? $":{uri.Port}" : "";
+        SetNodeAddress(hostname + portSuffix);
 
         await LookupPublicIp(false);
     }
@@ -344,9 +348,9 @@ else if (currentStep == 3)
         var ip = await SetupService.GetPublicIpAsync();
         publicIp = ip ?? string.Empty;
 
-        if (!manualRefresh && nodeAddress == hostname && IsPrivateIpOrLocalhost(hostname) && !string.IsNullOrEmpty(publicIp))
+        if (!manualRefresh && nodeAddress == hostname + portSuffix && IsPrivateIpOrLocalhost(hostname) && !string.IsNullOrEmpty(publicIp))
         {
-            nodeAddress = publicIp;
+            nodeAddress = publicIp + portSuffix;
         }
 
         isLookingUpIp = false;
@@ -357,17 +361,17 @@ else if (currentStep == 3)
         if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        if (System.Net.IPAddress.TryParse(host, out var ipAddress))
+        if (IPAddress.TryParse(host, out var ipAddress))
         {
             byte[] bytes = ipAddress.GetAddressBytes();
-            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            if (ipAddress.AddressFamily == AddressFamily.InterNetwork)
             {
                 if (bytes[0] == 10 || bytes[0] == 127) return true;
                 if (bytes[0] == 192 && bytes[1] == 168) return true;
                 if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
                 if (bytes[0] == 169 && bytes[1] == 254) return true;
             }
-            else if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            else if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6)
             {
                 if (ipAddress.IsIPv6LinkLocal || ipAddress.IsIPv6SiteLocal) return true;
                 if (host == "::1") return true;
