@@ -40,6 +40,6 @@ ENV SHADOWVPN_DATA_DIR=/data
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:8080/api/node/status || exit 1
+  CMD curl -f https://localhost:8080/api/node/status || exit 1
 
 ENTRYPOINT ["dotnet", "ShadowVPN2.dll"]

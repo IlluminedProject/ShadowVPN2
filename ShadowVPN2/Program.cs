@@ -1,6 +1,7 @@
 using Serilog;
 using ShadowVPN2.Components;
 using ShadowVPN2.Data;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
@@ -33,6 +34,7 @@ try
         .AddInteractiveServerComponents();
 
     var localConfiguration = await LocalConfiguration.Initialize();
+    builder.SetupKestrelHttps();
     builder.Services.AddSingleton(localConfiguration);
     builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath);
     builder.SetupAuthentication();
@@ -51,6 +53,8 @@ try
     builder.Services.AddSingleton<SingBoxService>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
+    builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
+    builder.Services.AddSingleton<ClusterService>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
     builder.Services.AddControllers();
     builder.Services.AddSignalR();
@@ -67,7 +71,6 @@ try
     }
 
     app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-    app.UseHttpsRedirection();
 
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<SetupMiddleware>();

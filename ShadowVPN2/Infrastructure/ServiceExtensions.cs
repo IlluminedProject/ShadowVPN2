@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+﻿using System.Security.Cryptography.X509Certificates;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -10,6 +11,8 @@ using Raven.Identity;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Middleware;
 using TruePath;
 using IdentityRole = Raven.Identity.IdentityRole;
 
@@ -89,6 +92,23 @@ public static class ServiceExtensions
         {
             options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
             options.ValidateOnBuild = context.HostingEnvironment.IsDevelopment();
+        });
+    }
+
+    public static void SetupKestrelHttps(this WebApplicationBuilder builder)
+    {
+        var tlsCert = X509CertificateLoader.LoadPkcs12FromFile(
+            LocalConfiguration.CertificatePfxPath.Value, null,
+            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ConfigureEndpointDefaults(listenOptions =>
+            {
+                listenOptions.Use(next =>
+                    new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
+                listenOptions.UseHttps(tlsCert);
+            });
         });
     }
 }
