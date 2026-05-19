@@ -33,10 +33,10 @@ try
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
 
-    var localConfiguration = await LocalConfiguration.Initialize();
+    var localConfiguration = await LocalConfiguration.Initialize(builder.Configuration);
     builder.SetupKestrelHttps();
     builder.Services.AddSingleton(localConfiguration);
-    builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath);
+    builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath, localConfiguration.NodeNumber);
     builder.SetupAuthentication();
     builder.SetupIdentity();
     builder.SetupAuthorization();
@@ -50,6 +50,7 @@ try
     builder.Services.AddScoped<SubscriptionService>();
     builder.Services.AddSingleton<ProtocolSettingsService>();
     builder.Services.AddSingleton<NodeService>();
+    builder.Services.AddSingleton<SingBoxProcessManager>();
     builder.Services.AddSingleton<SingBoxService>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();

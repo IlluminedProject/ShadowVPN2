@@ -4,6 +4,7 @@ using Raven.Client.Documents.Operations.Identities;
 using Raven.Client.Documents.Session;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Auth;
+using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
@@ -59,7 +60,10 @@ public class SetupService(
             Id = "EntityClusterNodes|",
             NodeId = localConfiguration.NodeId,
             Name = request.NodeName,
-            Address = request.NodeAddress
+            Address = request.NodeAddress,
+            AwgPublicKey = localConfiguration.AwgPrivateKey != null
+                ? AwgKeyGenerator.GetPublicKey(localConfiguration.AwgPrivateKey)
+                : null
         };
 
         await session.StoreAsync(node);

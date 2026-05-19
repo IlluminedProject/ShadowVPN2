@@ -20,9 +20,9 @@ namespace ShadowVPN2.Infrastructure;
 
 public static class ServiceExtensions
 {
-    public static void SetupRavenDb(this WebApplicationBuilder builder, AbsolutePath certificatePath)
+    public static void SetupRavenDb(this WebApplicationBuilder builder, AbsolutePath certificatePath, int nodeNumber)
     {
-        builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString()));
+        builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString(), nodeNumber));
         builder.Services.AddScoped<IAsyncDocumentSession>(sp =>
             sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
         builder.Services.AddSingleton<ClientService>();

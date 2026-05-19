@@ -1,15 +1,27 @@
 @page "/"
+@using RandomFriendlyNameGenerator
 @using ShadowVPN2.Data
+@using ShadowVPN2.Data.Cluster
+@using ShadowVPN2.Infrastructure.Authentication
 @implements IDisposable
 @inject NodeService NodeService
+@inject ClusterService ClusterService
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 
 <PageTitle>Nodes - ShadowVPN2</PageTitle>
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Nodes</h1>
-        <span class="badge bg-primary">Live</span>
+        <div class="d-flex align-items-center gap-2">
+            <h1>Nodes</h1>
+            <span class="badge bg-primary">Live</span>
+        </div>
+        <AuthorizeView Roles="@AppRoles.Administrator">
+            <button class="btn btn-primary" @onclick="OpenAddNodeModal">
+                <i class="bi bi-plus-lg me-1"></i>Add Node
+            </button>
+        </AuthorizeView>
     </div>
 
     @if (_nodes == null)
@@ -35,7 +47,9 @@
                     <th scope="col" style="width: 50px;">#</th>
                     <th scope="col">Name</th>
                     <th scope="col">Address</th>
-                    <th scope="col">Node ID</th>
+                    <th scope="col">AWG Mesh IP</th>
+                    <th scope="col">AWG Public Key</th>
+                    <th scope="col">Status</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -47,10 +61,30 @@
                             <strong>@node.Name</strong>
                         </td>
                         <td>
-                            <code>@node.Address</code>
+                            <code>@(string.IsNullOrEmpty(node.Address) ? "—" : node.Address)</code>
                         </td>
                         <td>
-                            <small class="text-muted">@node.NodeId</small>
+                            <code>@node.AwgMeshIp</code>
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(node.AwgPublicKey))
+                            {
+                                <code title="@node.AwgPublicKey">@(node.AwgPublicKey.Length > 12 ? node.AwgPublicKey[..12] + "..." : node.AwgPublicKey)</code>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (node.IsPending)
+                            {
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">Joined</span>
+                            }
                         </td>
                     </tr>
                 }
@@ -60,13 +94,93 @@
     }
 </div>
 
+@if (_showAddNodeModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Node</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddNodeModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_generatedToken == null)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Node Name</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" @bind="_newNodeName"
+                                       placeholder="e.g. eu-west-2"/>
+                                <button class="btn btn-outline-secondary" type="button" @onclick="RandomizeName">
+                                    Random
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">External IP / Domain (optional)</label>
+                            <input type="text" class="form-control" @bind="_newNodeAddress"
+                                   placeholder="Will be detected automatically during join"/>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_addNodeError))
+                        {
+                            <div class="alert alert-danger">@_addNodeError</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-3">
+                            Token generated. Set this as the <code>JoinToken</code> environment variable on the new
+                            node.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Join Token</label>
+                            <div class="input-group">
+                                <textarea class="form-control font-monospace" rows="4"
+                                          readonly>@_generatedToken</textarea>
+                                <button class="btn btn-outline-secondary" type="button" @onclick="CopyToken">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (_generatedToken == null)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddNodeModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="GenerateToken"
+                                disabled="@_isGenerating">
+                            @if (_isGenerating)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Generate Token
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="CloseAddNodeModal">Done</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private IReadOnlyList<NodeResponse>? _nodes;
     private NodeService.NodeSubscription? _subscription;
 
+    private bool _showAddNodeModal;
+    private string _newNodeName = "";
+    private string? _newNodeAddress;
+    private string? _generatedToken;
+    private string? _addNodeError;
+    private bool _isGenerating;
+
     protected override async Task OnInitializedAsync()
     {
-        // Initial data fetch for pre-rendering or first interactive load
         var nodes = await NodeService.GetNodesAsync();
         UpdateNodesFromResponse(nodes.Select(n => new NodeResponse
         {
@@ -74,7 +188,10 @@
             NodeId = n.NodeId,
             Name = n.Name,
             Address = n.Address,
-            Number = n.Number
+            Number = n.Number,
+            AwgPublicKey = n.AwgPublicKey,
+            AwgMeshIp = n.AwgMeshIp,
+            IsPending = n.JoinSecret.HasValue
         }));
     }
 
@@ -82,11 +199,7 @@
     {
         if (firstRender)
         {
-            // Subscribe only once the component is interactive
             _subscription = await NodeService.SubscribeAsync(OnNodesUpdated);
-
-            // Refresh nodes to ensure we have the latest state and haven't missed any updates
-            // between OnInitialized and the subscription start.
             var latest = await _subscription.GetCurrentNodesAsync();
             UpdateNodes(latest);
             StateHasChanged();
@@ -104,14 +217,65 @@
 
     private void UpdateNodesFromResponse(IEnumerable<NodeResponse> nodes)
     {
-        // Map from Response DTO back to Entity for display if needed,
-        // or just use Response DTO in the UI (better)
         _nodes = [..nodes.OrderBy(n => n.Number)];
     }
 
     private void UpdateNodes(IEnumerable<NodeResponse> nodes)
     {
         UpdateNodesFromResponse(nodes);
+    }
+
+    private void OpenAddNodeModal()
+    {
+        _showAddNodeModal = true;
+        _generatedToken = null;
+        _addNodeError = null;
+        _newNodeAddress = null;
+        RandomizeName();
+    }
+
+    private void CloseAddNodeModal()
+    {
+        _showAddNodeModal = false;
+    }
+
+    private void RandomizeName()
+    {
+        _newNodeName = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "new-node";
+    }
+
+    private async Task GenerateToken()
+    {
+        if (string.IsNullOrWhiteSpace(_newNodeName))
+        {
+            _addNodeError = "Node name is required.";
+            return;
+        }
+
+        _isGenerating = true;
+        _addNodeError = null;
+        StateHasChanged();
+
+        try
+        {
+            _generatedToken = await ClusterService.GenerateJoinTokenAsync(
+                    _newNodeName.Trim(),
+                    string.IsNullOrWhiteSpace(_newNodeAddress) ? null : _newNodeAddress.Trim());
+        }
+        catch (Exception ex)
+        {
+            _addNodeError = "Failed to generate token: " + ex.Message;
+        }
+        finally
+        {
+            _isGenerating = false;
+        }
+    }
+
+    private async Task CopyToken()
+    {
+        if (_generatedToken != null)
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _generatedToken);
     }
 
     public void Dispose()

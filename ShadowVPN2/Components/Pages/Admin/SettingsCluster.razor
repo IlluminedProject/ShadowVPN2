@@ -1,0 +1,198 @@
+@page "/admin/settings/cluster"
+@using ShadowVPN2.Data
+@using ShadowVPN2.Entities
+@using ShadowVPN2.Infrastructure.Authentication
+@attribute [Authorize(Policy = AppPermissions.Settings.View)]
+@rendermode InteractiveServer
+@inject GlobalConfigurationService GlobalConfigurationService
+@inject IAuthorizationService AuthorizationService
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <NavLink href="/admin/settings" class="list-group-item list-group-item-action" Match="NavLinkMatch.All">
+                    General
+                </NavLink>
+                <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action">Authorization
+                </NavLink>
+                <NavLink href="/admin/settings/protocols" class="list-group-item list-group-item-action">Protocols
+                </NavLink>
+                <NavLink href="/admin/settings/cluster" class="list-group-item list-group-item-action active">Cluster
+                </NavLink>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <h3>Cluster Settings</h3>
+            <p class="text-muted">Configure AmneziaWG mesh networking between nodes.</p>
+
+            @if (!canManage && !isLoading)
+            {
+                <div class="alert alert-warning py-2 mb-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    You have read-only access to these settings.
+                </div>
+            }
+
+            @if (isLoading)
+            {
+                <div class="d-flex justify-content-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            }
+            else if (awgSettings != null)
+            {
+                <fieldset disabled="@(!canManage)">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Network</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Listen Port</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.ListenPort" min="1"
+                                           max="65535"/>
+                                    <div class="form-text">UDP port for AWG mesh (default: 51820).</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Obfuscation Parameters</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Jc</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.Jc"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Jmin</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.Jmin"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Jmax</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.Jmax"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">S1</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.S1"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">S2</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.S2"/>
+                                </div>
+                                <div class="col-md-4"></div>
+                                <div class="col-md-3">
+                                    <label class="form-label">H1</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.H1"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">H2</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.H2"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">H3</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.H3"/>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">H4</label>
+                                    <input type="number" class="form-control" @bind="awgSettings.H4"/>
+                                </div>
+                            </div>
+                            <div class="form-text mt-2">AmneziaWG obfuscation parameters. Randomly generated on first
+                                setup. All nodes must use the same values.
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success">@successMessage</div>
+                }
+
+                @if (canManage)
+                {
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Save Changes
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool canManage;
+    private string? errorMessage;
+    private string? successMessage;
+    private AwgGlobalSettings? awgSettings;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (AuthState != null)
+            {
+                var state = await AuthState;
+                var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
+                canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
+            }
+
+            var config = await GlobalConfigurationService.GetAsync();
+            awgSettings = config.AwgSettings;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load settings: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await GlobalConfigurationService.UpdateAsync(config => { config.AwgSettings = awgSettings!; });
+            successMessage = "Cluster settings saved. Nodes will update automatically.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to save settings: " + ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+}

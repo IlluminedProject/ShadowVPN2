@@ -20,6 +20,14 @@ public abstract class OutboundConfig
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 }
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(WireGuardEndpointConfig), "wireguard")]
+[JsonDerivedType(typeof(AwgEndpointConfig), "awg")]
+public abstract class EndpointConfig
+{
+    [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
+}
+
 public class InboundTlsConfig
 {
     [JsonPropertyName("enabled")] public bool Enabled { get; set; }

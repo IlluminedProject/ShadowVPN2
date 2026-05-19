@@ -11,12 +11,15 @@ public class RavenDbInitializer
     public const string DatabaseName = "ShadowVPN";
     private static readonly ILogger Logger = Log.ForContext<RavenDbInitializer>();
 
-    public static IDocumentStore Initialize(string certificatePath)
+    public static IDocumentStore Initialize(string certificatePath, int nodeNumber)
     {
+        var meshUrl = $"https://100.64.0.{nodeNumber + 10}:8888";
+
         var serverOptions = new ServerOptions
         {
-            ServerUrl = "https://127.0.0.1:8888",
-            DataDirectory = (DataUtils.DataFolder / "ravendb").ToString()
+            ServerUrl = "https://0.0.0.0:8888",
+            DataDirectory = (DataUtils.DataFolder / "ravendb").ToString(),
+            CommandLineArgs = ["--PublicServerUrl=https://127.0.0.1:8888", $"--ServerUrl.Cluster={meshUrl}"]
         };
 
         serverOptions.Secured(certificatePath);

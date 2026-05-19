@@ -1,12 +1,14 @@
-﻿using System.Security.Cryptography;
+﻿using System.Net;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Serilog;
+using ILogger = Serilog.ILogger;
 
 namespace ShadowVPN2.Infrastructure.Configurations;
 
 public static class RavenDbCertificates
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(RavenDbCertificates));
+    private static readonly ILogger Logger = Log.ForContext(typeof(RavenDbCertificates));
 
     public static X509Certificate2 GenerateRootCa()
     {
@@ -37,9 +39,10 @@ public static class RavenDbCertificates
             HashAlgorithmName.SHA256,
             RSASignaturePadding.Pkcs1);
 
-        req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        req.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         req.CertificateExtensions.Add(new X509KeyUsageExtension(
-            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment | X509KeyUsageFlags.KeyCertSign,
+            true));
 
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
             new OidCollection
@@ -51,11 +54,11 @@ public static class RavenDbCertificates
         var sanBuilder = new SubjectAlternativeNameBuilder();
         sanBuilder.AddDnsName("*");
         sanBuilder.AddDnsName("localhost");
-        sanBuilder.AddDnsName(System.Net.Dns.GetHostName());
-        sanBuilder.AddIpAddress(System.Net.IPAddress.Loopback);
-        sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Loopback);
-        sanBuilder.AddIpAddress(System.Net.IPAddress.Any);
-        sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Any);
+        sanBuilder.AddDnsName(Dns.GetHostName());
+        sanBuilder.AddIpAddress(IPAddress.Loopback);
+        sanBuilder.AddIpAddress(IPAddress.IPv6Loopback);
+        sanBuilder.AddIpAddress(IPAddress.Any);
+        sanBuilder.AddIpAddress(IPAddress.IPv6Any);
         req.CertificateExtensions.Add(sanBuilder.Build());
 
         Logger.Debug("Node certificate request generated");
@@ -69,6 +72,20 @@ public static class RavenDbCertificates
         RandomNumberGenerator.Fill(serialNumber);
         var signedCert = req.Create(cert, cert.NotBefore, cert.NotAfter, serialNumber);
         Logger.Information("Node certificate signed successfully (Thumbprint: {Thumbprint})", signedCert.Thumbprint);
+        return signedCert;
+    }
+
+    public static X509Certificate2 SignCertificateFromPem(string csrPem, X509Certificate2 signingCert)
+    {
+        Logger.Information("Signing CSR with node CA certificate");
+        var csr = CertificateRequest.LoadSigningRequestPem(csrPem, HashAlgorithmName.SHA256,
+            CertificateRequestLoadOptions.UnsafeLoadCertificateExtensions, RSASignaturePadding.Pkcs1);
+
+        var serialNumber = new byte[8];
+        RandomNumberGenerator.Fill(serialNumber);
+        var signedCert = csr.Create(signingCert, DateTimeOffset.UtcNow.AddDays(-1), signingCert.NotAfter,
+            serialNumber);
+        Logger.Information("CSR signed successfully (Thumbprint: {Thumbprint})", signedCert.Thumbprint);
         return signedCert;
     }
 

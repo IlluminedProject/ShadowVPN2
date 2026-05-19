@@ -4,6 +4,7 @@ using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Extensions;
+using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
 namespace ShadowVPN2.Data;
 
@@ -141,7 +142,10 @@ public class NodeService(
                     NodeId = n.NodeId,
                     Name = n.Name,
                     Address = n.Address,
-                    Number = n.Number
+                    Number = n.Number,
+                    AwgPublicKey = n.AwgPublicKey,
+                    AwgMeshIp = n.AwgMeshIp,
+                    IsPending = n.JoinSecret.HasValue
                 }).ToList().AsReadOnly();
 
                 // Notify individual subscribers (SignalR Hubs and Blazor components)
@@ -162,7 +166,7 @@ public class NodeService(
 
     public async Task<IReadOnlyList<EntityClusterNode>> GetNodesAsync()
     {
-        using var session = documentStore.OpenAsyncSession();
+        using var session = documentStore.OpenAsyncSession(new SessionOptions());
         var nodes = await session.Query<EntityClusterNode>().ToListAsync();
         return nodes.AsReadOnly();
     }
@@ -200,7 +204,10 @@ public class NodeService(
                 NodeId = n.NodeId,
                 Name = n.Name,
                 Address = n.Address,
-                Number = n.Number
+                Number = n.Number,
+                AwgPublicKey = n.AwgPublicKey,
+                AwgMeshIp = n.AwgMeshIp,
+                IsPending = n.JoinSecret.HasValue
             }).ToList().AsReadOnly();
         }
 

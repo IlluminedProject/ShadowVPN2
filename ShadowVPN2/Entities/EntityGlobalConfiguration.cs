@@ -8,5 +8,6 @@ public class EntityGlobalConfiguration : IEntityId
     public bool SelfRegistrationEnabled { get; set; } = true;
     public List<AuthProvider> Providers { get; set; } = new();
     public List<ProtocolGlobalSettings> Protocols { get; set; } = new();
+    public AwgGlobalSettings AwgSettings { get; set; } = new();
     public string Id { get; init; } = "GlobalConfiguration";
 }

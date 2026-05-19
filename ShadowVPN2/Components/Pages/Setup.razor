@@ -30,15 +30,17 @@
             <ul class="dropdown-menu @(isDropdownOpen ? "show" : "")"
                 style="@(isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
                 <li>
-                    <button class="dropdown-item" type="button" @onclick="() => SelectAddress(hostname)">Browser
-                        Hostname (@hostname)
+                    <button class="dropdown-item" type="button" @onclick="() => SelectAddress(hostname + portSuffix)">
+                        Browser
+                        Hostname (@(hostname + portSuffix))
                     </button>
                 </li>
                 @if (!string.IsNullOrEmpty(publicIp))
                 {
                     <li>
-                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(publicIp)">Public IP
-                            (@publicIp)
+                        <button class="dropdown-item" type="button"
+                                @onclick="() => SelectAddress(publicIp + portSuffix)">Public IP
+                            (@(publicIp + portSuffix))
                         </button>
                     </li>
                 }

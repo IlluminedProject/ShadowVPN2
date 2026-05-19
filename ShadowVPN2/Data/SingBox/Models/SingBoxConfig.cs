@@ -8,6 +8,8 @@ public class SingBoxConfig
 
     [JsonPropertyName("dns")] public SingBoxDnsConfig Dns { get; set; } = new();
 
+    [JsonPropertyName("endpoints")] public List<EndpointConfig> Endpoints { get; set; } = new();
+
     [JsonPropertyName("inbounds")] public List<InboundConfig> Inbounds { get; set; } = new();
 
     [JsonPropertyName("outbounds")] public List<OutboundConfig> Outbounds { get; set; } = new();

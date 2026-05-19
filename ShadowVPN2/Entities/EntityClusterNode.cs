@@ -20,9 +20,24 @@ public class EntityClusterNode : IEntityId
     public required string Address { get; set; }
 
     /// <summary>
+    ///     AmneziaWG public key for mesh networking (set when node completes join)
+    /// </summary>
+    public string? AwgPublicKey { get; set; }
+
+    /// <summary>
+    ///     One-time secret for pending node join. Null after join completes.
+    /// </summary>
+    public Guid? JoinSecret { get; set; }
+
+    /// <summary>
     /// Sequential number of the node
     /// </summary>
     public int Number => Id.EndsWith('|') ? 0 : int.Parse(Id.Split('/')[1]);
+
+    /// <summary>
+    ///     AWG mesh IP derived from node number
+    /// </summary>
+    public string AwgMeshIp => $"100.64.0.{Number + 10}";
 
     /// <summary>
     ///     Node ID

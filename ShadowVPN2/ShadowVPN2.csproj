@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2"/>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.7" />
         <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9" />
         <PackageReference Include="RavenDB.Embedded" Version="7.2.1" />
@@ -23,6 +24,11 @@
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="Data\ravendb\Databases\ShadowVPN\Raven.voron"/>
+        <None Remove="Data\ravendb\Databases\ShadowVPN\headers.two"/>
     </ItemGroup>
 
 </Project>
