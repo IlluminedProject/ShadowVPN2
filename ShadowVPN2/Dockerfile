@@ -29,6 +29,16 @@ COPY . .
 WORKDIR "/src/ShadowVPN2"
 RUN dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
+FROM build AS dev
+COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcap2-bin iproute2 iptables \
+    && rm -rf /var/lib/apt/lists/* \
+    && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
+RUN mkdir -p /data
+WORKDIR /src/ShadowVPN2
+ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile"]
+
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
