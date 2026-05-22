@@ -1,0 +1,38 @@
+services:
+  shadowvpn2:
+    build:
+      context: .
+      dockerfile: ShadowVPN2/Dockerfile
+      target: dev
+    container_name: shadowvpn2
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - shadowvpn2-data:/data
+      - .:/src:rw
+      - ${USERPROFILE}/.nuget/packages:/root/.nuget/packages:rw
+      - /src/ShadowVPN2/obj
+      - /src/ShadowVPN2/bin
+    ports:
+      - "5172:8080"
+      - "8888:8888"
+      - "4443:4443/udp"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+      - SHADOWVPN_DATA_DIR=/data
+      - DOTNET_WATCH_SUPPRESS_BROWSER_REFRESH=1
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:8080/api/node/status"]
+      interval: 5s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+
+volumes:
+  shadowvpn2-data:
+    driver: local
