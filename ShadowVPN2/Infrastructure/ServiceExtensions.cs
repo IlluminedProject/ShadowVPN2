@@ -99,7 +99,7 @@ public static class ServiceExtensions
     {
         var tlsCert = X509CertificateLoader.LoadPkcs12FromFile(
             LocalConfiguration.CertificatePfxPath.Value, null,
-            X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+            X509KeyStorageFlags.Exportable );
 
         builder.WebHost.ConfigureKestrel(options =>
         {
