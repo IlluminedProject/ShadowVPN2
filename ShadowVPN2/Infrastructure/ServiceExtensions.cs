@@ -13,23 +13,23 @@ using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
-using TruePath;
 using IdentityRole = Raven.Identity.IdentityRole;
 
 namespace ShadowVPN2.Infrastructure;
 
-public static class ServiceExtensions
-{
-    public static void SetupRavenDb(this WebApplicationBuilder builder, AbsolutePath certificatePath, int nodeNumber)
-    {
-        builder.Services.AddSingleton(RavenDbInitializer.Initialize(certificatePath.ToString(), nodeNumber));
+public static class ServiceExtensions {
+    public static void SetupRavenDb(this WebApplicationBuilder builder) {
+        builder.Services.AddSingleton<IDocumentStore>(services => {
+            var localConfiguration = services.GetRequiredService<IOptions<LocalConfiguration>>().Value;
+            return RavenDbInitializer.Initialize(LocalConfiguration.CertificatePfxPath.ToString(),
+                localConfiguration.NodeNumber);
+        });
         builder.Services.AddScoped<IAsyncDocumentSession>(sp =>
             sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());
         builder.Services.AddSingleton<ClientService>();
     }
 
-    public static void SetupAuthentication(this WebApplicationBuilder builder)
-    {
+    public static void SetupAuthentication(this WebApplicationBuilder builder) {
         builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo((DataUtils.DataFolder / "keys").ToString()))
             .SetApplicationName("ShadowVPN2");
@@ -39,8 +39,7 @@ public static class ServiceExtensions
         builder.Services.AddSingleton<DynamicAuthenticationManager>();
         builder.Services.AddHostedService<DynamicAuthInitializerService>();
 
-        var authBuilder = builder.Services.AddAuthentication(options =>
-        {
+        var authBuilder = builder.Services.AddAuthentication(options => {
             options.DefaultScheme = IdentityConstants.ApplicationScheme;
             options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
         });
@@ -52,11 +51,9 @@ public static class ServiceExtensions
             .Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
     }
 
-    public static void SetupIdentity(this WebApplicationBuilder builder)
-    {
+    public static void SetupIdentity(this WebApplicationBuilder builder) {
         builder.Services
-            .AddIdentityCore<ApplicationUser>(options =>
-            {
+            .AddIdentityCore<ApplicationUser>(options => {
                 options.SignIn.RequireConfirmedAccount = false;
                 options.SignIn.RequireConfirmedEmail = false;
                 options.SignIn.RequireConfirmedPhoneNumber = false;
@@ -72,12 +69,9 @@ public static class ServiceExtensions
             .AddScoped<IUserStore<ApplicationUser>, AdvancedUserStore<ApplicationUser, IdentityRole>>();
     }
 
-    public static void SetupAuthorization(this WebApplicationBuilder builder)
-    {
-        builder.Services.AddAuthorization(options =>
-        {
-            foreach (var permission in AppPermissions.All)
-            {
+    public static void SetupAuthorization(this WebApplicationBuilder builder) {
+        builder.Services.AddAuthorization(options => {
+            foreach (var permission in AppPermissions.All) {
                 options.AddPolicy(permission, policy =>
                     policy.RequireClaim(AppPermissions.PermissionClaimType, permission));
             }
@@ -86,28 +80,22 @@ public static class ServiceExtensions
         builder.Services.AddHostedService<RolePermissionInitializer>();
     }
 
-    public static void SetupContainerValidation(this WebApplicationBuilder builder)
-    {
-        builder.Host.UseDefaultServiceProvider((context, options) =>
-        {
+    public static void SetupContainerValidation(this WebApplicationBuilder builder) {
+        builder.Host.UseDefaultServiceProvider((context, options) => {
             options.ValidateScopes = context.HostingEnvironment.IsDevelopment();
             options.ValidateOnBuild = context.HostingEnvironment.IsDevelopment();
         });
     }
 
-    public static void SetupKestrelHttps(this WebApplicationBuilder builder)
-    {
-        var tlsCert = X509CertificateLoader.LoadPkcs12FromFile(
-            LocalConfiguration.CertificatePfxPath.Value, null,
-            X509KeyStorageFlags.Exportable );
-
-        builder.WebHost.ConfigureKestrel(options =>
-        {
-            options.ConfigureEndpointDefaults(listenOptions =>
-            {
+    public static void SetupKestrelHttps(this WebApplicationBuilder builder) {
+        builder.WebHost.ConfigureKestrel(options => {
+            options.ConfigureEndpointDefaults(listenOptions => {
                 listenOptions.Use(next =>
                     new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
-                listenOptions.UseHttps(tlsCert);
+                listenOptions.UseHttps(httpsOptions => {
+                    httpsOptions.ServerCertificateSelector = (_, _) => X509CertificateLoader.LoadPkcs12FromFile(
+                        LocalConfiguration.CertificatePfxPath.Value, null, X509KeyStorageFlags.Exportable);
+                });
             });
         });
     }

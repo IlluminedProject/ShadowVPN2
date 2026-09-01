@@ -1,8 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using Serilog;
-using ShadowVPN2.Data.SingBox;
 using TruePath;
 using TruePath.SystemIo;
 using ILogger = Serilog.ILogger;
@@ -33,19 +31,14 @@ public class LocalConfiguration {
     /// </summary>
     public int NodeNumber { get; set; }
 
-    public static async Task<LocalConfiguration> Initialize(ConfigurationManager configuration,
-        IOptions<SingBoxOptions> singBoxOptions) {
+    public void CopyFrom(LocalConfiguration configuration) {
+        NodeId = configuration.NodeId;
+        AwgPrivateKey = configuration.AwgPrivateKey;
+        NodeNumber = configuration.NodeNumber;
+    }
+
+    public static async Task<LocalConfiguration> LoadAsync() {
         Logger.Information("Initializing local configuration at {Path}", Path);
-
-        if (FirstLaunchExperienceHelpers.IsFirstLaunch()) {
-            Path.CreateDirectory();
-
-            var joinToken = configuration["JoinToken"];
-            await (string.IsNullOrEmpty(joinToken)
-                ? FirstLaunchExperienceHelpers.InitializeFirstNode()
-                : FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken, configuration, singBoxOptions));
-        }
-
         Logger.Debug("Loading Root CA and ensuring trust");
         var rootCaPem = X509CertificateLoader.LoadCertificateFromFile(CertificatePemPath.ToString());
         RavenDbCertificates.TrustCustomRootCa(rootCaPem);

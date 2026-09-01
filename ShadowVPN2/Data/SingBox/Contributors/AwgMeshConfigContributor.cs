@@ -11,12 +11,12 @@ namespace ShadowVPN2.Data.SingBox.Contributors;
 
 public class AwgMeshConfigContributor(
     NodeService nodeService,
-    LocalConfiguration localConfiguration,
+    IOptions<LocalConfiguration> localConfiguration,
     GlobalConfigurationService globalConfigurationService,
     IOptions<SingBoxOptions> options) : ISingBoxConfigContributor {
     public async Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
-        if (string.IsNullOrEmpty(localConfiguration.AwgPrivateKey))
+        if (string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
             return;
 
         await nodeService.EnsureLocalAwgPublicKeyAsync();
@@ -26,7 +26,7 @@ public class AwgMeshConfigContributor(
         if (nodesWithAwg.Count < 2)
             return;
 
-        var localNode = allNodes.FirstOrDefault(n => n.NodeId == localConfiguration.NodeId);
+        var localNode = allNodes.FirstOrDefault(n => n.NodeId == localConfiguration.Value.NodeId);
         if (localNode == null)
             return;
 
@@ -37,7 +37,7 @@ public class AwgMeshConfigContributor(
             Tag = "awg-mesh",
             UseIntegratedTun = options.Value.Awg.UseIntegratedTun,
             Address = [$"{localNode.AwgMeshIp}/24"],
-            PrivateKey = localConfiguration.AwgPrivateKey,
+            PrivateKey = localConfiguration.Value.AwgPrivateKey,
             ListenPort = awgSettings.ListenPort,
             Jc = awgSettings.Jc,
             Jmin = awgSettings.Jmin,
@@ -50,7 +50,7 @@ public class AwgMeshConfigContributor(
             H4 = awgSettings.H4.ToString()
         };
 
-        foreach (var node in nodesWithAwg.Where(n => n.NodeId != localConfiguration.NodeId)) {
+        foreach (var node in nodesWithAwg.Where(n => n.NodeId != localConfiguration.Value.NodeId)) {
             var peer = new WireGuardPeer {
                 PublicKey = node.AwgPublicKey!,
                 AllowedIps = [$"{node.AwgMeshIp}/32"],

@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="ShadowVPN2/ShadowVPN2.csproj" />
+  <Project Path="ShadowVPN2.Tests/ShadowVPN2.Tests.csproj"/>
 </Solution>

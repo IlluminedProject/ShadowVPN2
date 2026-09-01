@@ -1,16 +1,7 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Serilog;
 using ShadowVPN2.Components;
-using ShadowVPN2.Data;
-using ShadowVPN2.Data.Cluster;
-using ShadowVPN2.Data.Protocols;
-using ShadowVPN2.Data.SingBox;
-using ShadowVPN2.Data.SingBox.Contributors;
-using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
-using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
 
 Log.Logger = new LoggerConfiguration()
@@ -30,48 +21,11 @@ try {
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
-    // Add services to the container.
-    builder.Services.AddRazorComponents()
-        .AddInteractiveServerComponents();
-
-    builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
-    var tunCapabilityProbe = new AwgTunCapabilityProbe();
-    builder.Services.AddSingleton(tunCapabilityProbe);
-    builder.Services.AddSingleton<IPostConfigureOptions<SingBoxOptions>, SingBoxOptionsPostConfigure>();
-    var singBoxOptions = Options.Create(new SingBoxOptions());
-    builder.Configuration.Bind("SingBox", singBoxOptions.Value);
-    new SingBoxOptionsPostConfigure(tunCapabilityProbe, builder.Configuration,
-            NullLogger<SingBoxOptionsPostConfigure>.Instance)
-        .PostConfigure(Options.DefaultName, singBoxOptions.Value);
-    var localConfiguration = await LocalConfiguration.Initialize(builder.Configuration, singBoxOptions);
-    builder.SetupKestrelHttps();
-    builder.Services.AddSingleton(localConfiguration);
-    builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath, localConfiguration.NodeNumber);
-    builder.SetupAuthentication();
-    builder.SetupIdentity();
-    builder.SetupAuthorization();
-    builder.SetupContainerValidation();
-
-    builder.Services.AddHttpClient();
-    builder.Services.AddSingleton<GlobalConfigurationService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());
-    builder.Services.AddSingleton<SetupService>();
-    builder.Services.AddScoped<SettingsService>();
-    builder.Services.AddScoped<SubscriptionService>();
-    builder.Services.AddSingleton<ProtocolSettingsService>();
-    builder.Services.AddSingleton<NodeService>();
-    builder.Services.AddSingleton<SingBoxProcessManager>();
-    builder.Services.AddSingleton<AwgTunCapabilityProbe>();
-    builder.Services.AddSingleton<SingBoxService>();
-    builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
-    builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
-    builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
-    builder.Services.AddSingleton<ClusterService>();
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
-    builder.Services.AddControllers();
-    builder.Services.AddSignalR();
+    builder.AddApplicationServices();
 
     var app = builder.Build();
+
+    await app.Services.GetRequiredService<ApplicationBootstrapper>().InitializeAsync();
 
     app.UseSerilogRequestLogging();
 

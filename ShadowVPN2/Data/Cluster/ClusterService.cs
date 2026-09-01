@@ -1,6 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
@@ -14,7 +15,7 @@ public class ClusterService(
     IDocumentStore documentStore,
     NodeService nodeService,
     GlobalConfigurationService globalConfigurationService,
-    LocalConfiguration localConfiguration,
+    IOptions<LocalConfiguration> localConfiguration,
     ILogger<ClusterService> logger) {
     public async Task<string> GenerateJoinTokenAsync(string name, string? externalAddress) {
         var nodeId = Guid.NewGuid();
@@ -76,9 +77,9 @@ public class ClusterService(
         if (!string.IsNullOrEmpty(nodeAddress))
             pendingNode.Address = nodeAddress;
 
-        var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.NodeId);
-        if (localNode != null && !string.IsNullOrEmpty(localConfiguration.AwgPrivateKey))
-            localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.AwgPrivateKey);
+        var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.Value.NodeId);
+        if (localNode != null && !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
+            localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey);
 
         await session.SaveChangesAsync();
 

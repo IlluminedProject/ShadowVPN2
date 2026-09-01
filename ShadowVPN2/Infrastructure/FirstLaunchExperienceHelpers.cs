@@ -8,7 +8,6 @@ using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.ServerWide.Operations;
 using Serilog;
-using Serilog.Extensions.Logging;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox;
@@ -54,8 +53,8 @@ public class FirstLaunchExperienceHelpers {
         Logger.Information("Certificates generated and saved successfully");
     }
 
-    public static async Task InitializeFromJoinToken(string joinToken, ConfigurationManager configuration,
-        IOptions<SingBoxOptions> singBoxOptions) {
+    public static async Task<(JoinToken Token, ClusterSignJoinResponse Response, string AwgPrivateKey)>
+        InitializeFromJoinToken(string joinToken) {
         var tokenJson = Encoding.UTF8.GetString(Convert.FromBase64String(joinToken));
         var token = JsonSerializer.Deserialize<JoinToken>(tokenJson, DataUtils.DefaultSerializerOptions)
                     ?? throw new Exception("Failed to deserialize join token");
@@ -73,25 +72,9 @@ public class FirstLaunchExperienceHelpers {
 
         using var httpClient = CreateHttpClient();
         var (clusterJoinDetails, nodeRsa) = await ExchangeToken(token, awgPublicKey, httpClient);
-        var temporaryCertificatePath = Path.Combine(Path.GetTempPath(), $"shadowvpn-join-{Guid.NewGuid():N}.pfx");
-        try {
-            await CreateTemporaryCertificate(clusterJoinDetails, nodeRsa, temporaryCertificatePath);
-            await BootstrapSingBox(token, clusterJoinDetails, awgPrivateKey, singBoxOptions);
-            var connectedTo = await ConnectToAnyPeer(clusterJoinDetails);
-            var documentStore = RavenDbInitializer.Initialize(temporaryCertificatePath, clusterJoinDetails.NodeNumber);
-            await FinishJoin(token, connectedTo, httpClient);
+        await SaveJoinedNodeConfiguration(token, clusterJoinDetails, nodeRsa, awgPrivateKey);
 
-            var tag = $"{token.Name}-{clusterJoinDetails.NodeNumber}";
-            await WaitRavenDbReplication(documentStore, tag);
-            await SaveJoinedNodeConfiguration(token, clusterJoinDetails, nodeRsa, awgPrivateKey);
-        }
-        finally {
-            if (File.Exists(temporaryCertificatePath))
-                File.Delete(temporaryCertificatePath);
-        }
-
-        Logger.Information("Node successfully joined cluster. Rebooting to complete setup");
-        Environment.Exit(0);
+        return (token, clusterJoinDetails, awgPrivateKey);
     }
 
     private static HttpClient CreateHttpClient() {
@@ -144,13 +127,6 @@ public class FirstLaunchExperienceHelpers {
         return (response, rsa);
     }
 
-    private static async Task CreateTemporaryCertificate(ClusterSignJoinResponse response, RSA rsa,
-        string certificatePath) {
-        var signedCertificate = X509Certificate2.CreateFromPem(response.SignedCertPem)
-            .CopyWithPrivateKey(rsa);
-        await File.WriteAllBytesAsync(certificatePath, signedCertificate.Export(X509ContentType.Pfx));
-    }
-
     private static async Task SaveJoinedNodeConfiguration(JoinToken token, ClusterSignJoinResponse response, RSA rsa,
         string awgPrivateKey) {
         var localConfiguration = new LocalConfiguration {
@@ -170,15 +146,24 @@ public class FirstLaunchExperienceHelpers {
         Logger.Information("Joined node credentials saved successfully");
     }
 
+    public static async Task CompleteJoinAsync(JoinToken token, ClusterSignJoinResponse response,
+        string awgPrivateKey, IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager,
+        IDocumentStore documentStore) {
+        using var httpClient = CreateHttpClient();
+        await BootstrapSingBox(token, response, awgPrivateKey, singBoxOptions, manager);
+        var connectedTo = await ConnectToAnyPeer(response);
+        await FinishJoin(token, connectedTo, httpClient);
+
+        var tag = $"{token.Name}-{response.NodeNumber}";
+        await WaitRavenDbReplication(documentStore, tag);
+        Logger.Information("Node successfully joined cluster. Rebooting to complete setup");
+        Environment.Exit(0);
+    }
+
     private static async Task BootstrapSingBox(JoinToken token, ClusterSignJoinResponse response,
         string awgPrivateKey,
-        IOptions<SingBoxOptions> singBoxOptions) {
+        IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager) {
         Logger.Information("Starting bootstrap sing-box for initial cluster connectivity");
-
-        // We use a temporary logger for bootstrap
-        var signBoxLoggerSerilog = Log.ForContext<SingBoxProcessManager>();
-        var signBoxLogger = new SerilogLoggerFactory(signBoxLoggerSerilog).CreateLogger<SingBoxProcessManager>();
-        var manager = new SingBoxProcessManager(signBoxLogger, singBoxOptions);
 
         var config = new SingBoxConfig();
         var awgSettings = response.AwgSettings;

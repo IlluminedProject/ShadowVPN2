@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.Identities;
 using Raven.Client.Documents.Session;
@@ -14,55 +15,46 @@ namespace ShadowVPN2.Data;
 public class SetupService(
     IServiceProvider serviceProvider,
     IHttpClientFactory httpClientFactory,
-    LocalConfiguration localConfiguration,
+    IOptions<LocalConfiguration> localConfiguration,
     IDocumentStore documentStore,
     GlobalConfigurationService globalConfigService,
     DynamicAuthenticationManager authManager,
-    ILogger<SetupService> logger)
-{
-    public Task<bool> NeedsSetupAsync()
-    {
+    ILogger<SetupService> logger) {
+    public Task<bool> NeedsSetupAsync() {
         return Task.FromResult(File.Exists(LocalConfiguration.RootCaPfxPath.Value));
     }
 
-    public async Task<string?> GetPublicIpAsync()
-    {
-        try
-        {
+    public async Task<string?> GetPublicIpAsync() {
+        try {
             var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(5);
             var publicIp = await client.GetStringAsync("https://api.ipify.org");
             return publicIp.Trim();
         }
-        catch
-        {
+        catch {
             return null;
         }
     }
 
-    public async Task ConfigureNodeAsync(NodeSetupRequest request)
-    {
-        if (!await NeedsSetupAsync())
-        {
+    public async Task ConfigureNodeAsync(NodeSetupRequest request) {
+        if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.NodeAddress) || string.IsNullOrWhiteSpace(request.NodeName))
-        {
+        if (string.IsNullOrWhiteSpace(request.NodeAddress) || string.IsNullOrWhiteSpace(request.NodeName)) {
             throw new ArgumentException("Node Address and Node Name are required.");
         }
 
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
 
-        var node = new EntityClusterNode
-        {
+        var node = new EntityClusterNode {
             Id = "EntityClusterNodes|",
-            NodeId = localConfiguration.NodeId,
+            NodeId = localConfiguration.Value.NodeId,
             Name = request.NodeName,
             Address = request.NodeAddress,
-            AwgPublicKey = localConfiguration.AwgPrivateKey != null
-                ? AwgKeyGenerator.GetPublicKey(localConfiguration.AwgPrivateKey)
+            AwgPublicKey = localConfiguration.Value.AwgPrivateKey != null
+                ? AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey)
                 : null
         };
 
@@ -70,10 +62,8 @@ public class SetupService(
         await session.SaveChangesAsync();
     }
 
-    public async Task<bool> TestOidcConnectionAsync(string authority)
-    {
-        try
-        {
+    public async Task<bool> TestOidcConnectionAsync(string authority) {
+        try {
             if (string.IsNullOrWhiteSpace(authority)) return false;
 
             var client = httpClientFactory.CreateClient();
@@ -86,32 +76,26 @@ public class SetupService(
             logger.LogInformation("OIDC discovery endpoint returned {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogWarning(ex, "Failed to connect to OIDC authority {Authority}", authority);
             return false;
         }
     }
 
-    public async Task ConfigureLocalAuthAsync(LocalAuthSetupRequest request)
-    {
-        if (!await NeedsSetupAsync())
-        {
+    public async Task ConfigureLocalAuthAsync(LocalAuthSetupRequest request) {
+        if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Email))
-        {
+        if (string.IsNullOrWhiteSpace(request.Email)) {
             throw new ArgumentException("Email is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Password))
-        {
+        if (string.IsNullOrWhiteSpace(request.Password)) {
             throw new ArgumentException("Password is required for local login.");
         }
 
-        await globalConfigService.UpdateAsync(globalConfig =>
-        {
+        await globalConfigService.UpdateAsync(globalConfig => {
             if (!globalConfig.Providers.OfType<LocalAuthProvider>().Any())
                 globalConfig.Providers.Add(new LocalAuthProvider());
         });
@@ -125,8 +109,7 @@ public class SetupService(
         var user = new ApplicationUser { UserName = request.Email, Email = request.Email, UserNumber = userNumber };
         var result = await userManager.CreateAsync(user, request.Password);
 
-        if (!result.Succeeded)
-        {
+        if (!result.Succeeded) {
             throw new InvalidOperationException(string.Join(Environment.NewLine,
                 result.Errors.Select(e => e.Description)));
         }
@@ -141,37 +124,30 @@ public class SetupService(
             request.Email);
     }
 
-    public async Task ConfigureOidcAsync(OidcAuthSetupRequest request)
-    {
-        if (!await NeedsSetupAsync())
-        {
+    public async Task ConfigureOidcAsync(OidcAuthSetupRequest request) {
+        if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Authority) ||
             string.IsNullOrWhiteSpace(request.ClientId) ||
-            string.IsNullOrWhiteSpace(request.ClientSecret))
-        {
+            string.IsNullOrWhiteSpace(request.ClientSecret)) {
             throw new ArgumentException("Authority, Client ID, and Client Secret are required for OIDC.");
         }
 
-        await globalConfigService.UpdateAsync(async globalConfig =>
-        {
+        await globalConfigService.UpdateAsync(async globalConfig => {
             var existingOidc = globalConfig.Providers.OfType<OidcAuthProvider>()
                 .FirstOrDefault(p => p.SchemeName == request.SchemeName);
 
-            if (existingOidc != null)
-            {
+            if (existingOidc != null) {
                 existingOidc.DisplayName = request.DisplayName;
                 existingOidc.Authority = request.Authority;
                 existingOidc.ClientId = request.ClientId;
                 existingOidc.ClientSecret = request.ClientSecret;
                 existingOidc.IsEnabled = true;
             }
-            else
-            {
-                existingOidc = new OidcAuthProvider
-                {
+            else {
+                existingOidc = new OidcAuthProvider {
                     SchemeName = request.SchemeName,
                     DisplayName = request.DisplayName,
                     Authority = request.Authority,
@@ -189,20 +165,16 @@ public class SetupService(
         });
     }
 
-    public async Task<byte[]> GetRootCaBytesAsync()
-    {
-        if (!await NeedsSetupAsync())
-        {
+    public async Task<byte[]> GetRootCaBytesAsync() {
+        if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 
         return await File.ReadAllBytesAsync(LocalConfiguration.RootCaPfxPath.Value);
     }
 
-    public async Task FinishSetupAsync()
-    {
-        if (!await NeedsSetupAsync())
-        {
+    public async Task FinishSetupAsync() {
+        if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 

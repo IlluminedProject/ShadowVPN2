@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using ShadowVPN2.Entities;
@@ -11,7 +12,7 @@ namespace ShadowVPN2.Data;
 
 public class NodeService(
     IDocumentStore documentStore,
-    LocalConfiguration localConfiguration,
+    IOptions<LocalConfiguration> localConfiguration,
     ILogger<NodeService> logger) : IDisposable {
     private readonly Lock _lock = new();
     private readonly HashSet<NodeSubscription> _subscriptions = new();
@@ -144,13 +145,13 @@ public class NodeService(
     }
 
     public async Task EnsureLocalAwgPublicKeyAsync() {
-        if (string.IsNullOrEmpty(localConfiguration.AwgPrivateKey))
+        if (string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
             return;
 
-        var publicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.AwgPrivateKey);
+        var publicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey);
         using var session = documentStore.OpenAsyncSession();
         var localNode = await session.Query<EntityClusterNode>()
-            .FirstOrDefaultAsync(n => n.NodeId == localConfiguration.NodeId);
+            .FirstOrDefaultAsync(n => n.NodeId == localConfiguration.Value.NodeId);
 
         if (localNode == null || localNode.AwgPublicKey == publicKey)
             return;
@@ -163,7 +164,7 @@ public class NodeService(
     public async Task<EntityClusterNode> GetLocalNodeAsync() {
         using var session = documentStore.OpenAsyncSession();
         var node = await session.Query<EntityClusterNode>()
-            .FirstOrDefaultAsync(n => n.NodeId == localConfiguration.NodeId);
+            .FirstOrDefaultAsync(n => n.NodeId == localConfiguration.Value.NodeId);
 
         return node.OrThrowNotFound("Local node not found in database");
     }
