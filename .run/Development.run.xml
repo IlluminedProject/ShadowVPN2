@@ -1,0 +1,15 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Development" type="docker-deploy" factoryName="docker-compose.yml"
+                 server-name="Local">
+    <deployment type="docker-compose.yml">
+      <settings>
+        <option name="commandLineOptions" value="--build"/>
+        <option name="sourceFilePath" value="docker-compose.dev.yml"/>
+        <option name="upDetach" value="false"/>
+        <option name="upRemoveOrphans" value="true"/>
+      </settings>
+    </deployment>
+    <EXTENSION ID="com.jetbrains.rider.docker.debug" isFastModeEnabled="true" isSslEnabled="false"/>
+    <method v="2"/>
+  </configuration>
+</component>

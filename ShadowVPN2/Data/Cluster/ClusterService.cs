@@ -14,18 +14,16 @@ public class ClusterService(
     IDocumentStore documentStore,
     NodeService nodeService,
     GlobalConfigurationService globalConfigurationService,
-    ILogger<ClusterService> logger)
-{
-    public async Task<string> GenerateJoinTokenAsync(string name, string? externalAddress)
-    {
+    LocalConfiguration localConfiguration,
+    ILogger<ClusterService> logger) {
+    public async Task<string> GenerateJoinTokenAsync(string name, string? externalAddress) {
         var nodeId = Guid.NewGuid();
         var secret = Guid.NewGuid();
 
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
 
-        var node = new EntityClusterNode
-        {
+        var node = new EntityClusterNode {
             Id = "EntityClusterNodes|",
             NodeId = nodeId,
             Name = name,
@@ -44,8 +42,7 @@ public class ClusterService(
 
         var rootCaPem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value);
 
-        var token = new JoinToken
-        {
+        var token = new JoinToken {
             NodeAddresses = nodeAddresses,
             Secret = secret,
             Name = name,
@@ -57,8 +54,7 @@ public class ClusterService(
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
 
-    public async Task<ClusterSignJoinResponse> ExchangeTokenAsync(ClusterSignJoinRequest request, string? remoteIp)
-    {
+    public async Task<ClusterSignJoinResponse> ExchangeTokenAsync(ClusterSignJoinRequest request, string? remoteIp) {
         using var session = documentStore.OpenAsyncSession();
         var nodes = await session.Query<EntityClusterNode>().ToListAsync();
         var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
@@ -79,6 +75,11 @@ public class ClusterService(
         pendingNode.AwgPublicKey = request.AwgPublicKey;
         if (!string.IsNullOrEmpty(nodeAddress))
             pendingNode.Address = nodeAddress;
+
+        var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.NodeId);
+        if (localNode != null && !string.IsNullOrEmpty(localConfiguration.AwgPrivateKey))
+            localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.AwgPrivateKey);
+
         await session.SaveChangesAsync();
 
         // Build AWG peer list
@@ -90,8 +91,7 @@ public class ClusterService(
             .Select(n => new AwgPeerInfo(n.AwgPublicKey!, n.AwgMeshIp, n.Address))
             .ToList();
 
-        return new ClusterSignJoinResponse
-        {
+        return new ClusterSignJoinResponse {
             SignedCertPem = signedCertPem,
             RootCaCertPem = rootCaPem,
             AwgPeers = peers,
@@ -100,8 +100,7 @@ public class ClusterService(
         };
     }
 
-    public async Task FinishJoinAsync(ClusterFinishJoinRequest request)
-    {
+    public async Task FinishJoinAsync(ClusterFinishJoinRequest request) {
         using var session = documentStore.OpenAsyncSession();
         var nodes = await session.Query<EntityClusterNode>().ToListAsync();
         var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
@@ -116,9 +115,8 @@ public class ClusterService(
         await session.SaveChangesAsync();
     }
 
-    private async Task AddNodeToRavenDbClusterAsync(string nodeAddress, string nodeTag)
-    {
-        var nodeUrl = $"https://{nodeAddress}:8888";
+    private async Task AddNodeToRavenDbClusterAsync(string nodeAddress, string nodeTag) {
+        var nodeUrl = nodeAddress.TrimEnd('/');
         logger.LogInformation("Adding node {NodeUrl} to RavenDB cluster via REST API", nodeUrl);
 
         var cert = X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null);
@@ -131,8 +129,7 @@ public class ClusterService(
         var requestUrl = $"{ravenUrl}/admin/cluster/node?url={Uri.EscapeDataString(nodeUrl)}&tag={nodeTag}";
 
         var response = await httpClient.PutAsync(requestUrl, null);
-        if (response.IsSuccessStatusCode)
-        {
+        if (response.IsSuccessStatusCode) {
             logger.LogInformation("Node {NodeUrl} added to RavenDB cluster", nodeUrl);
             return;
         }
