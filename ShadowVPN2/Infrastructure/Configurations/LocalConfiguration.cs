@@ -1,14 +1,15 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Serilog;
+using ShadowVPN2.Data.SingBox;
 using TruePath;
 using TruePath.SystemIo;
 using ILogger = Serilog.ILogger;
 
 namespace ShadowVPN2.Infrastructure.Configurations;
 
-public class LocalConfiguration
-{
+public class LocalConfiguration {
     private static readonly ILogger Logger = Log.ForContext<LocalConfiguration>();
 
     public static readonly AbsolutePath Path = DataUtils.DataFolder / "local";
@@ -32,18 +33,17 @@ public class LocalConfiguration
     /// </summary>
     public int NodeNumber { get; set; }
 
-    public static async Task<LocalConfiguration> Initialize(ConfigurationManager configuration)
-    {
+    public static async Task<LocalConfiguration> Initialize(ConfigurationManager configuration,
+        IOptions<SingBoxOptions> singBoxOptions) {
         Logger.Information("Initializing local configuration at {Path}", Path);
 
-        if (FirstLaunchExperienceHelpers.IsFirstLaunch())
-        {
+        if (FirstLaunchExperienceHelpers.IsFirstLaunch()) {
             Path.CreateDirectory();
 
             var joinToken = configuration["JoinToken"];
             await (string.IsNullOrEmpty(joinToken)
                 ? FirstLaunchExperienceHelpers.InitializeFirstNode()
-                : FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken, configuration));
+                : FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken, configuration, singBoxOptions));
         }
 
         Logger.Debug("Loading Root CA and ensuring trust");
@@ -60,8 +60,7 @@ public class LocalConfiguration
         return config;
     }
 
-    public void Save()
-    {
+    public void Save() {
         Logger.Information("Saving local configuration to {ConfigPath}", ConfigPath);
         var configText = JsonSerializer.Serialize(this, DataUtils.DefaultSerializerOptions);
         ConfigPath.WriteAllText(configText);

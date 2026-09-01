@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Microsoft.Extensions.Options;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -11,7 +12,8 @@ namespace ShadowVPN2.Data.SingBox.Contributors;
 public class AwgMeshConfigContributor(
     NodeService nodeService,
     LocalConfiguration localConfiguration,
-    GlobalConfigurationService globalConfigurationService) : ISingBoxConfigContributor {
+    GlobalConfigurationService globalConfigurationService,
+    IOptions<SingBoxOptions> options) : ISingBoxConfigContributor {
     public async Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
         if (string.IsNullOrEmpty(localConfiguration.AwgPrivateKey))
@@ -33,7 +35,7 @@ public class AwgMeshConfigContributor(
 
         var endpoint = new AwgEndpointConfig {
             Tag = "awg-mesh",
-            UseIntegratedTun = true,
+            UseIntegratedTun = options.Value.Awg.UseIntegratedTun,
             Address = [$"{localNode.AwgMeshIp}/24"],
             PrivateKey = localConfiguration.AwgPrivateKey,
             ListenPort = awgSettings.ListenPort,

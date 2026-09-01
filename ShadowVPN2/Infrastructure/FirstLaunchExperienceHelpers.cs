@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.ServerWide.Operations;
 using Serilog;
@@ -53,7 +54,8 @@ public class FirstLaunchExperienceHelpers {
         Logger.Information("Certificates generated and saved successfully");
     }
 
-    public static async Task InitializeFromJoinToken(string joinToken, ConfigurationManager configuration) {
+    public static async Task InitializeFromJoinToken(string joinToken, ConfigurationManager configuration,
+        IOptions<SingBoxOptions> singBoxOptions) {
         var tokenJson = Encoding.UTF8.GetString(Convert.FromBase64String(joinToken));
         var token = JsonSerializer.Deserialize<JoinToken>(tokenJson, DataUtils.DefaultSerializerOptions)
                     ?? throw new Exception("Failed to deserialize join token");
@@ -74,7 +76,7 @@ public class FirstLaunchExperienceHelpers {
         var temporaryCertificatePath = Path.Combine(Path.GetTempPath(), $"shadowvpn-join-{Guid.NewGuid():N}.pfx");
         try {
             await CreateTemporaryCertificate(clusterJoinDetails, nodeRsa, temporaryCertificatePath);
-            await BootstrapSingBox(token, clusterJoinDetails, configuration, awgPrivateKey);
+            await BootstrapSingBox(token, clusterJoinDetails, awgPrivateKey, singBoxOptions);
             var connectedTo = await ConnectToAnyPeer(clusterJoinDetails);
             var documentStore = RavenDbInitializer.Initialize(temporaryCertificatePath, clusterJoinDetails.NodeNumber);
             await FinishJoin(token, connectedTo, httpClient);
@@ -169,14 +171,14 @@ public class FirstLaunchExperienceHelpers {
     }
 
     private static async Task BootstrapSingBox(JoinToken token, ClusterSignJoinResponse response,
-        ConfigurationManager configuration,
-        string awgPrivateKey) {
+        string awgPrivateKey,
+        IOptions<SingBoxOptions> singBoxOptions) {
         Logger.Information("Starting bootstrap sing-box for initial cluster connectivity");
 
         // We use a temporary logger for bootstrap
         var signBoxLoggerSerilog = Log.ForContext<SingBoxProcessManager>();
         var signBoxLogger = new SerilogLoggerFactory(signBoxLoggerSerilog).CreateLogger<SingBoxProcessManager>();
-        var manager = new SingBoxProcessManager(signBoxLogger, configuration);
+        var manager = new SingBoxProcessManager(signBoxLogger, singBoxOptions);
 
         var config = new SingBoxConfig();
         var awgSettings = response.AwgSettings;
@@ -184,7 +186,7 @@ public class FirstLaunchExperienceHelpers {
 
         var endpoint = new AwgEndpointConfig {
             Tag = "awg-mesh-bootstrap",
-            UseIntegratedTun = true,
+            UseIntegratedTun = singBoxOptions.Value.Awg.UseIntegratedTun,
             Address = [$"{nodeIp}/24"],
             PrivateKey = awgPrivateKey,
             ListenPort = awgSettings.ListenPort,

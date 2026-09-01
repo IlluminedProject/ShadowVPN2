@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Serilog;
 using ShadowVPN2.Components;
 using ShadowVPN2.Data;
@@ -15,8 +17,7 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
 
-try
-{
+try {
     Log.Information("Starting web application");
     var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +34,16 @@ try
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
 
-    var localConfiguration = await LocalConfiguration.Initialize(builder.Configuration);
+    builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
+    var tunCapabilityProbe = new AwgTunCapabilityProbe();
+    builder.Services.AddSingleton(tunCapabilityProbe);
+    builder.Services.AddSingleton<IPostConfigureOptions<SingBoxOptions>, SingBoxOptionsPostConfigure>();
+    var singBoxOptions = Options.Create(new SingBoxOptions());
+    builder.Configuration.Bind("SingBox", singBoxOptions.Value);
+    new SingBoxOptionsPostConfigure(tunCapabilityProbe, builder.Configuration,
+            NullLogger<SingBoxOptionsPostConfigure>.Instance)
+        .PostConfigure(Options.DefaultName, singBoxOptions.Value);
+    var localConfiguration = await LocalConfiguration.Initialize(builder.Configuration, singBoxOptions);
     builder.SetupKestrelHttps();
     builder.Services.AddSingleton(localConfiguration);
     builder.SetupRavenDb(LocalConfiguration.CertificatePfxPath, localConfiguration.NodeNumber);
@@ -51,6 +61,7 @@ try
     builder.Services.AddSingleton<ProtocolSettingsService>();
     builder.Services.AddSingleton<NodeService>();
     builder.Services.AddSingleton<SingBoxProcessManager>();
+    builder.Services.AddSingleton<AwgTunCapabilityProbe>();
     builder.Services.AddSingleton<SingBoxService>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
     builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
@@ -65,8 +76,7 @@ try
     app.UseSerilogRequestLogging();
 
     // Configure the HTTP request pipeline.
-    if (!app.Environment.IsDevelopment())
-    {
+    if (!app.Environment.IsDevelopment()) {
         app.UseExceptionHandler("/Error", createScopeForErrors: true);
         app.UseHsts();
     }
@@ -92,11 +102,9 @@ try
 
     await app.RunAsync();
 }
-catch (Exception ex)
-{
+catch (Exception ex) {
     Log.Fatal(ex, "Application terminated unexpectedly");
 }
-finally
-{
+finally {
     await Log.CloseAndFlushAsync();
 }
