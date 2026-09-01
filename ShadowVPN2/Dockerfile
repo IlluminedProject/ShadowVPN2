@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install amnezia-box (sing-box fork)
-RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/v1.13.8-awg2.0/sing-box-1.13.8-awg2.0-linux-amd64 \
+RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/1.14.0-rc.1-awgm.15/singbox-1.14.0-rc.1-awgm.15-linux-amd64 \
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
@@ -48,6 +48,11 @@ WORKDIR /app
 COPY --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data
 VOLUME ["/data"]
+
+# RavenDB Embedded creates its server package directories below the application folder.
+USER root
+RUN mkdir -p /app/RavenDBServer && chown -R $APP_UID:$APP_UID /app/RavenDBServer
+USER $APP_UID
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f https://localhost:8080/api/node/status || exit 1
