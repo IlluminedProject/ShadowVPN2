@@ -13,8 +13,8 @@ services:
     volumes:
       - shadowvpn2-data:/data
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=https://+:${SHADOWVPN_WEB_PORT:-5172}
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:${SHADOWVPN_WEB_PORT:-5172}
     healthcheck:
       test: ["CMD", "curl", "-fk", "https://localhost:${SHADOWVPN_WEB_PORT:-5172}/api/node/status"]
       interval: 30s
