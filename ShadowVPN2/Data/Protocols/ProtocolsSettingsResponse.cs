@@ -2,7 +2,7 @@ using ShadowVPN2.Entities;
 
 namespace ShadowVPN2.Data.Protocols;
 
-public class ProtocolsSettingsResponse
-{
+public class ProtocolsSettingsResponse {
+    public string? MainDomain { get; set; }
     public List<ProtocolGlobalSettings> Protocols { get; set; } = new();
 }

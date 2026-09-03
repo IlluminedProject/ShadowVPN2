@@ -4,26 +4,25 @@ namespace ShadowVPN2.Data.Protocols;
 
 public class ProtocolSettingsService(
     GlobalConfigurationService globalConfigService,
-    ILogger<ProtocolSettingsService> logger)
-{
-    public async Task<IReadOnlyList<ProtocolGlobalSettings>> GetConfigurationAsync()
-    {
+    ILogger<ProtocolSettingsService> logger) {
+    public async Task<IReadOnlyList<ProtocolGlobalSettings>> GetConfigurationAsync() {
         var config = await globalConfigService.GetAsync();
         return config.Protocols;
     }
 
-    public async Task<ProtocolsSettingsResponse> GetSettingsAsync()
-    {
+    public async Task<ProtocolsSettingsResponse> GetSettingsAsync() {
         var protocols = await GetConfigurationAsync();
-        return new ProtocolsSettingsResponse
-        {
+        return new ProtocolsSettingsResponse {
+            MainDomain = (await globalConfigService.GetAsync()).MainDomain,
             Protocols = protocols.ToList()
         };
     }
 
-    public async Task UpdateSettingsAsync(UpdateProtocolsSettingsRequest request)
-    {
-        await globalConfigService.UpdateAsync(config => { config.Protocols = request.Protocols; });
+    public async Task UpdateSettingsAsync(UpdateProtocolsSettingsRequest request) {
+        await globalConfigService.UpdateAsync(config => {
+            config.MainDomain = request.MainDomain;
+            config.Protocols = request.Protocols;
+        });
         logger.LogInformation("Global protocol settings synchronized. Count: {Count}", request.Protocols.Count);
     }
 }

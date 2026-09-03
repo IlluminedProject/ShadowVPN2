@@ -33,6 +33,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<SetupService>();
         builder.Services.AddScoped<SettingsService>();
         builder.Services.AddScoped<SubscriptionService>();
+        builder.Services.AddSingleton<ISubscriptionConnectionContributor, Hysteria2SubscriptionContributor>();
         builder.Services.AddSingleton<ProtocolSettingsService>();
         builder.Services.AddSingleton<NodeService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();

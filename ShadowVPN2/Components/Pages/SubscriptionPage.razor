@@ -44,7 +44,7 @@ else
         <div class="accordion" id="protocolsAccordion">
             @foreach (var protocol in _response.Protocols)
             {
-                @if (protocol is Hysteria2ConnectionInfo h2)
+                @if (protocol.Protocol.Equals("Hysteria2", StringComparison.OrdinalIgnoreCase))
                 {
                     <div class="accordion-item mb-3 border rounded">
                         <h2 class="accordion-header">
@@ -55,7 +55,14 @@ else
                         </h2>
                         <div id="collapse-hysteria2" class="accordion-collapse collapse show">
                             <div class="accordion-body">
-                                <Hysteria2ConnectionView Info="h2"/>
+                                @foreach (var endpoint in protocol.Endpoints)
+                                {
+                                    <h5 class="border-bottom pb-2 mt-3">@endpoint.Name</h5>
+                                    @if (endpoint.Connection is Hysteria2ConnectionInfo h2)
+                                    {
+                                        <Hysteria2ConnectionView Info="h2"/>
+                                    }
+                                }
                             </div>
                         </div>
                     </div>

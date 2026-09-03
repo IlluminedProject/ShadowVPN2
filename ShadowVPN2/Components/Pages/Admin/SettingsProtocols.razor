@@ -79,6 +79,17 @@
                 else
                 {
                     <fieldset disabled="@(!canManage)">
+                        <div class="card mb-4 border-secondary">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">Global Main Domain</h5>
+                            </div>
+                            <div class="card-body">
+                                <input class="form-control" @bind="request.MainDomain"
+                                       placeholder="vpn.example.com"/>
+                                <div class="form-text">Fallback domain for protocols without their own main domain.
+                                </div>
+                            </div>
+                        </div>
                         @foreach (var protocol in request.Protocols)
                         {
                             <div class="card mb-4 border-primary">
@@ -106,6 +117,14 @@
                                     @if (protocol is Hysteria2GlobalSettings h2Config)
                                     {
                                         <div class="ms-4 p-3 border-start">
+                                            <div class="mb-3">
+                                                <label class="form-label">Main Domain</label>
+                                                <input class="form-control" @bind="h2Config.MainDomain"
+                                                       placeholder="hysteria.example.com"/>
+                                                <div class="form-text">Overrides the global main domain for this
+                                                    protocol.
+                                                </div>
+                                            </div>
                                             <div class="row mb-3">
                                                 <div class="col-md-4">
                                                     <label class="form-label">Listen Port</label>
@@ -217,6 +236,7 @@
 
             var settings = await ProtocolSettingsService.GetSettingsAsync();
             request.Protocols = settings.Protocols;
+            request.MainDomain = settings.MainDomain;
         }
         catch (Exception ex)
         {
