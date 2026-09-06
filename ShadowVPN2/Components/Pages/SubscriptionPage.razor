@@ -44,30 +44,16 @@ else
         <div class="accordion" id="protocolsAccordion">
             @foreach (var protocol in _response.Protocols)
             {
-                @if (protocol.Protocol.Equals("Hysteria2", StringComparison.OrdinalIgnoreCase))
+                var descriptor = ProtocolSubscriptionDescriptor.All.FirstOrDefault(candidate =>
+                    candidate.Protocol.Equals(protocol.Protocol, StringComparison.OrdinalIgnoreCase));
+                if (descriptor is null)
                 {
-                    <div class="accordion-item mb-3 border rounded">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button bg-light fw-bold" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapse-hysteria2" aria-expanded="true">
-                                Hysteria 2 Protocol
-                            </button>
-                        </h2>
-                        <div id="collapse-hysteria2" class="accordion-collapse collapse show">
-                            <div class="accordion-body">
-                                @foreach (var endpoint in protocol.Endpoints)
-                                {
-                                    <h5 class="border-bottom pb-2 mt-3">@endpoint.Name</h5>
-                                    @if (endpoint.Connection is Hysteria2ConnectionInfo h2)
-                                    {
-                                        <Hysteria2ConnectionView Info="h2"/>
-                                    }
-                                }
-                            </div>
-                        </div>
-                    </div>
+                    continue;
                 }
-                // Future protocols can be handled here
+
+                <CascadingValue Value="protocol">
+                    <DynamicComponent Type="descriptor.ComponentType"/>
+                </CascadingValue>
             }
         </div>
 
