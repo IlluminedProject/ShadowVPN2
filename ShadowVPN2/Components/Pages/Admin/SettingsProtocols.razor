@@ -5,6 +5,7 @@
 @attribute [Authorize(Policy = AppPermissions.Settings.View)]
 @rendermode InteractiveServer
 @inject ProtocolSettingsService ProtocolSettingsService
+@inject ProtocolDomainService ProtocolDomainService
 @inject NavigationManager NavigationManager
 @inject IAuthorizationService AuthorizationService
 
@@ -118,6 +119,21 @@
                                         <label class="form-check-label h5" for="enabled-@protocol.Protocol">Enable
                                             Protocol</label>
                                     </div>
+
+                                    @{ var domainRoute = GetDomainRoute(protocol); }
+                                    @if (domainRoute is { State: not ProtocolDomainRouteState.NoDomain })
+                                    {
+                                        <div class="alert @GetRouteAlertClass(domainRoute.State) py-2">
+                                            <strong>@domainRoute.Domain</strong>
+                                            <span class="ms-2">@GetRouteStatusText(domainRoute)</span>
+                                            @if (domainRoute.ResolvedAddresses.Count > 0)
+                                            {
+                                                <div class="small mt-1">
+                                                    Resolves to: @string.Join(", ", domainRoute.ResolvedAddresses)
+                                                </div>
+                                            }
+                                        </div>
+                                    }
 
                                     @if (protocol is Hysteria2GlobalSettings h2Config)
                                     {
@@ -296,6 +312,7 @@
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     private readonly UpdateProtocolsSettingsRequest request = new();
+    private IReadOnlyList<ProtocolDomainRouteResponse> domainRoutes = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -311,6 +328,7 @@
             var settings = await ProtocolSettingsService.GetSettingsAsync();
             request.Protocols = settings.Protocols;
             request.MainDomain = settings.MainDomain;
+            domainRoutes = await ProtocolDomainService.GetRoutesAsync();
         }
         catch (Exception ex)
         {
@@ -386,6 +404,7 @@
             }
 
             await ProtocolSettingsService.UpdateSettingsAsync(request);
+            domainRoutes = await ProtocolDomainService.GetRoutesAsync();
             successMessage = "Protocol settings saved successfully. Nodes will be updated automatically.";
         }
         catch (Exception ex)
@@ -397,5 +416,29 @@
             isSaving = false;
         }
     }
+
+    private ProtocolDomainRouteResponse? GetDomainRoute(ProtocolGlobalSettings protocol)
+    {
+        var index = request.Protocols.IndexOf(protocol);
+        return domainRoutes.FirstOrDefault(route => route.ProtocolIndex == index);
+    }
+
+    private static string GetRouteAlertClass(ProtocolDomainRouteState state) => state switch
+    {
+        ProtocolDomainRouteState.Valid => "alert-success",
+        ProtocolDomainRouteState.PartialMatch => "alert-warning",
+        _ => "alert-danger"
+    };
+
+    private static string GetRouteStatusText(ProtocolDomainRouteResponse route) => route.State switch
+    {
+        ProtocolDomainRouteState.Valid => $"points to {route.NodeName}",
+        ProtocolDomainRouteState.PartialMatch => $"partially points to {route.NodeName}",
+        ProtocolDomainRouteState.NoRecords => "has no A or AAAA records",
+        ProtocolDomainRouteState.UnknownNode => "does not point to a known node",
+        ProtocolDomainRouteState.MultipleNodes => "points to multiple nodes",
+        ProtocolDomainRouteState.LookupFailed => "could not be resolved",
+        _ => route.State.ToString()
+    };
 
 }

@@ -2,11 +2,13 @@
 @using RandomFriendlyNameGenerator
 @using ShadowVPN2.Data
 @using ShadowVPN2.Data.Cluster
+@using ShadowVPN2.Data.Protocols
 @using ShadowVPN2.Infrastructure.Authentication
 @attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @implements IDisposable
 @inject NodeService NodeService
 @inject ClusterService ClusterService
+@inject ProtocolDomainService ProtocolDomainService
 @inject IJSRuntime JSRuntime
 @inject IAuthorizationService AuthorizationService
 @rendermode InteractiveServer
@@ -52,6 +54,7 @@
                     <th scope="col">Public IP</th>
                     <th scope="col">AWG Mesh IP</th>
                     <th scope="col">AWG Public Key</th>
+                    <th scope="col">Protocol Domains</th>
                     <th scope="col">Status</th>
                     <th scope="col"></th>
                 </tr>
@@ -84,6 +87,16 @@
                                     title="@node.AwgPublicKey">@(node.AwgPublicKey.Length > 12 ? node.AwgPublicKey[..12] + "..." : node.AwgPublicKey)</code>
                             }
                             else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @foreach (var route in GetProtocolRoutes(node.NodeId))
+                            {
+                                <div><code>@route.Domain</code></div>
+                            }
+                            @if (!GetProtocolRoutes(node.NodeId).Any())
                             {
                                 <span class="text-muted">—</span>
                             }
@@ -244,6 +257,21 @@
                         </div>
                     }
 
+                    <div class="mt-3">
+                        <div class="text-muted small mb-1">Protocol domains resolving to this node</div>
+                        @if (!GetProtocolRoutes(_editingNode.NodeId).Any())
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            @foreach (var route in GetProtocolRoutes(_editingNode.NodeId))
+                            {
+                                <div><code>@route.Domain</code> <span class="text-muted">@route.Protocol</span></div>
+                            }
+                        }
+                    </div>
+
                     @if (!string.IsNullOrEmpty(_editNodeError))
                     {
                         <div class="alert alert-danger mt-3 mb-0">@_editNodeError</div>
@@ -283,6 +311,7 @@
     private string? _editingDomain;
     private string? _editNodeError;
     private bool _isEditingNode;
+    private IReadOnlyList<ProtocolDomainRouteResponse> _protocolRoutes = [];
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
@@ -296,6 +325,7 @@
         }
 
         UpdateNodesFromResponse(await NodeService.GetNodeResponsesAsync());
+        _protocolRoutes = await ProtocolDomainService.GetRoutesAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -311,9 +341,10 @@
 
     private Task OnNodesUpdated(IReadOnlyList<NodeResponse> nodes)
     {
-        return InvokeAsync(() =>
+        return InvokeAsync(async () =>
         {
             UpdateNodesFromResponse(nodes);
+            _protocolRoutes = await ProtocolDomainService.GetRoutesAsync();
             StateHasChanged();
         });
     }
@@ -441,6 +472,14 @@
     private async Task ReloadNodesAsync()
     {
         UpdateNodesFromResponse(await NodeService.GetNodeResponsesAsync());
+        _protocolRoutes = await ProtocolDomainService.GetRoutesAsync();
+    }
+
+    private IEnumerable<ProtocolDomainRouteResponse> GetProtocolRoutes(Guid nodeId)
+    {
+        return _protocolRoutes.Where(route => route.Enabled && route.NodeId == nodeId &&
+                                              route.State is ProtocolDomainRouteState.Valid or
+                                                  ProtocolDomainRouteState.PartialMatch);
     }
 
     private static string GetDomainAlertClass(DomainValidationState state) => state switch

@@ -35,12 +35,16 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
             return Create(DomainValidationState.NoDomain, null, [], checkedAt);
 
         try {
-            var resolved = (await Dns.GetHostAddressesAsync(domain, cancellationToken))
-                .Select(NormalizeAddress)
-                .Distinct()
-                .OrderBy(address => address.AddressFamily)
-                .ThenBy(address => address.ToString(), StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var resolution = await ResolveAsync(domain, cancellationToken);
+            if (resolution.Error != null)
+                return new DomainCheckResponse {
+                    State = DomainValidationState.LookupFailed,
+                    Domain = domain,
+                    ResolvedAddresses = [],
+                    CheckedAt = checkedAt,
+                    Error = resolution.Error
+                };
+            var resolved = resolution.Addresses.Select(IPAddress.Parse).ToList();
 
             if (resolved.Count == 0)
                 return Create(DomainValidationState.NoRecords, domain, [], checkedAt);
@@ -60,9 +64,6 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
             };
             return Create(state, domain, resolvedValues, checkedAt);
         }
-        catch (SocketException ex) when (ex.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData) {
-            return Create(DomainValidationState.NoRecords, domain, [], checkedAt);
-        }
         catch (Exception ex) when (ex is SocketException or ArgumentException) {
             logger.LogWarning(ex, "DNS lookup failed for {Domain}", domain);
             return new DomainCheckResponse {
@@ -72,6 +73,28 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
                 CheckedAt = checkedAt,
                 Error = ex.Message
             };
+        }
+    }
+
+    public async Task<DomainResolutionResponse> ResolveAsync(string domain,
+        CancellationToken cancellationToken = default) {
+        try {
+            var addresses = (await Dns.GetHostAddressesAsync(domain, cancellationToken))
+                .Select(NormalizeAddress)
+                .Distinct()
+                .OrderBy(address => address.AddressFamily)
+                .ThenBy(address => address.ToString(), StringComparer.OrdinalIgnoreCase)
+                .Select(address => address.ToString())
+                .ToList()
+                .AsReadOnly();
+            return new DomainResolutionResponse { Domain = domain, Addresses = addresses };
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData) {
+            return new DomainResolutionResponse { Domain = domain, Addresses = [] };
+        }
+        catch (Exception ex) when (ex is SocketException or ArgumentException) {
+            logger.LogWarning(ex, "DNS lookup failed for {Domain}", domain);
+            return new DomainResolutionResponse { Domain = domain, Addresses = [], Error = ex.Message };
         }
     }
 

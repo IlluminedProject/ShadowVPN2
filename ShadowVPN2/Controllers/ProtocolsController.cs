@@ -8,18 +8,22 @@ namespace ShadowVPN2.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = AppPermissions.Settings.View)]
-public class ProtocolsController(ProtocolSettingsService protocolSettingsService) : ControllerBase
-{
+public class ProtocolsController(
+    ProtocolSettingsService protocolSettingsService,
+    ProtocolDomainService protocolDomainService) : ControllerBase {
     [HttpGet]
-    public async Task<ProtocolsSettingsResponse> Get()
-    {
+    public async Task<ProtocolsSettingsResponse> Get() {
         return await protocolSettingsService.GetSettingsAsync();
     }
 
     [HttpPost]
     [Authorize(Policy = AppPermissions.Settings.Manage)]
-    public async Task Save([FromBody] UpdateProtocolsSettingsRequest request)
-    {
+    public async Task Save([FromBody] UpdateProtocolsSettingsRequest request) {
         await protocolSettingsService.UpdateSettingsAsync(request);
+    }
+
+    [HttpGet("domain-routes")]
+    public async Task<IReadOnlyList<ProtocolDomainRouteResponse>> GetDomainRoutes(CancellationToken cancellationToken) {
+        return await protocolDomainService.GetRoutesAsync(cancellationToken);
     }
 }

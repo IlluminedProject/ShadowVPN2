@@ -4,6 +4,7 @@ namespace ShadowVPN2.Data.Protocols;
 
 public class ProtocolSettingsService(
     GlobalConfigurationService globalConfigService,
+    DomainValidationService domainValidationService,
     ILogger<ProtocolSettingsService> logger) {
     public async Task<IReadOnlyList<ProtocolGlobalSettings>> GetConfigurationAsync() {
         var config = await globalConfigService.GetAsync();
@@ -19,6 +20,10 @@ public class ProtocolSettingsService(
     }
 
     public async Task UpdateSettingsAsync(UpdateProtocolsSettingsRequest request) {
+        request.MainDomain = domainValidationService.Normalize(request.MainDomain);
+        foreach (var protocol in request.Protocols)
+            protocol.MainDomain = domainValidationService.Normalize(protocol.MainDomain);
+
         await globalConfigService.UpdateAsync(config => {
             config.MainDomain = request.MainDomain;
             config.Protocols = request.Protocols;
