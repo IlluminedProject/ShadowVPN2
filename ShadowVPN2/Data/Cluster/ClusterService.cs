@@ -14,12 +14,18 @@ namespace ShadowVPN2.Data.Cluster;
 public class ClusterService(
     IDocumentStore documentStore,
     NodeService nodeService,
+    NodeNetworkService nodeNetworkService,
+    DomainValidationService domainValidationService,
     GlobalConfigurationService globalConfigurationService,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<ClusterService> logger) {
-    public async Task<string> GenerateJoinTokenAsync(string name, string? externalAddress) {
+    public async Task<string> GenerateJoinTokenAsync(string name, string? domain) {
         var nodeId = Guid.NewGuid();
         var secret = Guid.NewGuid();
+        var normalizedDomain = domainValidationService.Normalize(domain);
+        var existingNodes = await nodeService.GetNodesAsync();
+        if (normalizedDomain != null && existingNodes.Any(node => node.Domain == normalizedDomain))
+            throw new ArgumentException("Domain is already assigned to another node.");
 
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
@@ -28,18 +34,19 @@ public class ClusterService(
             Id = "EntityClusterNodes|",
             NodeId = nodeId,
             Name = name,
-            Address = externalAddress ?? "",
+            Domain = normalizedDomain,
             JoinSecret = secret
         };
 
         await session.StoreAsync(node);
         await session.SaveChangesAsync();
 
-        var existingNodes = await nodeService.GetNodesAsync();
-        var nodeAddresses = existingNodes
-            .Where(n => !string.IsNullOrEmpty(n.Address) && !n.JoinSecret.HasValue)
-            .Select(n => n.Address)
-            .ToList();
+        var nodeAddresses = new List<string>();
+        foreach (var existingNode in existingNodes.Where(candidate => !candidate.JoinSecret.HasValue)) {
+            var host = await nodeNetworkService.GetPublicHostAsync(existingNode);
+            if (!string.IsNullOrWhiteSpace(host))
+                nodeAddresses.Add(host);
+        }
 
         var rootCaPem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value);
 
@@ -72,10 +79,8 @@ public class ClusterService(
         var rootCaPem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value);
 
         // Update the pending node
-        var nodeAddress = request.NodeAddress ?? remoteIp ?? "";
         pendingNode.AwgPublicKey = request.AwgPublicKey;
-        if (!string.IsNullOrEmpty(nodeAddress))
-            pendingNode.Address = nodeAddress;
+        await nodeNetworkService.RecordObservedPublicIpAsync(pendingNode.NodeId, remoteIp);
 
         var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.Value.NodeId);
         if (localNode != null && !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
@@ -87,10 +92,12 @@ public class ClusterService(
         var globalConfig = await globalConfigurationService.GetAsync();
         var awgSettings = globalConfig.AwgSettings;
 
-        var peers = nodes
-            .Where(n => n.NodeId != pendingNode.NodeId && n.AwgPublicKey != null && !string.IsNullOrEmpty(n.Address))
-            .Select(n => new AwgPeerInfo(n.AwgPublicKey!, n.AwgMeshIp, n.Address))
-            .ToList();
+        var peers = new List<AwgPeerInfo>();
+        foreach (var node in nodes.Where(node => node.NodeId != pendingNode.NodeId && node.AwgPublicKey != null)) {
+            var host = await nodeNetworkService.GetPublicHostAsync(node);
+            if (!string.IsNullOrWhiteSpace(host))
+                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, host));
+        }
 
         return new ClusterSignJoinResponse {
             SignedCertPem = signedCertPem,

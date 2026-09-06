@@ -18,6 +18,7 @@ public class SetupService(
     IOptions<LocalConfiguration> localConfiguration,
     IDocumentStore documentStore,
     GlobalConfigurationService globalConfigService,
+    DomainValidationService domainValidationService,
     DynamicAuthenticationManager authManager,
     ILogger<SetupService> logger) {
     public Task<bool> NeedsSetupAsync() {
@@ -41,8 +42,8 @@ public class SetupService(
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.NodeAddress) || string.IsNullOrWhiteSpace(request.NodeName)) {
-            throw new ArgumentException("Node Address and Node Name are required.");
+        if (string.IsNullOrWhiteSpace(request.NodeName)) {
+            throw new ArgumentException("Node Name is required.");
         }
 
         using var session = documentStore.OpenAsyncSession(new SessionOptions
@@ -52,7 +53,7 @@ public class SetupService(
             Id = "EntityClusterNodes|",
             NodeId = localConfiguration.Value.NodeId,
             Name = request.NodeName,
-            Address = request.NodeAddress,
+            Domain = domainValidationService.Normalize(request.Domain),
             AwgPublicKey = localConfiguration.Value.AwgPrivateKey != null
                 ? AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey)
                 : null

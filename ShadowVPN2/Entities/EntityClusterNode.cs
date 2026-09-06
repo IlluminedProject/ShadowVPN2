@@ -2,8 +2,7 @@
 
 namespace ShadowVPN2.Entities;
 
-public class EntityClusterNode : IEntityId
-{
+public class EntityClusterNode : IEntityId {
     /// <summary>
     /// The unique identifier of the physical node (from LocalConfiguration)
     /// </summary>
@@ -15,9 +14,9 @@ public class EntityClusterNode : IEntityId
     public required string Name { get; set; }
 
     /// <summary>
-    /// Public IP/domain name of the node
+    /// Public DNS name of the node. A node without a domain is addressed by its observed public IP.
     /// </summary>
-    public required string Address { get; set; }
+    public string? Domain { get; set; }
 
     /// <summary>
     ///     AmneziaWG public key for mesh networking (set when node completes join)

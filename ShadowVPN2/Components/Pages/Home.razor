@@ -3,10 +3,12 @@
 @using ShadowVPN2.Data
 @using ShadowVPN2.Data.Cluster
 @using ShadowVPN2.Infrastructure.Authentication
+@attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @implements IDisposable
 @inject NodeService NodeService
 @inject ClusterService ClusterService
 @inject IJSRuntime JSRuntime
+@inject IAuthorizationService AuthorizationService
 @rendermode InteractiveServer
 
 <PageTitle>Nodes - ShadowVPN2</PageTitle>
@@ -17,7 +19,7 @@
             <h1>Nodes</h1>
             <span class="badge bg-primary">Live</span>
         </div>
-        <AuthorizeView Roles="@AppRoles.Administrator">
+        <AuthorizeView Policy="@AppPermissions.Nodes.Manage">
             <button class="btn btn-primary" @onclick="OpenAddNodeModal">
                 <i class="bi bi-plus-lg me-1"></i>Add Node
             </button>
@@ -46,10 +48,12 @@
                 <tr>
                     <th scope="col" style="width: 50px;">#</th>
                     <th scope="col">Name</th>
-                    <th scope="col">Address</th>
+                    <th scope="col">Domain</th>
+                    <th scope="col">Public IP</th>
                     <th scope="col">AWG Mesh IP</th>
                     <th scope="col">AWG Public Key</th>
                     <th scope="col">Status</th>
+                    <th scope="col"></th>
                 </tr>
                 </thead>
                 <tbody>
@@ -61,7 +65,14 @@
                             <strong>@node.Name</strong>
                         </td>
                         <td>
-                            <code>@(string.IsNullOrEmpty(node.Address) ? "—" : node.Address)</code>
+                            <code>@(string.IsNullOrEmpty(node.Domain) ? "—" : node.Domain)</code>
+                            @if (node.DomainStatus is { State: not DomainValidationState.NoDomain })
+                            {
+                                <div class="small text-muted">@GetDomainStatusText(node.DomainStatus.State)</div>
+                            }
+                        </td>
+                        <td>
+                            <code>@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code>
                         </td>
                         <td>
                             <code>@node.AwgMeshIp</code>
@@ -69,7 +80,8 @@
                         <td>
                             @if (!string.IsNullOrEmpty(node.AwgPublicKey))
                             {
-                                <code title="@node.AwgPublicKey">@(node.AwgPublicKey.Length > 12 ? node.AwgPublicKey[..12] + "..." : node.AwgPublicKey)</code>
+                                <code
+                                    title="@node.AwgPublicKey">@(node.AwgPublicKey.Length > 12 ? node.AwgPublicKey[..12] + "..." : node.AwgPublicKey)</code>
                             }
                             else
                             {
@@ -84,6 +96,15 @@
                             else
                             {
                                 <span class="badge bg-success">Joined</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            @if (_canManage && !node.IsPending)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => OpenEditNodeModal(node)">
+                                    Edit
+                                </button>
                             }
                         </td>
                     </tr>
@@ -117,9 +138,9 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">External IP / Domain (optional)</label>
-                            <input type="text" class="form-control" @bind="_newNodeAddress"
-                                   placeholder="Will be detected automatically during join"/>
+                            <label class="form-label">Node Domain (optional)</label>
+                            <input type="text" class="form-control" @bind="_newNodeDomain"
+                                   placeholder="node.example.com"/>
                         </div>
 
                         @if (!string.IsNullOrEmpty(_addNodeError))
@@ -168,31 +189,113 @@
     </div>
 }
 
+@if (_editingNode != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Network: @_editingNode.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditNodeModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Node Domain</label>
+                        <input class="form-control" @bind="_editingDomain" placeholder="node.example.com"/>
+                        <div class="form-text">Leave empty to address this node by its public IP.</div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="text-muted small">Public IPv4</div>
+                            <code>@(_editingNode.PublicIpv4 ?? "—")</code>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted small">Public IPv6</div>
+                            <code>@(_editingNode.PublicIpv6 ?? "—")</code>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Internal addresses</div>
+                        @if (_editingNode.InternalAddresses.Count == 0)
+                        {
+                            <span>—</span>
+                        }
+                        else
+                        {
+                            @foreach (var address in _editingNode.InternalAddresses)
+                            {
+                                <code class="me-2">@address</code>
+                            }
+                        }
+                    </div>
+
+                    @if (_editingNode.DomainStatus != null)
+                    {
+                        <div class="alert @GetDomainAlertClass(_editingNode.DomainStatus.State) mb-0">
+                            <strong>DNS: @GetDomainStatusText(_editingNode.DomainStatus.State)</strong>
+                            @if (_editingNode.DomainStatus.ResolvedAddresses.Count > 0)
+                            {
+                                <div class="small mt-1">
+                                    Resolves to: @string.Join(", ", _editingNode.DomainStatus.ResolvedAddresses)
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_editNodeError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_editNodeError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="CheckEditingNodeDomain"
+                            disabled="@_isEditingNode">
+                        Check DNS
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseEditNodeModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEditingNode" disabled="@_isEditingNode">
+                        @if (_isEditingNode)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private IReadOnlyList<NodeResponse>? _nodes;
     private NodeService.NodeSubscription? _subscription;
 
     private bool _showAddNodeModal;
     private string _newNodeName = "";
-    private string? _newNodeAddress;
+    private string? _newNodeDomain;
     private string? _generatedToken;
     private string? _addNodeError;
     private bool _isGenerating;
+    private bool _canManage;
+    private NodeResponse? _editingNode;
+    private string? _editingDomain;
+    private string? _editNodeError;
+    private bool _isEditingNode;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        var nodes = await NodeService.GetNodesAsync();
-        UpdateNodesFromResponse(nodes.Select(n => new NodeResponse
+        if (AuthState != null)
         {
-            Id = n.Id,
-            NodeId = n.NodeId,
-            Name = n.Name,
-            Address = n.Address,
-            Number = n.Number,
-            AwgPublicKey = n.AwgPublicKey,
-            AwgMeshIp = n.AwgMeshIp,
-            IsPending = n.JoinSecret.HasValue
-        }));
+            var state = await AuthState;
+            _canManage = (await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Nodes.Manage)).Succeeded ||
+                         state.User.IsInRole(AppRoles.Administrator);
+        }
+
+        UpdateNodesFromResponse(await NodeService.GetNodeResponsesAsync());
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -217,7 +320,7 @@
 
     private void UpdateNodesFromResponse(IEnumerable<NodeResponse> nodes)
     {
-        _nodes = [..nodes.OrderBy(n => n.Number)];
+        _nodes = [.. nodes.OrderBy(n => n.Number)];
     }
 
     private void UpdateNodes(IEnumerable<NodeResponse> nodes)
@@ -230,7 +333,7 @@
         _showAddNodeModal = true;
         _generatedToken = null;
         _addNodeError = null;
-        _newNodeAddress = null;
+        _newNodeDomain = null;
         RandomizeName();
     }
 
@@ -259,8 +362,8 @@
         try
         {
             _generatedToken = await ClusterService.GenerateJoinTokenAsync(
-                    _newNodeName.Trim(),
-                    string.IsNullOrWhiteSpace(_newNodeAddress) ? null : _newNodeAddress.Trim());
+                _newNodeName.Trim(),
+                string.IsNullOrWhiteSpace(_newNodeDomain) ? null : _newNodeDomain.Trim());
         }
         catch (Exception ex)
         {
@@ -278,8 +381,92 @@
             await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _generatedToken);
     }
 
+    private void OpenEditNodeModal(NodeResponse node)
+    {
+        _editingNode = node;
+        _editingDomain = node.Domain;
+        _editNodeError = null;
+    }
+
+    private void CloseEditNodeModal()
+    {
+        _editingNode = null;
+    }
+
+    private async Task SaveEditingNode()
+    {
+        if (_editingNode == null) return;
+        _isEditingNode = true;
+        _editNodeError = null;
+        try
+        {
+            _editingNode = await NodeService.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            _editingDomain = _editingNode.Domain;
+            await ReloadNodesAsync();
+        }
+        catch (Exception ex)
+        {
+            _editNodeError = ex.Message;
+        }
+        finally
+        {
+            _isEditingNode = false;
+        }
+    }
+
+    private async Task CheckEditingNodeDomain()
+    {
+        if (_editingNode == null) return;
+        _isEditingNode = true;
+        _editNodeError = null;
+        try
+        {
+            if (!string.Equals(_editingDomain?.Trim(), _editingNode.Domain, StringComparison.OrdinalIgnoreCase))
+                _editingNode = await NodeService.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            else
+                _editingNode.DomainStatus = await NodeService.CheckDomainAsync(_editingNode.NodeId);
+            _editingDomain = _editingNode.Domain;
+            await ReloadNodesAsync();
+        }
+        catch (Exception ex)
+        {
+            _editNodeError = ex.Message;
+        }
+        finally
+        {
+            _isEditingNode = false;
+        }
+    }
+
+    private async Task ReloadNodesAsync()
+    {
+        UpdateNodesFromResponse(await NodeService.GetNodeResponsesAsync());
+    }
+
+    private static string GetDomainAlertClass(DomainValidationState state) => state switch
+    {
+        DomainValidationState.Valid => "alert-success",
+        DomainValidationState.NoDomain => "alert-secondary",
+        DomainValidationState.PublicIpUnknown => "alert-warning",
+        DomainValidationState.PartialMatch => "alert-warning",
+        _ => "alert-danger"
+    };
+
+    private static string GetDomainStatusText(DomainValidationState state) => state switch
+    {
+        DomainValidationState.Valid => "domain points to this node",
+        DomainValidationState.PartialMatch => "only some DNS records point to this node",
+        DomainValidationState.NoDomain => "domain is not configured",
+        DomainValidationState.PublicIpUnknown => "public IP is not known yet",
+        DomainValidationState.NoRecords => "domain has no A or AAAA records",
+        DomainValidationState.Mismatch => "domain points to another address",
+        DomainValidationState.LookupFailed => "DNS lookup failed",
+        _ => state.ToString()
+    };
+
     public void Dispose()
     {
         _subscription?.Dispose();
     }
+
 }

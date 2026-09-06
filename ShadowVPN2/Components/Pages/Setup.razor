@@ -1,6 +1,4 @@
 @page "/setup"
-@using System.Net
-@using System.Net.Sockets
 @using RandomFriendlyNameGenerator
 @using ShadowVPN2.Data
 @rendermode InteractiveServer
@@ -16,44 +14,11 @@
     <p>Please confirm your server's network details.</p>
 
     <div class="mb-3">
-        <label class="form-label">Node Address</label>
+        <label class="form-label">Node Domain (optional)</label>
         <div class="input-group">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" @onclick="ToggleDropdown">
-                Select
-            </button>
-
-            @if (isDropdownOpen)
-            {
-                <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;" @onclick="() => isDropdownOpen = false"></div>
-            }
-
-            <ul class="dropdown-menu @(isDropdownOpen ? "show" : "")"
-                style="@(isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
-                <li>
-                    <button class="dropdown-item" type="button" @onclick="() => SelectAddress(hostname + portSuffix)">
-                        Browser
-                        Hostname (@(hostname + portSuffix))
-                    </button>
-                </li>
-                @if (!string.IsNullOrEmpty(publicIp))
-                {
-                    <li>
-                        <button class="dropdown-item" type="button"
-                                @onclick="() => SelectAddress(publicIp + portSuffix)">Public IP
-                            (@(publicIp + portSuffix))
-                        </button>
-                    </li>
-                }
-                else
-                {
-                    <li>
-                        <button class="dropdown-item disabled" type="button">Public IP (Loading...)</button>
-                    </li>
-                }
-            </ul>
-            <input type="text" class="form-control" value="@nodeAddress" @oninput="OnNodeAddressInput"
-                   placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
-            <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupPublicIp(true)"
+            <input type="text" class="form-control" @bind="nodeDomain"
+                   placeholder="node.example.com"/>
+            <button class="btn btn-outline-secondary" type="button" @onclick="LookupPublicIp"
                     disabled="@isLookingUpIp">
                 @if (isLookingUpIp)
                 {
@@ -65,15 +30,18 @@
                 }
             </button>
         </div>
-        <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
-            enter a custom address.
+        <div class="form-text">Leave empty to expose this node by its public IP. Public certificates require a domain.
         </div>
+        @if (!string.IsNullOrEmpty(publicIp))
+        {
+            <div class="form-text">Detected public IP: <code>@publicIp</code></div>
+        }
     </div>
 
     <div class="mb-3">
         <label class="form-label">Node Name</label>
         <div class="input-group">
-            <input type="text" class="form-control" @bind="nodeNameInput" placeholder="@nodeNamePlaceholder" />
+            <input type="text" class="form-control" @bind="nodeNameInput" placeholder="@nodeNamePlaceholder"/>
             <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName">
                 Random Name
             </button>
@@ -106,12 +74,14 @@ else if (currentStep == 2)
 
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
-            <button class="nav-link @(useLocalLogin ? "active" : "")" type="button" @onclick="() => { useLocalLogin = true; useOidc = false; }">
+            <button class="nav-link @(useLocalLogin ? "active" : "")" type="button"
+                    @onclick="() => { useLocalLogin = true; useOidc = false; }">
                 Local Login
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link @(useOidc ? "active" : "")" type="button" @onclick="() => { useOidc = true; useLocalLogin = false; }">
+            <button class="nav-link @(useOidc ? "active" : "")" type="button"
+                    @onclick="() => { useOidc = true; useLocalLogin = false; }">
                 OAuth2 / OpenID Connect
             </button>
         </li>
@@ -146,7 +116,9 @@ else if (currentStep == 2)
         <div class="card mb-4">
             <div class="card-body">
                 <h5 class="card-title">OIDC Provider</h5>
-                <div class="alert alert-info py-2 mb-3">The first user to log in via this provider will become the administrator.</div>
+                <div class="alert alert-info py-2 mb-3">The first user to log in via this provider will become the
+                    administrator.
+                </div>
 
                 <div class="mb-3">
                     <label class="form-label">Display Name</label>
@@ -155,32 +127,37 @@ else if (currentStep == 2)
 
                 <div class="mb-3">
                     <label class="form-label">OpenID Configuration Issuer URL</label>
-                    <input type="url" class="form-control" @bind="oidcAuthority" placeholder="e.g. https://accounts.google.com"/>
-                    <div class="form-text">The base issuer URL. The discovery document will be fetched from <code>/.well-known/openid-configuration</code>.</div>
+                    <input type="url" class="form-control" @bind="oidcAuthority"
+                           placeholder="e.g. https://accounts.google.com"/>
+                    <div class="form-text">The base issuer URL. The discovery document will be fetched from <code>/.well-known/openid-configuration</code>.
+                    </div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Client ID</label>
-                    <input type="text" class="form-control" @bind="oidcClientId" />
+                    <input type="text" class="form-control" @bind="oidcClientId"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Client Secret</label>
-                    <input type="password" class="form-control" @bind="oidcClientSecret" />
+                    <input type="password" class="form-control" @bind="oidcClientSecret"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Redirect URI</label>
                     <div class="input-group">
-                        <input type="text" class="form-control bg-light" value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly />
-                        <button class="btn btn-outline-secondary" type="button" @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
+                        <input type="text" class="form-control bg-light"
+                               value="@(NavigationManager.BaseUri.TrimEnd('/') + "/signin-OIDC")" readonly/>
+                        <button class="btn btn-outline-secondary" type="button"
+                                @onclick='() => CopyToClipboard(NavigationManager.BaseUri.TrimEnd("/").ToString() + "/signin-OIDC")'>
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
                     <div class="form-text">Configure this URL in your identity provider's allowed redirect URIs.</div>
                 </div>
 
-                <button class="btn btn-outline-info" type="button" @onclick="TestOidcConnection" disabled="@isTestingOidc">
+                <button class="btn btn-outline-info" type="button" @onclick="TestOidcConnection"
+                        disabled="@isTestingOidc">
                     @if (isTestingOidc)
                     {
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -227,7 +204,9 @@ else if (currentStep == 3)
     <div class="alert alert-warning">
         <h5 class="alert-heading">Important Security Notice</h5>
         <p>Before completing the setup, please download the <strong>Root CA Certificate</strong> (root-ca.pfx).</p>
-        <p>This certificate contains the private key needed to add new nodes to your ShadowVPN2 cluster in the future. Once you complete the setup, this file will be permanently deleted from this server for security reasons.</p>
+        <p>This certificate contains the private key needed to add new nodes to your ShadowVPN2 cluster in the future.
+            Once you complete the setup, this file will be permanently deleted from this server for security
+            reasons.</p>
         <hr>
         <p class="mb-0">Keep this file in a secure and secret location!</p>
     </div>
@@ -240,7 +219,8 @@ else if (currentStep == 3)
     }
 
     <div class="d-flex justify-content-between align-items-center">
-        <a href="/api/setup/root-ca" class="btn btn-outline-success btn-lg" target="_blank" @onclick="() => hasDownloadedCert = true">
+        <a href="/api/setup/root-ca" class="btn btn-outline-success btn-lg" target="_blank"
+           @onclick="() => hasDownloadedCert = true">
             Download root-ca.pfx
         </a>
 
@@ -258,13 +238,11 @@ else if (currentStep == 3)
 }
 
 @code {
-    private bool isDropdownOpen = false;
     private int currentStep = 1;
 
     private string hostname = string.Empty;
-    private string portSuffix = string.Empty;
     private string publicIp = string.Empty;
-    private string nodeAddress = string.Empty;
+    private string nodeDomain = string.Empty;
     private string nodeNameInput = string.Empty;
     private string nodeNamePlaceholder = string.Empty;
     private bool isLookingUpIp = false;
@@ -290,59 +268,24 @@ else if (currentStep == 3)
     private string errorMessage = string.Empty;
     private bool isProcessing = false;
 
-    private void ToggleDropdown()
-    {
-        isDropdownOpen = !isDropdownOpen;
-    }
-
     private void GenerateRandomNodeName()
     {
         nodeNameInput = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-node";
-    }
-
-    private void OnNodeAddressInput(ChangeEventArgs e)
-    {
-        SetNodeAddress(e.Value?.ToString() ?? string.Empty);
-    }
-
-    private void SelectAddress(string address)
-    {
-        SetNodeAddress(address);
-        isDropdownOpen = false;
-    }
-
-    private void SetNodeAddress(string address)
-    {
-        nodeAddress = address;
-
-        if (!string.IsNullOrEmpty(address))
-        {
-            if (!IPAddress.TryParse(address, out _) && !string.Equals(address, "localhost", StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = address.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 0)
-                {
-                    nodeNamePlaceholder = parts[0];
-                }
-            }
-            else if (string.IsNullOrEmpty(nodeNamePlaceholder) || nodeNamePlaceholder == hostname)
-            {
-                nodeNamePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "primary-node";
-            }
-        }
     }
 
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(NavigationManager.BaseUri);
         hostname = uri.Host;
-        portSuffix = uri.Port is not 443 ? $":{uri.Port}" : "";
-        SetNodeAddress(hostname + portSuffix);
+        if (!string.Equals(hostname, "localhost", StringComparison.OrdinalIgnoreCase) &&
+            !System.Net.IPAddress.TryParse(hostname, out _))
+            nodeDomain = hostname;
+        nodeNamePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "primary-node";
 
-        await LookupPublicIp(false);
+        await LookupPublicIp();
     }
 
-    private async Task LookupPublicIp(bool manualRefresh)
+    private async Task LookupPublicIp()
     {
         isLookingUpIp = true;
         StateHasChanged();
@@ -350,37 +293,7 @@ else if (currentStep == 3)
         var ip = await SetupService.GetPublicIpAsync();
         publicIp = ip ?? string.Empty;
 
-        if (!manualRefresh && nodeAddress == hostname + portSuffix && IsPrivateIpOrLocalhost(hostname) && !string.IsNullOrEmpty(publicIp))
-        {
-            nodeAddress = publicIp + portSuffix;
-        }
-
         isLookingUpIp = false;
-    }
-
-    private bool IsPrivateIpOrLocalhost(string host)
-    {
-        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (IPAddress.TryParse(host, out var ipAddress))
-        {
-            byte[] bytes = ipAddress.GetAddressBytes();
-            if (ipAddress.AddressFamily == AddressFamily.InterNetwork)
-            {
-                if (bytes[0] == 10 || bytes[0] == 127) return true;
-                if (bytes[0] == 192 && bytes[1] == 168) return true;
-                if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-                if (bytes[0] == 169 && bytes[1] == 254) return true;
-            }
-            else if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                if (ipAddress.IsIPv6LinkLocal || ipAddress.IsIPv6SiteLocal) return true;
-                if (host == "::1") return true;
-            }
-        }
-
-        return false;
     }
 
     private async Task TestOidcConnection()
@@ -410,7 +323,7 @@ else if (currentStep == 3)
             {
                 var request = new NodeSetupRequest
                 {
-                    NodeAddress = nodeAddress,
+                    Domain = string.IsNullOrWhiteSpace(nodeDomain) ? null : nodeDomain.Trim(),
                     NodeName = string.IsNullOrWhiteSpace(nodeNameInput) ? nodeNamePlaceholder : nodeNameInput
                 };
 
@@ -495,4 +408,5 @@ else if (currentStep == 3)
     {
         await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
+
 }

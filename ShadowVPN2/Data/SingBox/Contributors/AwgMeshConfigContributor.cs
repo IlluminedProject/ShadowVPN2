@@ -11,6 +11,7 @@ namespace ShadowVPN2.Data.SingBox.Contributors;
 
 public class AwgMeshConfigContributor(
     NodeService nodeService,
+    NodeNetworkService nodeNetworkService,
     IOptions<LocalConfiguration> localConfiguration,
     GlobalConfigurationService globalConfigurationService,
     IOptions<SingBoxOptions> options) : ISingBoxConfigContributor {
@@ -57,9 +58,10 @@ public class AwgMeshConfigContributor(
                 PersistentKeepaliveInterval = 25
             };
 
-            if (!string.IsNullOrEmpty(node.Address)) {
+            var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
+            if (!string.IsNullOrEmpty(publicHost)) {
                 // Ensure proper formatting for IPv6 addresses
-                if (IPAddress.TryParse(node.Address, out var ip)) {
+                if (IPAddress.TryParse(publicHost, out var ip)) {
                     if (ip.IsIPv4MappedToIPv6)
                         ip = ip.MapToIPv4();
 
@@ -68,7 +70,7 @@ public class AwgMeshConfigContributor(
                         : ip.ToString();
                 }
                 else
-                    peer.Address = new AwgPeerInfo(string.Empty, string.Empty, node.Address).PublicHost;
+                    peer.Address = new AwgPeerInfo(string.Empty, string.Empty, publicHost).PublicHost;
 
                 peer.Port = awgSettings.ListenPort;
             }

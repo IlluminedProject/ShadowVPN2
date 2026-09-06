@@ -8,6 +8,7 @@ namespace ShadowVPN2.Data.Subscription;
 public class SubscriptionService(
     IAsyncDocumentSession session,
     NodeService nodeService,
+    NodeNetworkService nodeNetworkService,
     GlobalConfigurationService globalConfigService,
     IEnumerable<ISubscriptionConnectionContributor> contributors) {
     public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) {
@@ -42,13 +43,15 @@ public class SubscriptionService(
                 }
             }
 
-            foreach (var node in nodes.Where(n => !n.JoinSecret.HasValue && !string.IsNullOrWhiteSpace(n.Address))) {
-                var host = EndpointAddress.GetHost(node.Address);
+            foreach (var node in nodes.Where(n => !n.JoinSecret.HasValue)) {
+                var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
+                if (string.IsNullOrWhiteSpace(publicHost)) continue;
+                var host = EndpointAddress.GetHost(publicHost);
                 var nodeEndpoint = await CreateEndpointAsync(
                     contributor,
                     client,
                     settings,
-                    node.Address,
+                    publicHost,
                     host,
                     host,
                     false,
