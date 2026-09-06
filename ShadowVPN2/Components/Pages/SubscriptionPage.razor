@@ -1,5 +1,5 @@
 @page "/s/{SubscriptionId:guid}"
-@using ShadowVPN2.Components.Pages.ConnectionViews
+@using System.Text
 @using ShadowVPN2.Data.Subscription
 
 @attribute [AllowAnonymous]
@@ -30,7 +30,7 @@ else
 {
     <div class="text-center mb-4">
         <h2 class="fw-bold">@_response.ClientName</h2>
-        <p class="text-muted">VPN Connection Details</p>
+        <p class="text-muted">Available connection hosts</p>
     </div>
 
     @if (!_response.Protocols.Any())
@@ -41,19 +41,35 @@ else
     }
     else
     {
-        <div class="accordion" id="protocolsAccordion">
+        <div class="list-group">
             @foreach (var protocol in _response.Protocols)
             {
-                var descriptor = ProtocolSubscriptionDescriptor.All.FirstOrDefault(candidate =>
-                    candidate.Protocol.Equals(protocol.Protocol, StringComparison.OrdinalIgnoreCase));
-                if (descriptor is null)
+                @foreach (var endpoint in protocol.Endpoints)
                 {
-                    continue;
+                    var key = $"{protocol.Protocol}:{endpoint.Address}";
+                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                        <div class="text-break">
+                            <div class="fw-semibold">@endpoint.Name</div>
+                            <div class="text-muted small">@endpoint.Address</div>
+                        </div>
+                        @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
+                        {
+                            <a class="btn btn-outline-primary text-nowrap" download="shadowvpn.conf"
+                               href="@CreateConfigDataUrl(wireGuard)">
+                                <i class="bi bi-download me-1"></i>
+                                Download
+                            </a>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary text-nowrap" type="button"
+                                    @onclick="() => CopyConnectionAsync(protocol, endpoint, _response.ClientName)">
+                                <i class="bi bi-clipboard me-1"></i>
+                                @(key == _copiedKey ? "Copied" : "Copy")
+                            </button>
+                        }
+                    </div>
                 }
-
-                <CascadingValue Value="protocol">
-                    <DynamicComponent Type="descriptor.ComponentType"/>
-                </CascadingValue>
             }
         </div>
 
@@ -72,6 +88,27 @@ else
 
     private SubscriptionResponse? _response;
     private bool _loading = true;
+    private string? _copiedKey;
+
+    [Inject] private IJSRuntime JsRuntime { get; set; } = null!;
+
+    private static string CreateConfigDataUrl(WireGuardConnectionInfo info)
+    {
+        return $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(info.CreateConfig()))}";
+    }
+
+    private async Task CopyConnectionAsync(ProtocolSubscription protocol, SubscriptionEndpoint endpoint,
+        string clientName)
+    {
+        var text = endpoint.Connection switch
+        {
+            Hysteria2ConnectionInfo info => info.CreateShareUrl(clientName),
+            WireGuardConnectionInfo info => info.CreateShareUrl(),
+            _ => throw new InvalidOperationException($"Unsupported protocol: {protocol.Protocol}")
+        };
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        _copiedKey = $"{protocol.Protocol}:{endpoint.Address}";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -84,5 +121,4 @@ else
             _loading = false;
         }
     }
-
 }

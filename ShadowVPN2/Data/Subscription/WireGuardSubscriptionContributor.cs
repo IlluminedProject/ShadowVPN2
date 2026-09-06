@@ -1,4 +1,3 @@
-using System.Text;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
 using ShadowVPN2.Infrastructure;
@@ -19,27 +18,29 @@ public sealed class WireGuardSubscriptionContributor(
         await keyService.EnsureKeyAsync(client, cancellationToken);
         var serverPublicKey = AwgKeyGenerator.GetPublicKey(wg.PrivateKey);
         var mtu = client.WireGuard?.Mtu ?? wg.Mtu;
-        var config =
-            $"[Interface]\nPrivateKey = {client.WireGuard!.PrivateKey}\nAddress = {client.GetAssignedIp()}/32\nMTU = {mtu}\n\n[Peer]\nPublicKey = {serverPublicKey}\nEndpoint = {EndpointAddress.FormatHostForUri(host)}:{wg.ListenPort}\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n";
-
-        if (wg.IsAmneziaWg) {
-            config +=
-                $"Jc = {wg.Jc}\nJmin = {wg.Jmin}\nJmax = {wg.Jmax}\nS1 = {wg.S1}\nS2 = {wg.S2}\nS3 = {wg.S3}\nS4 = {wg.S4}\nH1 = {wg.H1}\nH2 = {wg.H2}\nH3 = {wg.H3}\nH4 = {wg.H4}\n";
-            config += Optional("I1", wg.I1) + Optional("I2", wg.I2) + Optional("I3", wg.I3) + Optional("I4", wg.I4) +
-                      Optional("I5", wg.I5);
-        }
-
-        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(config));
         return new WireGuardConnectionInfo {
             ServerAddress = host,
             ServerPort = wg.ListenPort,
-            Config = config,
-            ShareUrl = $"wireguard://{encoded}",
-            IsAmneziaWg = wg.IsAmneziaWg
+            PrivateKey = client.WireGuard!.PrivateKey!,
+            AssignedIp = client.GetAssignedIp().ToString(),
+            ServerPublicKey = serverPublicKey,
+            Mtu = mtu,
+            IsAmneziaWg = wg.IsAmneziaWg, Jc = wg.Jc,
+            Jmin = wg.Jmin,
+            Jmax = wg.Jmax,
+            S1 = wg.S1,
+            S2 = wg.S2,
+            S3 = wg.S3,
+            S4 = wg.S4,
+            H1 = wg.H1,
+            H2 = wg.H2,
+            H3 = wg.H3,
+            H4 = wg.H4,
+            I1 = wg.I1,
+            I2 = wg.I2,
+            I3 = wg.I3,
+            I4 = wg.I4,
+            I5 = wg.I5
         };
-    }
-
-    private static string Optional(string name, string? value) {
-        return string.IsNullOrWhiteSpace(value) ? string.Empty : $"{name} = {value}\n";
     }
 }
