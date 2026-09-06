@@ -40,6 +40,8 @@ public class AwgEndpointConfig : EndpointConfig {
     [JsonPropertyName("s1")] public int? S1 { get; set; }
 
     [JsonPropertyName("s2")] public int? S2 { get; set; }
+    [JsonPropertyName("s3")] public int? S3 { get; set; }
+    [JsonPropertyName("s4")] public int? S4 { get; set; }
 
     [JsonPropertyName("h1")] public string? H1 { get; set; }
 
@@ -48,6 +50,11 @@ public class AwgEndpointConfig : EndpointConfig {
     [JsonPropertyName("h3")] public string? H3 { get; set; }
 
     [JsonPropertyName("h4")] public string? H4 { get; set; }
+    [JsonPropertyName("i1")] public string? I1 { get; set; }
+    [JsonPropertyName("i2")] public string? I2 { get; set; }
+    [JsonPropertyName("i3")] public string? I3 { get; set; }
+    [JsonPropertyName("i4")] public string? I4 { get; set; }
+    [JsonPropertyName("i5")] public string? I5 { get; set; }
 }
 
 public class WireGuardPeer {

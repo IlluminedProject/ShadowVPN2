@@ -47,6 +47,11 @@
                                 Hysteria2
                             </button>
                         </li>
+                        <li>
+                            <button class="dropdown-item" type="button" @onclick='() => AddProtocol("wireguard")'>
+                                WireGuard / AmneziaWG
+                            </button>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -96,7 +101,7 @@
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0">
                                         <span class="badge bg-primary me-2">@protocol.Protocol</span>
-                                        @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol.Protocol)
+                                        @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol is WireGuardAmneziaGlobalSettings wg ? $"Port: {wg.ListenPort}" : protocol.Protocol)
                                     </h5>
                                     @if (canManage)
                                     {
@@ -175,6 +180,75 @@
                                                 <div class="form-text">Auto-generated self-signed certificate.
                                                     Regenerate if needed.
                                                 </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (protocol is WireGuardAmneziaGlobalSettings wgConfig)
+                                    {
+                                        <div class="ms-4 p-3 border-start">
+                                            <div class="mb-3"><label class="form-label">Main Domain</label><input
+                                                    class="form-control" @bind="wgConfig.MainDomain"
+                                                    placeholder="vpn.example.com"/></div>
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-md-4"><label class="form-label">Listen
+                                                        Port</label><input type="number" class="form-control"
+                                                                           @bind="wgConfig.ListenPort" min="1"
+                                                                           max="65535"/></div>
+                                                <div class="col-md-4"><label class="form-label">MTU</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.Mtu"
+                                                        min="576" max="9000"/></div>
+                                                <div class="col-md-4"><label class="form-label">Server VPN
+                                                        Address</label><input class="form-control"
+                                                                              @bind="wgConfig.ServerAddress"/></div>
+                                            </div>
+                                            <div
+                                                class="alert @(wgConfig.IsAmneziaWg ? "alert-warning" : "alert-success") py-2">
+                                                <strong>Ordinary WireGuard
+                                                    compatibility:</strong> @(wgConfig.IsAmneziaWg ? "No. AmneziaWG parameters are configured." : "Yes. No AmneziaWG parameters are configured.")
+                                            </div>
+                                            <h6>AmneziaWG parameters</h6>
+                                            <div class="row g-3">
+                                                <div class="col-md-3"><label class="form-label">Jc</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.Jc" min="0"/>
+                                                </div>
+                                                <div class="col-md-3"><label class="form-label">Jmin</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.Jmin"
+                                                        min="0"/></div>
+                                                <div class="col-md-3"><label class="form-label">Jmax</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.Jmax"
+                                                        min="0"/></div>
+                                                <div class="col-md-3"><label class="form-label">S1</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.S1" min="0"/>
+                                                </div>
+                                                <div class="col-md-3"><label class="form-label">S2</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.S2" min="0"/>
+                                                </div>
+                                                <div class="col-md-3"><label class="form-label">S3</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.S3" min="0"/>
+                                                </div>
+                                                <div class="col-md-3"><label class="form-label">S4</label><input
+                                                        type="number" class="form-control" @bind="wgConfig.S4" min="0"/>
+                                                </div>
+                                                <div class="col-md-3"><label class="form-label">H1</label><input
+                                                        class="form-control" @bind="wgConfig.H1"/></div>
+                                                <div class="col-md-3"><label class="form-label">H2</label><input
+                                                        class="form-control" @bind="wgConfig.H2"/></div>
+                                                <div class="col-md-3"><label class="form-label">H3</label><input
+                                                        class="form-control" @bind="wgConfig.H3"/></div>
+                                                <div class="col-md-3"><label class="form-label">H4</label><input
+                                                        class="form-control" @bind="wgConfig.H4"/></div>
+                                            </div>
+                                            <div class="row g-3 mt-1">
+                                                <div class="col-md-6"><label class="form-label">I1</label><input
+                                                        class="form-control font-monospace" @bind="wgConfig.I1"/></div>
+                                                <div class="col-md-6"><label class="form-label">I2</label><input
+                                                        class="form-control font-monospace" @bind="wgConfig.I2"/></div>
+                                                <div class="col-md-6"><label class="form-label">I3</label><input
+                                                        class="form-control font-monospace" @bind="wgConfig.I3"/></div>
+                                                <div class="col-md-6"><label class="form-label">I4</label><input
+                                                        class="form-control font-monospace" @bind="wgConfig.I4"/></div>
+                                                <div class="col-md-6"><label class="form-label">I5</label><input
+                                                        class="form-control font-monospace" @bind="wgConfig.I5"/></div>
                                             </div>
                                         </div>
                                     }
@@ -265,6 +339,14 @@
             };
             settings.GenerateSelfSignedCertificate();
             request.Protocols.Add(settings);
+        }
+        else if (type == "wireguard" && request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
+        {
+            request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
+        }
+        else if (type == "wireguard" && request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
+        {
+            request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
         }
     }
 

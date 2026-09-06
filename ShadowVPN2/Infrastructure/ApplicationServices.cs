@@ -29,11 +29,13 @@ public static class ApplicationServices {
 
         builder.Services.AddHttpClient();
         builder.Services.AddSingleton<GlobalConfigurationService>();
+        builder.Services.AddSingleton<WireGuardKeyService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());
         builder.Services.AddSingleton<SetupService>();
         builder.Services.AddScoped<SettingsService>();
         builder.Services.AddScoped<SubscriptionService>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, Hysteria2SubscriptionContributor>();
+        builder.Services.AddSingleton<ISubscriptionConnectionContributor, WireGuardSubscriptionContributor>();
         builder.Services.AddSingleton<ProtocolSettingsService>();
         builder.Services.AddSingleton<NodeService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
@@ -41,6 +43,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
+        builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
         builder.Services.AddControllers();

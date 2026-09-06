@@ -5,17 +5,14 @@ using ShadowVPN2.Infrastructure.Authentication;
 
 namespace ShadowVPN2.Data;
 
-public class ClientService(IDocumentStore documentStore, ILogger<ClientService> logger) : IDisposable
-{
+public class ClientService(IDocumentStore documentStore, ILogger<ClientService> logger) : IDisposable {
     private readonly Lock _lock = new();
     private readonly HashSet<ClientSubscription> _subscriptions = new();
     private IDisposable? _changesSubscription;
     private CancellationTokenSource? _disposalCts;
 
-    public void Dispose()
-    {
-        lock (_lock)
-        {
+    public void Dispose() {
+        lock (_lock) {
             _disposalCts?.Cancel();
             _disposalCts?.Dispose();
             _disposalCts = null;
@@ -26,8 +23,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     }
 
     public async Task<IReadOnlyList<EntityClient>> GetClientsAsync(ApplicationUser user,
-        CancellationToken ct = default)
-    {
+        CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         return await session.Query<EntityClient>()
             .Where(c => c.UserId == user.Id)
@@ -35,8 +31,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     }
 
     public async Task<IReadOnlyList<EntityClient>> GetClientsByUserNumberAsync(int userNumber,
-        CancellationToken ct = default)
-    {
+        CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         // Since the user number is part of the ID: Clients/{userNumber}/...
         // We can use a starts-with query on the ID.
@@ -46,16 +41,14 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     }
 
     public async Task<EntityClient?> GetClientAsync(string clientId, string userId,
-        CancellationToken ct = default)
-    {
+        CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
         return client?.UserId == userId ? client : null;
     }
 
     public async Task<EntityClient> AddClientAsync(ApplicationUser user, string name,
-        WireGuardClientSettings? wireGuard = null, CancellationToken ct = default)
-    {
+        WireGuardClientSettings? wireGuard = null, CancellationToken ct = default) {
         if (user.UserNumber == 0)
             throw new InvalidOperationException($"User {user.Id} has no UserNumber assigned");
 
@@ -72,26 +65,22 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             .ToHashSet();
 
         var nextNumber = 1;
-        while (usedNumbers.Contains(nextNumber))
-        {
+        while (usedNumbers.Contains(nextNumber)) {
             nextNumber++;
         }
 
-        if (nextNumber > 254)
-        {
+        if (nextNumber > 254) {
             throw new InvalidOperationException("Maximum number of clients (254) reached for this user.");
         }
 
         var clientId = $"Clients/{user.UserNumber}/{nextNumber}";
 
-        var client = new EntityClient
-        {
+        var client = new EntityClient {
             Id = clientId,
             UserId = user.Id!,
             Name = name,
             WireGuard = wireGuard,
-            Hysteria2 = new Hysteria2ClientSettings
-            {
+            Hysteria2 = new Hysteria2ClientSettings {
                 Password = Guid.NewGuid().ToString("N") // Simple secure random password
             }
         };
@@ -105,8 +94,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     }
 
     public async Task<EntityClient?> UpdateClientAsync(string clientId, string userId, string name, bool isEnabled,
-        WireGuardClientSettings? wireGuard, CancellationToken ct = default)
-    {
+        WireGuardClientSettings? wireGuard, CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
         if (client is null || client.UserId != userId)
@@ -114,11 +102,18 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
         client.Name = name;
         client.IsEnabled = isEnabled;
-        client.WireGuard = wireGuard;
+        if (wireGuard is null) {
+            if (client.WireGuard is not null)
+                client.WireGuard.Mtu = null;
+        }
+        else {
+            wireGuard.PrivateKey = client.WireGuard?.PrivateKey;
+            wireGuard.PublicKey = client.WireGuard?.PublicKey;
+            client.WireGuard = wireGuard;
+        }
 
         if (client.Hysteria2 == null)
-            client.Hysteria2 = new Hysteria2ClientSettings
-            {
+            client.Hysteria2 = new Hysteria2ClientSettings {
                 Password = Guid.NewGuid().ToString("N")
             };
 
@@ -126,8 +121,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return client;
     }
 
-    public async Task<bool> DeleteClientAsync(string clientId, string userId, CancellationToken ct = default)
-    {
+    public async Task<bool> DeleteClientAsync(string clientId, string userId, CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
         if (client is null || client.UserId != userId)
@@ -146,27 +140,22 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     }
 
     public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user,
-        Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null)
-    {
+        Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null) {
         var subscription = new ClientSubscription(this, user.Id!, user.UserNumber);
-        if (onUpdate != null)
-        {
+        if (onUpdate != null) {
             subscription.ClientsUpdated += onUpdate;
         }
 
-        lock (_lock)
-        {
+        lock (_lock) {
             _subscriptions.Add(subscription);
 
-            if (_disposalCts != null)
-            {
+            if (_disposalCts != null) {
                 _disposalCts.Cancel();
                 _disposalCts.Dispose();
                 _disposalCts = null;
             }
 
-            if (_subscriptions.Count == 1 && _changesSubscription == null)
-            {
+            if (_subscriptions.Count == 1 && _changesSubscription == null) {
                 InitializeChangesSubscription();
             }
         }
@@ -174,36 +163,27 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return await Task.FromResult(subscription);
     }
 
-    private void Unsubscribe(ClientSubscription subscription)
-    {
-        lock (_lock)
-        {
-            if (_subscriptions.Remove(subscription) && _subscriptions.Count == 0)
-            {
-                if (_changesSubscription != null)
-                {
+    private void Unsubscribe(ClientSubscription subscription) {
+        lock (_lock) {
+            if (_subscriptions.Remove(subscription) && _subscriptions.Count == 0) {
+                if (_changesSubscription != null) {
                     _disposalCts?.Cancel();
                     _disposalCts?.Dispose();
                     _disposalCts = new CancellationTokenSource();
                     var token = _disposalCts.Token;
 
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
+                    _ = Task.Run(async () => {
+                        try {
                             await Task.Delay(TimeSpan.FromSeconds(10), token);
-                            lock (_lock)
-                            {
+                            lock (_lock) {
                                 if (!token.IsCancellationRequested && _subscriptions.Count == 0 &&
-                                    _changesSubscription != null)
-                                {
+                                    _changesSubscription != null) {
                                     _changesSubscription.Dispose();
                                     _changesSubscription = null;
                                 }
                             }
                         }
-                        catch (TaskCanceledException)
-                        {
+                        catch (TaskCanceledException) {
                         }
                     }, CancellationToken.None);
                 }
@@ -211,63 +191,49 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         }
     }
 
-    private void InitializeChangesSubscription()
-    {
-        try
-        {
+    private void InitializeChangesSubscription() {
+        try {
             _changesSubscription = documentStore.Changes()
                 .ForDocumentsInCollection<EntityClient>()
-                .Subscribe(new ActionObserver<DocumentChange>(change =>
-                {
+                .Subscribe(new ActionObserver<DocumentChange>(change => {
                     var parts = change.Id.Split('/');
-                    if (parts.Length > 1 && int.TryParse(parts[1], out var userNumber))
-                    {
+                    if (parts.Length > 1 && int.TryParse(parts[1], out var userNumber)) {
                         NotifyClientsChanged(userNumber);
                     }
                 }));
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogError(ex, "Failed to initialize RavenDB changes subscription for VPN clients");
         }
     }
 
-    private void NotifyClientsChanged(int userNumber)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
+    private void NotifyClientsChanged(int userNumber) {
+        _ = Task.Run(async () => {
+            try {
                 var clients = await GetClientsByUserNumberAsync(userNumber);
 
                 List<ClientSubscription> targets;
-                lock (_lock)
-                {
+                lock (_lock) {
                     targets = _subscriptions.Where(s => s.UserNumber == userNumber).ToList();
                 }
 
-                if (targets.Count > 0)
-                {
+                if (targets.Count > 0) {
                     await Task.WhenAll(targets.Select(t => t.NotifyAsync(clients)));
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 logger.LogError(ex, "Error notifying client changes for user {UserNumber}", userNumber);
             }
         });
     }
 
-    public class ClientSubscription(ClientService service, string userId, int userNumber) : IDisposable
-    {
+    public class ClientSubscription(ClientService service, string userId, int userNumber) : IDisposable {
         private bool _disposed;
         public string UserId { get; } = userId;
         public int UserNumber { get; } = userNumber;
 
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
+        public void Dispose() {
+            if (!_disposed) {
                 service.Unsubscribe(this);
                 _disposed = true;
             }
@@ -275,15 +241,12 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
         public event Func<IReadOnlyList<EntityClient>, Task>? ClientsUpdated;
 
-        public async Task<IReadOnlyList<EntityClient>> GetCurrentClientsAsync()
-        {
+        public async Task<IReadOnlyList<EntityClient>> GetCurrentClientsAsync() {
             return await service.GetClientsByUserNumberAsync(UserNumber);
         }
 
-        public async Task NotifyAsync(IReadOnlyList<EntityClient> clients)
-        {
-            if (!_disposed && ClientsUpdated != null)
-            {
+        public async Task NotifyAsync(IReadOnlyList<EntityClient> clients) {
+            if (!_disposed && ClientsUpdated != null) {
                 await ClientsUpdated.Invoke(clients);
             }
         }

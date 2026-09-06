@@ -4,6 +4,7 @@ public sealed record ProtocolSubscriptionDescriptor(
     string Protocol,
     Type ComponentType) {
     public static IReadOnlyList<ProtocolSubscriptionDescriptor> All { get; } = [
-        new("Hysteria2", typeof(Hysteria2ProtocolView))
+        new("Hysteria2", typeof(Hysteria2ProtocolView)),
+        new("WireGuard", typeof(WireGuardProtocolView))
     ];
 }
