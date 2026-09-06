@@ -1,0 +1,168 @@
+@using ShadowVPN2.Data.Subscription
+@inject IJSRuntime JsRuntime
+
+@if (_servers.Count > 0)
+{
+    <div class="card border-0 bg-light mt-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="mb-1"><i class="bi bi-speedometer2 me-2 text-primary"></i>Server latency</h5>
+                    <p class="text-muted small mb-0">Measured from your device</p>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" @onclick="PingServersAsync" disabled="@_pingInProgress">
+                    @if (_pingInProgress)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-clockwise me-1"></i>
+                    }
+                    Check again
+                </button>
+            </div>
+
+            <div class="list-group list-group-flush">
+                @foreach (var server in _servers)
+                {
+                    <div
+                        class="list-group-item bg-transparent px-0 d-flex justify-content-between align-items-center gap-3">
+                        <div class="text-break">
+                            <div class="fw-semibold">@server.Name</div>
+                            <div class="text-muted small">@server.Address</div>
+                        </div>
+                        <span class="text-nowrap @GetPingStatusClass(server.Status)">
+                            @GetPingStatusIcon(server.Status)
+                            @GetPingStatusText(server)
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter][EditorRequired] public IReadOnlyList<ProtocolSubscription> Protocols { get; set; } = [];
+
+    private bool _pingStarted;
+    private bool _pingInProgress;
+    private readonly List<ServerPingState> _servers = new();
+
+    protected override void OnParametersSet()
+    {
+        if (_servers.Count == 0 && Protocols.Count > 0)
+        {
+            var servers = Protocols
+                .SelectMany(protocol => protocol.Endpoints)
+                .Select(endpoint => new ServerPingState(endpoint))
+                .DistinctBy(server => server.Address, StringComparer.OrdinalIgnoreCase);
+
+            _servers.AddRange(servers);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _servers.Count > 0 && !_pingStarted)
+        {
+            _pingStarted = true;
+            await PingServersAsync();
+        }
+    }
+
+    private async Task PingServersAsync()
+    {
+        if (_pingInProgress)
+            return;
+
+        try
+        {
+            _pingInProgress = true;
+            foreach (var server in _servers)
+            {
+                server.Status = PingStatus.Checking;
+                server.Latency = null;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            await Task.WhenAll(_servers.Select(async server =>
+            {
+                try
+                {
+                    server.Latency = await JsRuntime.InvokeAsync<int>("pingServer", GetStatusUrl(server.Address), 3000);
+                    server.Status = PingStatus.Available;
+                }
+                catch (Exception)
+                {
+                    server.Status = PingStatus.Unavailable;
+                    server.Latency = null;
+                }
+
+                await InvokeAsync(StateHasChanged);
+            }));
+        }
+        finally
+        {
+            _pingInProgress = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string GetPingStatusClass(PingStatus status)
+    {
+        return status switch
+        {
+            PingStatus.Available => "text-success",
+            PingStatus.Unavailable => "text-danger",
+            _ => "text-muted"
+        };
+    }
+
+    private static string GetPingStatusIcon(PingStatus status)
+    {
+        return status switch
+        {
+            PingStatus.Available or PingStatus.Unavailable => "● ",
+            _ => "○ "
+        };
+    }
+
+    private static string GetPingStatusText(ServerPingState server)
+    {
+        return server.Status switch
+        {
+            PingStatus.Available => $"{server.Latency} ms",
+            PingStatus.Unavailable => "Unavailable",
+            _ => "Checking..."
+        };
+    }
+
+    private static string GetStatusUrl(string address)
+    {
+        var authority = Uri.TryCreate(address, UriKind.Absolute, out var uri)
+            ? uri.GetLeftPart(UriPartial.Authority)
+            : $"https://{EndpointAddress.FormatHostForUri(EndpointAddress.GetHost(address))}";
+
+        return $"{authority.TrimEnd('/')}/api/node/status";
+    }
+
+    private sealed class ServerPingState(SubscriptionEndpoint endpoint)
+    {
+        public PingStatus Status { get; set; } = PingStatus.Pending;
+        public int? Latency { get; set; }
+        public string Name { get; } = endpoint.Name;
+        public string Address { get; } = endpoint.Address;
+    }
+
+    private enum PingStatus
+    {
+        Pending,
+        Checking,
+        Available,
+        Unavailable
+    }
+
+}

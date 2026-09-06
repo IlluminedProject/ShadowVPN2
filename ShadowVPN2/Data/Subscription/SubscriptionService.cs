@@ -32,14 +32,14 @@ public class SubscriptionService(
                     contributor,
                     client,
                     settings,
-                    new SubscriptionEndpointContext {
-                        Host = EndpointAddress.GetHost(mainDomain),
-                        Sni = EndpointAddress.GetHost(mainDomain),
-                        IsMain = true
-                    },
+                    mainDomain,
+                    EndpointAddress.GetHost(mainDomain),
+                    EndpointAddress.GetHost(mainDomain),
+                    true,
                     "Main");
-                if (mainEndpoint is not null)
+                if (mainEndpoint is not null) {
                     endpoints.Add(mainEndpoint);
+                }
             }
 
             foreach (var node in nodes.Where(n => !n.JoinSecret.HasValue && !string.IsNullOrWhiteSpace(n.Address))) {
@@ -48,13 +48,14 @@ public class SubscriptionService(
                     contributor,
                     client,
                     settings,
-                    new SubscriptionEndpointContext {
-                        Host = host,
-                        Sni = host
-                    },
+                    node.Address,
+                    host,
+                    host,
+                    false,
                     string.IsNullOrWhiteSpace(node.Name) ? host : node.Name);
-                if (nodeEndpoint is not null)
+                if (nodeEndpoint is not null) {
                     endpoints.Add(nodeEndpoint);
+                }
             }
 
             if (endpoints.Count > 0) {
@@ -75,15 +76,19 @@ public class SubscriptionService(
         ISubscriptionConnectionContributor contributor,
         EntityClient client,
         ProtocolGlobalSettings settings,
-        SubscriptionEndpointContext context,
+        string address,
+        string host,
+        string sni,
+        bool isMain,
         string name) {
-        var connection = await contributor.CreateAsync(client, settings, context);
+        var connection = await contributor.CreateAsync(client, settings, host, sni);
         if (connection is null)
             return null;
 
         return new SubscriptionEndpoint {
             Name = name,
-            IsMain = context.IsMain,
+            Address = address,
+            IsMain = isMain,
             Connection = connection
         };
     }

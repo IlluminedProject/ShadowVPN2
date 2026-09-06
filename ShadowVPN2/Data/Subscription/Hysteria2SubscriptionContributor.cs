@@ -11,7 +11,8 @@ public sealed class Hysteria2SubscriptionContributor : ISubscriptionConnectionCo
     public Task<ProtocolConnectionInfo?> CreateAsync(
         EntityClient client,
         ProtocolGlobalSettings settings,
-        SubscriptionEndpointContext endpoint,
+        string host,
+        string sni,
         CancellationToken cancellationToken = default) {
         if (client.Hysteria2 is null)
             return Task.FromResult<ProtocolConnectionInfo?>(null);
@@ -25,7 +26,7 @@ public sealed class Hysteria2SubscriptionContributor : ISubscriptionConnectionCo
             ["pinSHA256"] = fingerprint,
             ["obfs"] = h2.ObfsType is null or "none" ? null : h2.ObfsType,
             ["obfs-password"] = h2.ObfsType is null or "none" ? null : h2.ObfsPassword,
-            ["sni"] = endpoint.Sni,
+            ["sni"] = sni,
             ["name"] = client.Name
         };
 
@@ -34,15 +35,15 @@ public sealed class Hysteria2SubscriptionContributor : ISubscriptionConnectionCo
             .Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value!)}"));
 
         return Task.FromResult<ProtocolConnectionInfo?>(new Hysteria2ConnectionInfo {
-            ServerAddress = endpoint.Host,
+            ServerAddress = host,
             ServerPort = h2.ListenPort,
             Password = password,
             ObfsType = h2.ObfsType,
             ObfsPassword = h2.ObfsPassword,
-            Sni = endpoint.Sni,
+            Sni = sni,
             PinSHA256 = fingerprint,
             ShareUrl =
-                $"hysteria2://{Uri.EscapeDataString(password)}@{EndpointAddress.FormatHostForUri(endpoint.Host)}:{h2.ListenPort}/?{queryString}"
+                $"hysteria2://{Uri.EscapeDataString(password)}@{EndpointAddress.FormatHostForUri(host)}:{h2.ListenPort}/?{queryString}"
         });
     }
 }

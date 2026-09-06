@@ -9,6 +9,7 @@ public interface ISubscriptionConnectionContributor {
     Task<ProtocolConnectionInfo?> CreateAsync(
         EntityClient client,
         ProtocolGlobalSettings settings,
-        SubscriptionEndpointContext endpoint,
+        string host,
+        string sni,
         CancellationToken cancellationToken = default);
 }
