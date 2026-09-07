@@ -10,6 +10,7 @@ using Raven.Client.Documents.Session;
 using Raven.Identity;
 using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
@@ -89,12 +90,15 @@ public static class ServiceExtensions {
 
     public static void SetupKestrelHttps(this WebApplicationBuilder builder) {
         builder.WebHost.ConfigureKestrel(options => {
+            var services = options.ApplicationServices;
             options.ConfigureEndpointDefaults(listenOptions => {
                 listenOptions.Use(next =>
                     new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
                 listenOptions.UseHttps(httpsOptions => {
-                    httpsOptions.ServerCertificateSelector = (_, _) => X509CertificateLoader.LoadPkcs12FromFile(
-                        LocalConfiguration.CertificatePfxPath.Value, null, X509KeyStorageFlags.Exportable);
+                    httpsOptions.ServerCertificateSelector = (_, serverName) =>
+                        services.GetRequiredService<ManagedCertificateService>().GetCertificate(serverName) ??
+                        X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null,
+                            X509KeyStorageFlags.Exportable);
                 });
             });
         });

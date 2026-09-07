@@ -1,9 +1,11 @@
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
+using ShadowVPN2.Data.Certificates;
 
 namespace ShadowVPN2.Data.Subscription;
 
-public sealed class Hysteria2SubscriptionContributor : ISubscriptionConnectionContributor {
+public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService managedCertificateService)
+    : ISubscriptionConnectionContributor {
     public string Protocol {
         get => "Hysteria2";
     }
@@ -20,7 +22,9 @@ public sealed class Hysteria2SubscriptionContributor : ISubscriptionConnectionCo
         var h2 = settings as Hysteria2GlobalSettings
                  ?? throw new ArgumentException("Invalid Hysteria2 settings", nameof(settings));
         var password = client.Hysteria2.Password ?? client.Id;
-        var fingerprint = h2.GetCertificateFingerprint();
+        var fingerprint = managedCertificateService.GetCertificate(sni) == null
+            ? h2.GetCertificateFingerprint()
+            : null;
         return Task.FromResult<ProtocolConnectionInfo?>(new Hysteria2ConnectionInfo {
             ServerAddress = host,
             ServerPort = h2.ListenPort,

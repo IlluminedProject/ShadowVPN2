@@ -10,5 +10,6 @@ public class EntityGlobalConfiguration : IEntityId {
     public List<AuthProvider> Providers { get; set; } = new();
     public List<ProtocolGlobalSettings> Protocols { get; set; } = new();
     public AwgGlobalSettings AwgSettings { get; set; } = new();
+    public AcmeSettings AcmeSettings { get; set; } = new();
     public string Id { get; init; } = "GlobalConfiguration";
 }

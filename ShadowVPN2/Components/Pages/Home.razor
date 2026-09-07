@@ -3,12 +3,14 @@
 @using ShadowVPN2.Data
 @using ShadowVPN2.Data.Cluster
 @using ShadowVPN2.Data.Protocols
+@using ShadowVPN2.Data.Certificates
 @using ShadowVPN2.Infrastructure.Authentication
 @attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @implements IDisposable
 @inject NodeService NodeService
 @inject ClusterService ClusterService
 @inject ProtocolDomainService ProtocolDomainService
+@inject ManagedCertificateService ManagedCertificateService
 @inject IJSRuntime JSRuntime
 @inject IAuthorizationService AuthorizationService
 @rendermode InteractiveServer
@@ -268,6 +270,23 @@
                             @foreach (var route in GetProtocolRoutes(_editingNode.NodeId))
                             {
                                 <div><code>@route.Domain</code> <span class="text-muted">@route.Protocol</span></div>
+                            }
+                        }
+                    </div>
+
+                    @{ var managedCertificate = ManagedCertificateService.GetForNode(_editingNode.NodeId); }
+                    <div class="mt-3">
+                        <div class="text-muted small mb-1">Managed certificate</div>
+                        @if (managedCertificate == null)
+                        {
+                            <span>Not issued</span>
+                        }
+                        else
+                        {
+                            <div>Expires: @managedCertificate.NotAfter.ToLocalTime().ToString("g")</div>
+                            @foreach (var domain in managedCertificate.Domains)
+                            {
+                                <code class="me-2">@domain</code>
                             }
                         }
                     </div>

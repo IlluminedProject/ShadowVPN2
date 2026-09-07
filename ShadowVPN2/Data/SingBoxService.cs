@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using ShadowVPN2.Data.Protocols;
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -18,11 +19,10 @@ public class SingBoxService(
     IEnumerable<ISingBoxConfigContributor> contributors,
     ProtocolSettingsService protocolSettingsService,
     GlobalConfigurationService globalConfigurationService,
+    ManagedCertificateService managedCertificateService,
     SingBoxProcessManager singBoxProcessManager)
-    : BackgroundService
-{
-    public static readonly JsonSerializerOptions SerializerOptions = new()
-    {
+    : BackgroundService {
+    public static readonly JsonSerializerOptions SerializerOptions = new() {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -31,32 +31,29 @@ public class SingBoxService(
 
     public bool IsRunning => singBoxProcessManager.IsRunning;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         logger.LogInformation("SingBoxService starting");
         await RegenerateAndApplyConfigAsync(stoppingToken);
 
         // Subscribe to changes
         globalConfigurationService.ConfigurationChanged += OnConfigurationChanged;
+        managedCertificateService.CertificatesChanged += OnCertificatesChanged;
 
         using var clientsSubscription = documentStore.Changes()
             .ForDocumentsInCollection<EntityClient>()
-            .Subscribe(new ActionObserver<DocumentChange>(change =>
-            {
+            .Subscribe(new ActionObserver<DocumentChange>(change => {
                 logger.LogInformation("Clients collection changed, regenerating sing-box config");
                 _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
             }));
 
         using var nodesSubscription = documentStore.Changes()
             .ForDocumentsInCollection<EntityClusterNode>()
-            .Subscribe(new ActionObserver<DocumentChange>(change =>
-            {
+            .Subscribe(new ActionObserver<DocumentChange>(change => {
                 logger.LogInformation("Nodes collection changed, regenerating sing-box config");
                 _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
             }));
 
-        while (!stoppingToken.IsCancellationRequested)
-        {
+        while (!stoppingToken.IsCancellationRequested) {
             singBoxProcessManager.Start();
             await singBoxProcessManager.WaitForExitAsync(stoppingToken);
             // TODO Proper delays and exit handling
@@ -64,14 +61,17 @@ public class SingBoxService(
         }
     }
 
-    private void OnConfigurationChanged(object? sender, EntityGlobalConfiguration e)
-    {
+    private void OnConfigurationChanged(object? sender, EntityGlobalConfiguration e) {
         logger.LogInformation("Global configuration changed, regenerating sing-box config");
         _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
     }
 
-    public async Task RegenerateAndApplyConfigAsync(CancellationToken ct)
-    {
+    private Task OnCertificatesChanged() {
+        logger.LogInformation("Managed certificates changed, regenerating sing-box config");
+        return RegenerateAndApplyConfigAsync(CancellationToken.None);
+    }
+
+    public async Task RegenerateAndApplyConfigAsync(CancellationToken ct) {
         logger.LogInformation("Regenerating sing-box configuration");
 
         var protocols = await protocolSettingsService.GetConfigurationAsync();
@@ -87,16 +87,16 @@ public class SingBoxService(
         await singBoxProcessManager.ApplyConfigAsync(configJson);
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
+    public override async Task StopAsync(CancellationToken cancellationToken) {
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
+        managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
         singBoxProcessManager.Stop();
         await base.StopAsync(cancellationToken);
     }
 
-    public override void Dispose()
-    {
+    public override void Dispose() {
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
+        managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
         singBoxProcessManager.Dispose();
         base.Dispose();
     }

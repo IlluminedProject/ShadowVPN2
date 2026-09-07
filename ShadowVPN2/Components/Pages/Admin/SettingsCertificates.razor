@@ -1,0 +1,176 @@
+@page "/admin/settings/certificates"
+@using Microsoft.Extensions.Options
+@using ShadowVPN2.Data.Certificates
+@using ShadowVPN2.Infrastructure.Authentication
+@using ShadowVPN2.Infrastructure.Configurations
+@attribute [Authorize(Policy = AppPermissions.Settings.View)]
+@rendermode InteractiveServer
+@inject CertificateSettingsService CertificateSettingsService
+@inject AcmeCertificateService AcmeCertificateService
+@inject ManagedCertificateService ManagedCertificateService
+@inject IOptions<LocalConfiguration> LocalConfiguration
+@inject IAuthorizationService AuthorizationService
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <NavLink href="/admin/settings" class="list-group-item list-group-item-action">General</NavLink>
+                <NavLink href="/admin/settings/auth" class="list-group-item list-group-item-action">Authorization
+                </NavLink>
+                <NavLink href="/admin/settings/protocols" class="list-group-item list-group-item-action">Protocols
+                </NavLink>
+                <NavLink href="/admin/settings/certificates" class="list-group-item list-group-item-action active">
+                    Certificates
+                </NavLink>
+                <NavLink href="/admin/settings/cluster" class="list-group-item list-group-item-action">Cluster</NavLink>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <h3>Certificates</h3>
+            <p class="text-muted">Automatically issue one Let's Encrypt SAN certificate for every domain resolving to
+                this node.</p>
+
+            @if (_loading)
+            {
+                <div class="spinner-border"></div>
+            }
+            else
+            {
+                <fieldset disabled="@(!_canManage)">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" @bind="_request.Enabled"/>
+                                <label class="form-check-label">Enable automatic Let's Encrypt certificates</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Account email</label>
+                                <input class="form-control" type="email" @bind="_request.Email"/>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">HTTP-01 port</label>
+                                    <input class="form-control" type="number" min="1" max="65535"
+                                           @bind="_request.HttpPort"/>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Renew before expiry, days</label>
+                                    <input class="form-control" type="number" min="1" max="89"
+                                           @bind="_request.RenewalThresholdDays"/>
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" @bind="_request.UseStaging"/>
+                                        <label class="form-check-label">Use staging CA</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                var certificate = ManagedCertificateService.GetForNode(LocalConfiguration.Value.NodeId);
+                <div class="card mb-4">
+                    <div class="card-header">Local node certificate</div>
+                    <div class="card-body">
+                        @if (certificate == null)
+                        {
+                            <span class="text-muted">Not issued</span>
+                        }
+                        else
+                        {
+                            <div class="mb-2">Expires: <strong>@certificate.NotAfter.ToLocalTime().ToString("g")</strong></div>
+                            @foreach (var domain in certificate.Domains)
+                            {
+                                <code class="me-2">@domain</code>
+                            }
+                        }
+                    </div>
+                </div>
+                @if (_canManage)
+                {
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-outline-primary" @onclick="Renew" disabled="@_busy">Issue / Renew now
+                        </button>
+                        <button class="btn btn-primary" @onclick="Save" disabled="@_busy">Save</button>
+                    </div>
+                }
+            }
+
+            @if (_message != null)
+            {
+                <div class="alert @(_isError ? "alert-danger" : "alert-success") mt-3">@_message</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly UpdateAcmeSettingsRequest _request = new();
+    private bool _loading = true;
+    private bool _busy;
+    private bool _canManage;
+    private bool _isError;
+    private string? _message;
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await CertificateSettingsService.GetAsync();
+        _request.Enabled = settings.Enabled;
+        _request.Email = settings.Email;
+        _request.UseStaging = settings.UseStaging;
+        _request.HttpPort = settings.HttpPort;
+        _request.RenewalThresholdDays = settings.RenewalThresholdDays;
+        if (AuthState != null)
+        {
+            var state = await AuthState;
+            _canManage = (await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage)).Succeeded ||
+                         state.User.IsInRole(AppRoles.Administrator);
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        await Run(async () =>
+        {
+            await CertificateSettingsService.UpdateAsync(_request);
+            _message = "Certificate settings saved.";
+        });
+    }
+
+    private async Task Renew()
+    {
+        await Run(async () =>
+        {
+            await CertificateSettingsService.UpdateAsync(_request);
+            await AcmeCertificateService.RenewNowAsync();
+            _message = "Certificate issued successfully.";
+        });
+    }
+
+    private async Task Run(Func<Task> action)
+    {
+        _busy = true;
+        _message = null;
+        _isError = false;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+}

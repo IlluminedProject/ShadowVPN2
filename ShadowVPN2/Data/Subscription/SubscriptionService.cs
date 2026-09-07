@@ -2,6 +2,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
+using ShadowVPN2.Data.Certificates;
 
 namespace ShadowVPN2.Data.Subscription;
 
@@ -9,6 +10,7 @@ public class SubscriptionService(
     IAsyncDocumentSession session,
     NodeService nodeService,
     NodeNetworkService nodeNetworkService,
+    ManagedCertificateService managedCertificateService,
     GlobalConfigurationService globalConfigService,
     IEnumerable<ISubscriptionConnectionContributor> contributors) {
     public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) {
@@ -47,12 +49,17 @@ public class SubscriptionService(
                 var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
                 if (string.IsNullOrWhiteSpace(publicHost)) continue;
                 var host = EndpointAddress.GetHost(publicHost);
+                var certificate = managedCertificateService.GetForNode(node.NodeId);
+                var sni = !string.IsNullOrWhiteSpace(node.Domain) &&
+                          certificate?.Domains.Contains(node.Domain, StringComparer.OrdinalIgnoreCase) == true
+                    ? node.Domain
+                    : certificate?.Domains.FirstOrDefault() ?? host;
                 var nodeEndpoint = await CreateEndpointAsync(
                     contributor,
                     client,
                     settings,
                     publicHost,
-                    host,
+                    sni,
                     host,
                     false,
                     string.IsNullOrWhiteSpace(node.Name) ? host : node.Name);

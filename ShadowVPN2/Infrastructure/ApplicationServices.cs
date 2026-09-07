@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
@@ -19,6 +20,12 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<AwgTunCapabilityProbe>();
         builder.Services.AddOptions<LocalConfiguration>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
+        builder.Services.AddSingleton<ManagedCertificateService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<ManagedCertificateService>());
+        builder.Services.AddSingleton<Http01ChallengeServer>();
+        builder.Services.AddSingleton<CertificateSettingsService>();
+        builder.Services.AddSingleton<AcmeCertificateService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<AcmeCertificateService>());
 
         builder.SetupKestrelHttps();
         builder.SetupRavenDb();
