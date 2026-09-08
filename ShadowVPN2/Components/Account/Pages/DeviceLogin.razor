@@ -11,15 +11,15 @@
 
 <div class="text-center">
     <h1 class="mb-4">Log in with device code</h1>
-    <div class="alert @(errorMessage is null ? "alert-info" : "alert-danger")">@statusMessage</div>
-    @if (authorization is not null)
+    <div class="alert @(_errorMessage is null ? "alert-info" : "alert-danger")">@_statusMessage</div>
+    @if (Authorization is not null)
     {
         <div>
             <p>Open this address on another device:</p>
-            <p><a href="@(authorization.VerificationUriComplete ?? authorization.VerificationUri)" target="_blank"
-                  rel="noopener">@authorization.VerificationUri</a></p>
+            <p><a href="@(Authorization.VerificationUriComplete ?? Authorization.VerificationUri)" target="_blank"
+                  rel="noopener">@Authorization.VerificationUri</a></p>
             <p class="mb-1">Enter this code:</p>
-            <strong class="fs-3">@authorization.UserCode</strong>
+            <strong class="fs-3">@Authorization.UserCode</strong>
         </div>
     }
     <div class="mt-4">
@@ -35,59 +35,59 @@
     [SupplyParameterFromQuery] private string? TransactionId { get; set; }
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
 
-    [PersistentState] public DeviceAuthorizationStartResponse? authorization { get; set; }
-    [PersistentState] public string? correlationSecret { get; set; }
+    [PersistentState] public DeviceAuthorizationStartResponse? Authorization { get; set; }
+    [PersistentState] public string? CorrelationSecret { get; set; }
 
-    private string? errorMessage;
-    private string statusMessage = "Preparing device authorization...";
-    [PersistentState] public DateTime expiresAtUtc { get; set; }
-    private IDisposable? notificationSubscription;
+    private string? _errorMessage;
+    private string _statusMessage = "Preparing device authorization...";
+    [PersistentState] public DateTime ExpiresAtUtc { get; set; }
+    private IDisposable? _notificationSubscription;
 
     protected override async Task OnInitializedAsync()
     {
-        if (authorization is not null)
+        if (Authorization is not null)
             return;
 
         if (string.IsNullOrWhiteSpace(TransactionId))
         {
-            errorMessage = "The device authorization transaction is missing.";
-            statusMessage = errorMessage;
+            _errorMessage = "The device authorization transaction is missing.";
+            _statusMessage = _errorMessage;
             return;
         }
 
-        correlationSecret ??= HttpContext?.Request.Cookies[DeviceAuthorizationService.CorrelationCookie];
-        if (string.IsNullOrWhiteSpace(correlationSecret))
+        CorrelationSecret ??= HttpContext?.Request.Cookies[DeviceAuthorizationService.CorrelationCookie];
+        if (string.IsNullOrWhiteSpace(CorrelationSecret))
         {
-            errorMessage = "The device authorization session is missing.";
-            statusMessage = errorMessage;
+            _errorMessage = "The device authorization session is missing.";
+            _statusMessage = _errorMessage;
             return;
         }
 
         try
         {
-            authorization = await DeviceService.GetStartResponseAsync(TransactionId, correlationSecret,
+            Authorization = await DeviceService.GetStartResponseAsync(TransactionId, CorrelationSecret,
                 CancellationToken.None);
-            expiresAtUtc = DateTime.UtcNow.AddSeconds(authorization.ExpiresIn);
-            statusMessage = "Waiting for confirmation...";
+            ExpiresAtUtc = DateTime.UtcNow.AddSeconds(Authorization.ExpiresIn);
+            _statusMessage = "Waiting for confirmation...";
         }
         catch (Exception exception)
         {
-            errorMessage = exception.Message;
-            statusMessage = errorMessage;
+            _errorMessage = exception.Message;
+            _statusMessage = _errorMessage;
         }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || authorization is null || HttpContext is not null)
+        if (!firstRender || Authorization is null || HttpContext is not null)
             return;
 
-        notificationSubscription = DeviceNotifications.Subscribe(authorization.TransactionId,
+        _notificationSubscription = DeviceNotifications.Subscribe(Authorization.TransactionId,
             status => _ = InvokeAsync(() => HandleStatusAsync(status)));
-        await DeviceService.BeginProcessingAsync(authorization.TransactionId, correlationSecret!,
+        await DeviceService.BeginProcessingAsync(Authorization.TransactionId, CorrelationSecret!,
             CancellationToken.None);
-        await HandleStatusAsync(await DeviceService.GetStatusAsync(authorization.TransactionId,
-            correlationSecret!, CancellationToken.None));
+        await HandleStatusAsync(await DeviceService.GetStatusAsync(Authorization.TransactionId,
+                CorrelationSecret!, CancellationToken.None));
     }
 
     private async Task HandleStatusAsync(DeviceAuthorizationStatus status)
@@ -95,24 +95,24 @@
         switch (status)
         {
             case DeviceAuthorizationStatus.Processing:
-                statusMessage = "Waiting for confirmation from the identity provider...";
+                _statusMessage = "Waiting for confirmation from the identity provider...";
                 await InvokeAsync(StateHasChanged);
                 break;
             case DeviceAuthorizationStatus.Completed:
-                statusMessage = "Login confirmed. Completing sign-in...";
+                _statusMessage = "Login confirmed. Completing sign-in...";
                 await InvokeAsync(() => NavigationManager.NavigateTo(
-                    $"/api/auth/device/complete/{authorization!.TransactionId}?returnUrl=" +
+                        $"/api/auth/device/complete/{Authorization!.TransactionId}?returnUrl=" +
                     Uri.EscapeDataString(ReturnUrl ?? "/"), true));
                 break;
             case DeviceAuthorizationStatus.Expired:
-                errorMessage = "The device authorization code expired.";
-                statusMessage = errorMessage;
+                _errorMessage = "The device authorization code expired.";
+                _statusMessage = _errorMessage;
                 await InvokeAsync(StateHasChanged);
                 break;
             case DeviceAuthorizationStatus.Denied:
             case DeviceAuthorizationStatus.Failed:
-                errorMessage = "Device authorization failed.";
-                statusMessage = errorMessage;
+                _errorMessage = "Device authorization failed.";
+                _statusMessage = _errorMessage;
                 await InvokeAsync(StateHasChanged);
                 break;
         }
@@ -120,7 +120,7 @@
 
     public ValueTask DisposeAsync()
     {
-        notificationSubscription?.Dispose();
+        _notificationSubscription?.Dispose();
         return ValueTask.CompletedTask;
     }
 

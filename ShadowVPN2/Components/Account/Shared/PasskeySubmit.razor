@@ -6,12 +6,12 @@
     operation="@Operation"
     name="@Name"
     email-name="@EmailName"
-    request-token-name="@tokens?.HeaderName"
-    request-token-value="@tokens?.RequestToken">
+    request-token-name="@_tokens?.HeaderName"
+    request-token-value="@_tokens?.RequestToken">
 </passkey-submit>
 
 @code {
-    private AntiforgeryTokenSet? tokens;
+    private AntiforgeryTokenSet? _tokens;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -28,7 +28,7 @@
 
     protected override void OnInitialized()
     {
-        tokens = Services.GetService<IAntiforgery>()?.GetTokens(HttpContext);
+        _tokens = Services.GetService<IAntiforgery>()?.GetTokens(HttpContext);
     }
 
 }

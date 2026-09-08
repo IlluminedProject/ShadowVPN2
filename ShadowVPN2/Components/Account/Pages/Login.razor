@@ -18,12 +18,12 @@
 <PageTitle>Log in</PageTitle>
 
 <h1 class="text-center mb-4">Log in</h1>
-<StatusMessage Message="@errorMessage"/>
+<StatusMessage Message="@_errorMessage"/>
 
-@if (isLocalLoginEnabled)
+@if (_isLocalLoginEnabled)
 {
     <section class="mb-4">
-        <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+        <EditForm EditContext="_editContext" method="post" OnSubmit="LoginUser" FormName="login">
             <DataAnnotationsValidator/>
             <h2 class="h4 text-center">Use a local account</h2>
             <hr/>
@@ -64,9 +64,9 @@
     </section>
 }
 
-@if (deviceFlowEnabled || externalLogins.Length > 0)
+@if (_deviceFlowEnabled || _externalLogins.Length > 0)
 {
-    @if (isLocalLoginEnabled)
+    @if (_isLocalLoginEnabled)
     {
         <div class="d-flex align-items-center my-4">
             <hr class="flex-grow-1"/>
@@ -78,7 +78,7 @@
     <section class="text-center">
         <h3 class="h4">Use another service</h3>
         <hr/>
-        @if (deviceFlowEnabled)
+        @if (_deviceFlowEnabled)
         {
             <a class="btn btn-primary" data-enhance-nav="false"
                href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
@@ -92,7 +92,7 @@
     </section>
 }
 
-@if (!isLocalLoginEnabled && !deviceFlowEnabled && externalLogins.Length == 0)
+@if (!_isLocalLoginEnabled && !_deviceFlowEnabled && _externalLogins.Length == 0)
 {
     <div class="alert alert-warning text-center">
         Authentication is currently disabled. Please contact the administrator.
@@ -100,11 +100,11 @@
 }
 
 @code {
-    private string? errorMessage;
-    private EditContext editContext = default!;
-    private bool isLocalLoginEnabled = true;
-    private AuthenticationScheme[] externalLogins = [];
-    private bool deviceFlowEnabled;
+    private string? _errorMessage;
+    private EditContext _editContext = default!;
+    private bool _isLocalLoginEnabled = true;
+    private AuthenticationScheme[] _externalLogins = [];
+    private bool _deviceFlowEnabled;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -116,7 +116,7 @@
     {
         Input ??= new();
 
-        editContext = new EditContext(Input);
+        _editContext = new EditContext(Input);
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
@@ -125,17 +125,17 @@
         }
 
         var globalConfig = await DocumentSession.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration");
-        isLocalLoginEnabled = globalConfig?.Providers.OfType<LocalAuthProvider>().FirstOrDefault()?.IsEnabled ?? false;
+        _isLocalLoginEnabled = globalConfig?.Providers.OfType<LocalAuthProvider>().FirstOrDefault()?.IsEnabled ?? false;
 
-        externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
-        deviceFlowEnabled = globalConfig?.Providers.OfType<OidcAuthProvider>().Any(x => x.IsEnabled && x.DeviceFlowEnabled) == true;
+        _externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
+        _deviceFlowEnabled = globalConfig?.Providers.OfType<OidcAuthProvider>().Any(x => x.IsEnabled && x.DeviceFlowEnabled) == true;
     }
 
     public async Task LoginUser()
     {
         if (!string.IsNullOrEmpty(Input.Passkey?.Error))
         {
-            errorMessage = $"Error: {Input.Passkey.Error}";
+            _errorMessage = $"Error: {Input.Passkey.Error}";
             return;
         }
 
@@ -148,7 +148,7 @@
         else
         {
             // If doing a password sign-in, validate the form.
-            if (!editContext.Validate())
+            if (!_editContext.Validate())
             {
                 return;
             }
@@ -176,7 +176,7 @@
         }
         else
         {
-            errorMessage = "Error: Invalid login attempt.";
+            _errorMessage = "Error: Invalid login attempt.";
         }
     }
 

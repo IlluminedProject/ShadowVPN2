@@ -6,7 +6,7 @@
 @rendermode InteractiveServer
 @inject SettingsService SettingsService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 @inject IAuthorizationService AuthorizationService
 
 <div class="container-fluid">
@@ -32,7 +32,7 @@
             <h3>Authorization Settings</h3>
             <p class="text-muted">Configure how users authenticate with the system.</p>
 
-            @if (!canManage && !isLoading)
+            @if (!_canManage && !_isLoading)
             {
                 <div class="alert alert-warning py-2 mb-4">
                     <i class="bi bi-exclamation-triangle me-2"></i>
@@ -40,7 +40,7 @@
                 </div>
             }
 
-            @if (isLoading)
+            @if (_isLoading)
             {
                 <div class="d-flex justify-content-center">
                     <div class="spinner-border" role="status">
@@ -50,12 +50,12 @@
             }
             else
             {
-                <fieldset disabled="@(!canManage)">
+                <fieldset disabled="@(!_canManage)">
                     <div class="card mb-4">
                         <div class="card-body">
                             <div class="form-check form-switch mb-4">
                                 <input class="form-check-input" type="checkbox" role="switch" id="localLoginSwitch"
-                                       @bind="request.EnableLocalLogin">
+                                       @bind="_request.EnableLocalLogin">
                                 <label class="form-check-label h5" for="localLoginSwitch">Enable Local Login</label>
                                 <div class="form-text">Users can log in with their email and password stored in the
                                     local database.
@@ -66,7 +66,7 @@
 
                             <div class="form-check form-switch mb-4">
                                 <input class="form-check-input" type="checkbox" role="switch"
-                                       id="selfRegistrationSwitch" @bind="request.SelfRegistrationEnabled">
+                                       id="selfRegistrationSwitch" @bind="_request.SelfRegistrationEnabled">
                                 <label class="form-check-label h5" for="selfRegistrationSwitch">Enable
                                     Self-Registration</label>
                                 <div class="form-text">Allow new users to automatically register when logging in via
@@ -76,7 +76,7 @@
 
                             <div class="form-check form-switch mb-3">
                                 <input class="form-check-input" type="checkbox" role="switch" id="oidcSwitch"
-                                       @bind="request.EnableOidc">
+                                       @bind="_request.EnableOidc">
                                 <label class="form-check-label h5" for="oidcSwitch">Enable OAuth2 / OpenID
                                     Connect</label>
                                 <div class="form-text">Allow users to log in using an external identity
@@ -84,13 +84,13 @@
                                 </div>
                             </div>
 
-                            @if (request.EnableOidc)
+                            @if (_request.EnableOidc)
                             {
                                 <div class="ms-4 p-3 border-start">
                                     <div class="mb-3">
                                         <label class="form-label">Display Name</label>
                                         <input type="text" class="form-control"
-                                               @bind="request.OidcSettings!.DisplayName"
+                                               @bind="_request.OidcSettings!.DisplayName"
                                                placeholder="e.g. Corporate Login"/>
                                         <div class="form-text">The name displayed on the login button.</div>
                                     </div>
@@ -99,7 +99,7 @@
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" role="switch"
                                                id="deviceFlowSwitch"
-                                               @bind="request.OidcSettings!.DeviceFlowEnabled"/>
+                                               @bind="_request.OidcSettings!.DeviceFlowEnabled"/>
                                         <label class="form-check-label h5" for="deviceFlowSwitch">Enable Device
                                             Authorization</label>
                                         <div class="form-text">Allow login without registering a redirect URI. The
@@ -110,7 +110,7 @@
 
                                     <div class="mb-3">
                                         <label class="form-label">OpenID Configuration Issuer URL</label>
-                                        <input type="url" class="form-control" @bind="request.OidcSettings!.Authority"
+                                        <input type="url" class="form-control" @bind="_request.OidcSettings!.Authority"
                                                placeholder="e.g. https://accounts.google.com"/>
                                         <div class="form-text">The base issuer URL. The discovery document will be
                                             fetched from <code>/.well-known/openid-configuration</code>.
@@ -119,23 +119,24 @@
 
                                     <div class="mb-3">
                                         <label class="form-label">Client ID</label>
-                                        <input type="text" class="form-control" @bind="request.OidcSettings!.ClientId"/>
+                                        <input type="text" class="form-control"
+                                               @bind="_request.OidcSettings!.ClientId"/>
                                     </div>
 
                                     <div class="mb-3">
                                         <label class="form-label">Client Secret</label>
                                         <input type="password" class="form-control"
-                                               @bind="request.OidcSettings!.ClientSecret"/>
+                                               @bind="_request.OidcSettings!.ClientSecret"/>
                                     </div>
 
                                     <div class="mb-3">
                                         <label class="form-label">Scopes</label>
-                                        <input type="text" class="form-control" @bind="request.OidcSettings!.Scopes"
+                                        <input type="text" class="form-control" @bind="_request.OidcSettings!.Scopes"
                                                placeholder="openid email profile"/>
                                         <div class="form-text">Space-separated scopes to request.</div>
                                     </div>
 
-                                    @if (!request.OidcSettings.DeviceFlowEnabled)
+                                    @if (!_request.OidcSettings.DeviceFlowEnabled)
                                     {
                                         <div class="mb-3">
                                             <label class="form-label">Redirect URI</label>
@@ -157,8 +158,8 @@
 
                                     <div class="mb-3">
                                         <button class="btn btn-outline-info" type="button" @onclick="TestConnection"
-                                                disabled="@isTesting">
-                                            @if (isTesting)
+                                                disabled="@_isTesting">
+                                            @if (_isTesting)
                                             {
                                                 <span class="spinner-border spinner-border-sm" role="status"
                                                       aria-hidden="true"></span>
@@ -170,10 +171,10 @@
                                             }
                                         </button>
 
-                                        @if (!string.IsNullOrEmpty(testMessage))
+                                        @if (!string.IsNullOrEmpty(_testMessage))
                                         {
-                                            <div class="mt-2 small text-@(testSuccess ? "success" : "danger")">
-                                                @((MarkupString)testMessage)
+                                            <div class="mt-2 small text-@(_testSuccess ? "success" : "danger")">
+                                                @((MarkupString)_testMessage)
                                             </div>
                                         }
                                     </div>
@@ -183,21 +184,21 @@
                     </div>
                 </fieldset>
 
-                @if (!string.IsNullOrEmpty(errorMessage))
+                @if (!string.IsNullOrEmpty(_errorMessage))
                 {
-                    <div class="alert alert-danger">@errorMessage</div>
+                    <div class="alert alert-danger">@_errorMessage</div>
                 }
 
-                @if (!string.IsNullOrEmpty(successMessage))
+                @if (!string.IsNullOrEmpty(_successMessage))
                 {
-                    <div class="alert alert-success">@successMessage</div>
+                    <div class="alert alert-success">@_successMessage</div>
                 }
 
-                @if (canManage)
+                @if (_canManage)
                 {
                     <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
-                            @if (isSaving)
+                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@_isSaving">
+                            @if (_isSaving)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
@@ -211,18 +212,18 @@
 </div>
 
 @code {
-    private bool isLoading = true;
-    private bool isSaving = false;
-    private bool isTesting = false;
-    private bool canManage;
-    private string? errorMessage;
-    private string? successMessage;
-    private string? testMessage;
-    private bool testSuccess;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _isTesting;
+    private bool _canManage;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private string? _testMessage;
+    private bool _testSuccess;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
-    private UpdateAuthSettingsRequest request = new()
+    private readonly UpdateAuthSettingsRequest _request = new()
     {
         OidcSettings = new OidcAuthSettings()
     };
@@ -235,20 +236,20 @@
             {
                 var state = await AuthState;
                 var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
-                canManage = result.Succeeded;
+                _canManage = result.Succeeded;
             }
 
             var config = await SettingsService.GetConfigurationAsync();
             var oidc = config.Providers.OfType<OidcAuthProvider>().FirstOrDefault();
             var local = config.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
 
-            request.EnableLocalLogin = local?.IsEnabled ?? false;
-            request.SelfRegistrationEnabled = config.SelfRegistrationEnabled;
-            request.EnableOidc = oidc?.IsEnabled ?? false;
+            _request.EnableLocalLogin = local?.IsEnabled ?? false;
+            _request.SelfRegistrationEnabled = config.SelfRegistrationEnabled;
+            _request.EnableOidc = oidc?.IsEnabled ?? false;
 
             if (oidc != null)
             {
-                request.OidcSettings = new OidcAuthSettings
+                _request.OidcSettings = new OidcAuthSettings
                 {
                     DisplayName = oidc.DisplayName,
                     Authority = oidc.Authority,
@@ -261,80 +262,80 @@
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to load configuration: " + ex.Message;
+            _errorMessage = "Failed to load configuration: " + ex.Message;
         }
         finally
         {
-            isLoading = false;
+            _isLoading = false;
         }
     }
 
     private async Task TestConnection()
     {
-        if (string.IsNullOrWhiteSpace(request.OidcSettings?.Authority))
+        if (string.IsNullOrWhiteSpace(_request.OidcSettings?.Authority))
         {
-            testMessage = "Authority URL is required.";
-            testSuccess = false;
+            _testMessage = "Authority URL is required.";
+            _testSuccess = false;
             return;
         }
 
-        isTesting = true;
-        testMessage = null;
+        _isTesting = true;
+        _testMessage = null;
         StateHasChanged();
 
         try
         {
-            testSuccess = await SettingsService.TestOidcConnectionAsync(request.OidcSettings.Authority);
-            var discoveryUrl = request.OidcSettings.Authority.TrimEnd('/') + "/.well-known/openid-configuration";
-            testMessage = testSuccess
+            _testSuccess = await SettingsService.TestOidcConnectionAsync(_request.OidcSettings.Authority);
+            var discoveryUrl = _request.OidcSettings.Authority.TrimEnd('/') + "/.well-known/openid-configuration";
+            _testMessage = _testSuccess
                 ? "Successfully connected to OIDC discovery endpoint!"
                 : $"Failed to connect to <code>{discoveryUrl}</code>";
         }
         catch (Exception ex)
         {
-            testSuccess = false;
-            testMessage = "Error: " + ex.Message;
+            _testSuccess = false;
+            _testMessage = "Error: " + ex.Message;
         }
         finally
         {
-            isTesting = false;
+            _isTesting = false;
         }
     }
 
     private async Task SaveSettings()
     {
-        isSaving = true;
-        errorMessage = null;
-        successMessage = null;
+        _isSaving = true;
+        _errorMessage = null;
+        _successMessage = null;
         StateHasChanged();
 
         try
         {
-            if (request.EnableOidc)
+            if (_request.EnableOidc)
             {
-                if (string.IsNullOrWhiteSpace(request.OidcSettings?.Authority) || string.IsNullOrWhiteSpace(request.OidcSettings?.ClientId))
+                if (string.IsNullOrWhiteSpace(_request.OidcSettings?.Authority) || string.IsNullOrWhiteSpace(_request.OidcSettings?.ClientId))
                 {
-                    errorMessage = "Authority and Client ID are required for OIDC.";
+                    _errorMessage = "Authority and Client ID are required for OIDC.";
                     return;
                 }
             }
 
-            await SettingsService.SaveAuthSettingsAsync(request);
-            successMessage = "Settings saved successfully.";
+            await SettingsService.SaveAuthSettingsAsync(_request);
+            _successMessage = "Settings saved successfully.";
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to save settings: " + ex.Message;
+            _errorMessage = "Failed to save settings: " + ex.Message;
         }
         finally
         {
-            isSaving = false;
+            _isSaving = false;
         }
     }
 
     private async Task CopyToClipboard(string text)
     {
-        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 
 }

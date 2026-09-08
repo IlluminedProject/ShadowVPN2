@@ -1,4 +1,5 @@
 @page "/setup"
+@using System.Net
 @using RandomFriendlyNameGenerator
 @using ShadowVPN2.Data
 @rendermode InteractiveServer
@@ -6,9 +7,9 @@
 @attribute [AllowAnonymous]
 @inject NavigationManager NavigationManager
 @inject SetupService SetupService
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 
-@if (currentStep == 1)
+@if (_currentStep == 1)
 {
     <h4>Step 1: Network Information</h4>
     <p>Please confirm your server's network details.</p>
@@ -16,11 +17,11 @@
     <div class="mb-3">
         <label class="form-label">Node Domain (optional)</label>
         <div class="input-group">
-            <input type="text" class="form-control" @bind="nodeDomain"
+            <input type="text" class="form-control" @bind="_nodeDomain"
                    placeholder="node.example.com"/>
             <button class="btn btn-outline-secondary" type="button" @onclick="LookupPublicIp"
-                    disabled="@isLookingUpIp">
-                @if (isLookingUpIp)
+                    disabled="@_isLookingUpIp">
+                @if (_isLookingUpIp)
                 {
                     <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 }
@@ -32,16 +33,16 @@
         </div>
         <div class="form-text">Leave empty to expose this node by its public IP. Public certificates require a domain.
         </div>
-        @if (!string.IsNullOrEmpty(publicIp))
+        @if (!string.IsNullOrEmpty(_publicIp))
         {
-            <div class="form-text">Detected public IP: <code>@publicIp</code></div>
+            <div class="form-text">Detected public IP: <code>@_publicIp</code></div>
         }
     </div>
 
     <div class="mb-3">
         <label class="form-label">Node Name</label>
         <div class="input-group">
-            <input type="text" class="form-control" @bind="nodeNameInput" placeholder="@nodeNamePlaceholder"/>
+            <input type="text" class="form-control" @bind="_nodeNameInput" placeholder="@_nodeNamePlaceholder"/>
             <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName">
                 Random Name
             </button>
@@ -49,15 +50,15 @@
         <div class="form-text">A friendly name for this server in your cluster.</div>
     </div>
 
-    @if (!string.IsNullOrEmpty(errorMessage))
+    @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="alert alert-danger">
-            @((MarkupString)errorMessage)
+            @((MarkupString)_errorMessage)
         </div>
     }
 
-    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isProcessing">
-        @if (isProcessing)
+    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@_isProcessing">
+        @if (_isProcessing)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
         }
@@ -67,27 +68,27 @@
         }
     </button>
 }
-else if (currentStep == 2)
+else if (_currentStep == 2)
 {
     <h4>Step 2: Authentication</h4>
     <p>Choose how users will log in. You can change this later in Settings.</p>
 
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
-            <button class="nav-link @(useLocalLogin ? "active" : "")" type="button"
-                    @onclick="() => { useLocalLogin = true; useOidc = false; }">
+            <button class="nav-link @(_useLocalLogin ? "active" : "")" type="button"
+                    @onclick="() => { _useLocalLogin = true; _useOidc = false; }">
                 Local Login
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link @(useOidc ? "active" : "")" type="button"
-                    @onclick="() => { useOidc = true; useLocalLogin = false; }">
+            <button class="nav-link @(_useOidc ? "active" : "")" type="button"
+                    @onclick="() => { _useOidc = true; _useLocalLogin = false; }">
                 OAuth2 / OpenID Connect
             </button>
         </li>
     </ul>
 
-    @if (useLocalLogin)
+    @if (_useLocalLogin)
     {
         <div class="card mb-4">
             <div class="card-body">
@@ -95,23 +96,23 @@ else if (currentStep == 2)
 
                 <div class="mb-3">
                     <label class="form-label">Email</label>
-                    <input type="email" class="form-control" @bind="email"/>
+                    <input type="email" class="form-control" @bind="_email"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" class="form-control" @bind="password"/>
+                    <input type="password" class="form-control" @bind="_password"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Confirm Password</label>
-                    <input type="password" class="form-control" @bind="confirmPassword"/>
+                    <input type="password" class="form-control" @bind="_confirmPassword"/>
                 </div>
             </div>
         </div>
     }
 
-    @if (useOidc)
+    @if (_useOidc)
     {
         <div class="card mb-4">
             <div class="card-body">
@@ -122,12 +123,13 @@ else if (currentStep == 2)
 
                 <div class="mb-3">
                     <label class="form-label">Display Name</label>
-                    <input type="text" class="form-control" @bind="oidcDisplayName" placeholder="e.g. Corporate Login"/>
+                    <input type="text" class="form-control" @bind="_oidcDisplayName"
+                           placeholder="e.g. Corporate Login"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">OpenID Configuration Issuer URL</label>
-                    <input type="url" class="form-control" @bind="oidcAuthority"
+                    <input type="url" class="form-control" @bind="_oidcAuthority"
                            placeholder="e.g. https://accounts.google.com"/>
                     <div class="form-text">The base issuer URL. The discovery document will be fetched from <code>/.well-known/openid-configuration</code>.
                     </div>
@@ -135,12 +137,12 @@ else if (currentStep == 2)
 
                 <div class="mb-3">
                     <label class="form-label">Client ID</label>
-                    <input type="text" class="form-control" @bind="oidcClientId"/>
+                    <input type="text" class="form-control" @bind="_oidcClientId"/>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Client Secret</label>
-                    <input type="password" class="form-control" @bind="oidcClientSecret"/>
+                    <input type="password" class="form-control" @bind="_oidcClientSecret"/>
                 </div>
 
                 <div class="mb-3">
@@ -157,8 +159,8 @@ else if (currentStep == 2)
                 </div>
 
                 <button class="btn btn-outline-info" type="button" @onclick="TestOidcConnection"
-                        disabled="@isTestingOidc">
-                    @if (isTestingOidc)
+                        disabled="@_isTestingOidc">
+                    @if (_isTestingOidc)
                     {
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         <span> Testing...</span>
@@ -169,25 +171,25 @@ else if (currentStep == 2)
                     }
                 </button>
 
-                @if (!string.IsNullOrEmpty(oidcTestMessage))
+                @if (!string.IsNullOrEmpty(_oidcTestMessage))
                 {
-                    <div class="mt-2 small text-@(oidcTestSuccess ? "success" : "danger")">
-                        @((MarkupString)oidcTestMessage)
+                    <div class="mt-2 small text-@(_oidcTestSuccess ? "success" : "danger")">
+                        @((MarkupString)_oidcTestMessage)
                     </div>
                 }
             </div>
         </div>
     }
 
-    @if (!string.IsNullOrEmpty(errorMessage))
+    @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="alert alert-danger">
-            @((MarkupString)errorMessage)
+            @((MarkupString)_errorMessage)
         </div>
     }
 
-    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@isProcessing">
-        @if (isProcessing)
+    <button class="btn btn-primary w-100" @onclick="NextStep" disabled="@_isProcessing">
+        @if (_isProcessing)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
         }
@@ -197,7 +199,7 @@ else if (currentStep == 2)
         }
     </button>
 }
-else if (currentStep == 3)
+else if (_currentStep == 3)
 {
     <h4>Step 3: Save Root Certificate</h4>
 
@@ -211,21 +213,21 @@ else if (currentStep == 3)
         <p class="mb-0">Keep this file in a secure and secret location!</p>
     </div>
 
-    @if (!string.IsNullOrEmpty(errorMessage))
+    @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="alert alert-danger">
-            @((MarkupString)errorMessage)
+            @((MarkupString)_errorMessage)
         </div>
     }
 
     <div class="d-flex justify-content-between align-items-center">
         <a href="/api/setup/root-ca" class="btn btn-outline-success btn-lg" target="_blank"
-           @onclick="() => hasDownloadedCert = true">
+           @onclick="() => _hasDownloadedCert = true">
             Download root-ca.pfx
         </a>
 
-        <button class="btn btn-danger btn-lg" @onclick="FinishSetup" disabled="@(isProcessing || !hasDownloadedCert)">
-            @if (isProcessing)
+        <button class="btn btn-danger btn-lg" @onclick="FinishSetup" disabled="@(_isProcessing || !_hasDownloadedCert)">
+            @if (_isProcessing)
             {
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             }
@@ -238,156 +240,156 @@ else if (currentStep == 3)
 }
 
 @code {
-    private int currentStep = 1;
+    private int _currentStep = 1;
 
-    private string hostname = string.Empty;
-    private string publicIp = string.Empty;
-    private string nodeDomain = string.Empty;
-    private string nodeNameInput = string.Empty;
-    private string nodeNamePlaceholder = string.Empty;
-    private bool isLookingUpIp = false;
+    private string _hostname = string.Empty;
+    private string _publicIp = string.Empty;
+    private string _nodeDomain = string.Empty;
+    private string _nodeNameInput = string.Empty;
+    private string _nodeNamePlaceholder = string.Empty;
+    private bool _isLookingUpIp;
 
     // Step 2
-    private bool useLocalLogin = true;
-    private bool useOidc = false;
-    private string oidcDisplayName = "Login with OAuth";
-    private string oidcAuthority = string.Empty;
-    private string oidcClientId = string.Empty;
-    private string oidcClientSecret = string.Empty;
-    private bool isTestingOidc = false;
-    private string oidcTestMessage = string.Empty;
-    private bool oidcTestSuccess = false;
+    private bool _useLocalLogin = true;
+    private bool _useOidc;
+    private string _oidcDisplayName = "Login with OAuth";
+    private string _oidcAuthority = string.Empty;
+    private string _oidcClientId = string.Empty;
+    private string _oidcClientSecret = string.Empty;
+    private bool _isTestingOidc;
+    private string _oidcTestMessage = string.Empty;
+    private bool _oidcTestSuccess;
 
-    private string email = string.Empty;
-    private string password = string.Empty;
-    private string confirmPassword = string.Empty;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
 
     // Step 3
-    private bool hasDownloadedCert = false;
+    private bool _hasDownloadedCert;
 
-    private string errorMessage = string.Empty;
-    private bool isProcessing = false;
+    private string _errorMessage = string.Empty;
+    private bool _isProcessing;
 
     private void GenerateRandomNodeName()
     {
-        nodeNameInput = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-node";
+        _nodeNameInput = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-node";
     }
 
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(NavigationManager.BaseUri);
-        hostname = uri.Host;
-        if (!string.Equals(hostname, "localhost", StringComparison.OrdinalIgnoreCase) &&
-            !System.Net.IPAddress.TryParse(hostname, out _))
-            nodeDomain = hostname;
-        nodeNamePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "primary-node";
+        _hostname = uri.Host;
+        if (!string.Equals(_hostname, "localhost", StringComparison.OrdinalIgnoreCase) &&
+            !IPAddress.TryParse(_hostname, out _))
+            _nodeDomain = _hostname;
+        _nodeNamePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "primary-node";
 
         await LookupPublicIp();
     }
 
     private async Task LookupPublicIp()
     {
-        isLookingUpIp = true;
+        _isLookingUpIp = true;
         StateHasChanged();
 
         var ip = await SetupService.GetPublicIpAsync();
-        publicIp = ip ?? string.Empty;
+        _publicIp = ip ?? string.Empty;
 
-        isLookingUpIp = false;
+        _isLookingUpIp = false;
     }
 
     private async Task TestOidcConnection()
     {
-        isTestingOidc = true;
-        oidcTestMessage = string.Empty;
+        _isTestingOidc = true;
+        _oidcTestMessage = string.Empty;
         StateHasChanged();
 
-        var discoveryUrl = oidcAuthority.TrimEnd('/') + "/.well-known/openid-configuration";
-        var success = await SetupService.TestOidcConnectionAsync(oidcAuthority);
-        oidcTestSuccess = success;
-        oidcTestMessage = success
+        var discoveryUrl = _oidcAuthority.TrimEnd('/') + "/.well-known/openid-configuration";
+        var success = await SetupService.TestOidcConnectionAsync(_oidcAuthority);
+        _oidcTestSuccess = success;
+        _oidcTestMessage = success
             ? "Successfully connected to OIDC discovery endpoint!"
             : $"Failed to connect to <code>{discoveryUrl}</code>";
 
-        isTestingOidc = false;
+        _isTestingOidc = false;
     }
 
     private async Task NextStep()
     {
-        errorMessage = string.Empty;
+        _errorMessage = string.Empty;
 
-        if (currentStep == 1)
+        if (_currentStep == 1)
         {
-            isProcessing = true;
+            _isProcessing = true;
             try
             {
                 var request = new NodeSetupRequest
                 {
-                    Domain = string.IsNullOrWhiteSpace(nodeDomain) ? null : nodeDomain.Trim(),
-                    NodeName = string.IsNullOrWhiteSpace(nodeNameInput) ? nodeNamePlaceholder : nodeNameInput
+                    Domain = string.IsNullOrWhiteSpace(_nodeDomain) ? null : _nodeDomain.Trim(),
+                    NodeName = string.IsNullOrWhiteSpace(_nodeNameInput) ? _nodeNamePlaceholder : _nodeNameInput
                 };
 
                 await SetupService.ConfigureNodeAsync(request);
-                currentStep++;
+                _currentStep++;
             }
             catch (Exception ex)
             {
-                errorMessage = ex.Message;
+                _errorMessage = ex.Message;
             }
             finally
             {
-                isProcessing = false;
+                _isProcessing = false;
             }
         }
-        else if (currentStep == 2)
+        else if (_currentStep == 2)
         {
-            if (useLocalLogin && password != confirmPassword)
+            if (_useLocalLogin && _password != _confirmPassword)
             {
-                errorMessage = "Passwords do not match.";
+                _errorMessage = "Passwords do not match.";
                 return;
             }
 
-            isProcessing = true;
+            _isProcessing = true;
             try
             {
-                if (useLocalLogin)
+                if (_useLocalLogin)
                 {
                     await SetupService.ConfigureLocalAuthAsync(new LocalAuthSetupRequest
                     {
-                        Email = email,
-                        Password = password
+                        Email = _email,
+                        Password = _password
                     });
                 }
 
-                if (useOidc)
+                if (_useOidc)
                 {
                     await SetupService.ConfigureOidcAsync(new OidcAuthSetupRequest
                     {
                         SchemeName = "OIDC",
-                        DisplayName = oidcDisplayName,
-                        Authority = oidcAuthority,
-                        ClientId = oidcClientId,
-                        ClientSecret = oidcClientSecret
+                        DisplayName = _oidcDisplayName,
+                        Authority = _oidcAuthority,
+                        ClientId = _oidcClientId,
+                        ClientSecret = _oidcClientSecret
                     });
                 }
 
-                currentStep++;
+                _currentStep++;
             }
             catch (Exception ex)
             {
-                errorMessage = ex.Message;
+                _errorMessage = ex.Message;
             }
             finally
             {
-                isProcessing = false;
+                _isProcessing = false;
             }
         }
     }
 
     private async Task FinishSetup()
     {
-        errorMessage = string.Empty;
-        isProcessing = true;
+        _errorMessage = string.Empty;
+        _isProcessing = true;
 
         try
         {
@@ -396,17 +398,17 @@ else if (currentStep == 3)
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            _errorMessage = ex.Message;
         }
         finally
         {
-            isProcessing = false;
+            _isProcessing = false;
         }
     }
 
     private async Task CopyToClipboard(string text)
     {
-        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 
 }

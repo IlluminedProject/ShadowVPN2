@@ -2,17 +2,8 @@ using ShadowVPN2.Data;
 
 namespace ShadowVPN2.Infrastructure.Middleware;
 
-public class SetupMiddleware
-{
-    private readonly RequestDelegate _next;
-
-    public SetupMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
-
-    public async Task InvokeAsync(HttpContext context, SetupService setupService)
-    {
+public class SetupMiddleware(RequestDelegate next) {
+    public async Task InvokeAsync(HttpContext context, SetupService setupService) {
         var path = context.Request.Path.Value;
 
         // Skip static files, framework files
@@ -23,9 +14,8 @@ public class SetupMiddleware
                 path.StartsWith("/js") ||
                 path.StartsWith("/images") ||
                 path.StartsWith("/favicon.ico") ||
-                path.StartsWith("/lib")))
-        {
-            await _next(context);
+                path.StartsWith("/lib"))) {
+            await next(context);
             return;
         }
 
@@ -34,13 +24,10 @@ public class SetupMiddleware
         var isSetupRoute = path == "/setup" || (path != null && path.StartsWith("/api/setup"));
         var isStatusRoute = path != null && path.StartsWith("/api/node/status");
 
-        if (needsSetup)
-        {
+        if (needsSetup) {
             // If setup is needed, block access to everything except setup routes and status route
-            if (!isSetupRoute && !isStatusRoute)
-            {
-                if (isApi)
-                {
+            if (!isSetupRoute && !isStatusRoute) {
+                if (isApi) {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     await context.Response.WriteAsJsonAsync(new { message = "Initial setup is required." });
                     return;
@@ -50,13 +37,10 @@ public class SetupMiddleware
                 return;
             }
         }
-        else
-        {
+        else {
             // If setup is complete, block access to setup routes
-            if (isSetupRoute)
-            {
-                if (isApi)
-                {
+            if (isSetupRoute) {
+                if (isApi) {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
                     await context.Response.WriteAsJsonAsync(new { message = "Setup is already completed." });
                     return;
@@ -67,6 +51,6 @@ public class SetupMiddleware
             }
         }
 
-        await _next(context);
+        await next(context);
     }
 }

@@ -7,12 +7,12 @@ namespace ShadowVPN2.Infrastructure.Authentication;
 
 public sealed class DynamicOpenIddictClientRegistrationStore(
     IOptionsMonitorCache<OpenIddictClientOptions> optionsCache) {
-    private readonly Dictionary<string, OpenIddictClientRegistration> registrations = new(StringComparer.Ordinal);
-    private readonly Lock syncRoot = new();
+    private readonly Dictionary<string, OpenIddictClientRegistration> _registrations = new(StringComparer.Ordinal);
+    private readonly Lock _syncRoot = new();
 
     public IReadOnlyList<OpenIddictClientRegistration> GetRegistrations() {
-        lock (syncRoot) {
-            return registrations.Values.ToArray();
+        lock (_syncRoot) {
+            return _registrations.Values.ToArray();
         }
     }
 
@@ -41,16 +41,16 @@ public sealed class DynamicOpenIddictClientRegistrationStore(
         foreach (var scope in scopes)
             registration.Scopes.Add(scope);
 
-        lock (syncRoot) {
-            registrations[provider.SchemeName] = registration;
+        lock (_syncRoot) {
+            _registrations[provider.SchemeName] = registration;
         }
 
         optionsCache.TryRemove(Options.DefaultName);
     }
 
     public void Remove(string schemeName) {
-        lock (syncRoot) {
-            registrations.Remove(schemeName);
+        lock (_syncRoot) {
+            _registrations.Remove(schemeName);
         }
 
         optionsCache.TryRemove(Options.DefaultName);

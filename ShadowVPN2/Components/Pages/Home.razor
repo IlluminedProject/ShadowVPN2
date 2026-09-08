@@ -1,17 +1,17 @@
 @page "/"
+@attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @using RandomFriendlyNameGenerator
 @using ShadowVPN2.Data
+@using ShadowVPN2.Data.Certificates
 @using ShadowVPN2.Data.Cluster
 @using ShadowVPN2.Data.Protocols
-@using ShadowVPN2.Data.Certificates
 @using ShadowVPN2.Infrastructure.Authentication
-@attribute [Authorize(Policy = AppPermissions.Nodes.View)]
 @implements IDisposable
 @inject NodeService NodeService
 @inject ClusterService ClusterService
 @inject ProtocolDomainService ProtocolDomainService
 @inject ManagedCertificateService ManagedCertificateService
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 @inject IAuthorizationService AuthorizationService
 @rendermode InteractiveServer
 
@@ -428,7 +428,7 @@
     private async Task CopyToken()
     {
         if (_generatedToken != null)
-            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _generatedToken);
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _generatedToken);
     }
 
     private void OpenEditNodeModal(NodeResponse node)

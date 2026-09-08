@@ -1,6 +1,6 @@
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
-using ShadowVPN2.Data.Certificates;
 
 namespace ShadowVPN2.Data.Subscription;
 
@@ -32,7 +32,7 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
             ObfsType = h2.ObfsType,
             ObfsPassword = h2.ObfsPassword,
             Sni = sni,
-            PinSHA256 = fingerprint
+            PinSha256 = fingerprint
         });
     }
 }

@@ -19,9 +19,9 @@
 
 <PageTitle>Login</PageTitle>
 
-<StatusMessage Message="@(registrationErrorMessage ?? message)"/>
+<StatusMessage Message="@(_registrationErrorMessage ?? Message)"/>
 
-@if (registrationErrorMessage != null)
+@if (_registrationErrorMessage != null)
 {
     <h1 class="text-center mb-4">Registration Failed</h1>
     <div class="alert alert-danger text-center">
@@ -43,11 +43,11 @@ else
 </div>
 
 @code {
-    private string? registrationErrorMessage;
+    private string? _registrationErrorMessage;
     public const string LoginCallbackAction = "LoginCallback";
 
-    private string? message => RemoteError != null ? $"Error from external provider: {RemoteError}" : null;
-    private ExternalLoginInfo? externalLoginInfo;
+    private string? Message => RemoteError != null ? $"Error from external provider: {RemoteError}" : null;
+    private ExternalLoginInfo? _externalLoginInfo;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -57,7 +57,7 @@ else
 
     [SupplyParameterFromQuery] private string? Action { get; set; }
 
-    private string? ProviderDisplayName => externalLoginInfo?.ProviderDisplayName;
+    private string? ProviderDisplayName => _externalLoginInfo?.ProviderDisplayName;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,7 +74,7 @@ else
             return;
         }
 
-        externalLoginInfo = info;
+        _externalLoginInfo = info;
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
@@ -92,7 +92,7 @@ else
 
     private async Task OnLoginCallbackAsync()
     {
-        if (externalLoginInfo is null)
+        if (_externalLoginInfo is null)
         {
             RedirectManager.RedirectToWithStatus("Account/Login", "Error loading external login information.", HttpContext);
             return;
@@ -100,8 +100,8 @@ else
 
         // Sign in the user with this external login provider if the user already has a login.
         var result = await SignInManager.ExternalLoginSignInAsync(
-            externalLoginInfo.LoginProvider,
-            externalLoginInfo.ProviderKey,
+                _externalLoginInfo.LoginProvider,
+                _externalLoginInfo.ProviderKey,
             isPersistent: false,
             bypassTwoFactor: true);
 
@@ -109,8 +109,8 @@ else
         {
             Logger.LogInformation(
                 "{Name} logged in with {LoginProvider} provider",
-                externalLoginInfo.Principal.Identity?.Name,
-                externalLoginInfo.LoginProvider);
+                _externalLoginInfo.Principal.Identity?.Name,
+                _externalLoginInfo.LoginProvider);
             RedirectManager.RedirectTo(ReturnUrl);
             return;
         }
@@ -120,7 +120,7 @@ else
             return;
         }
 
-        var email = externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
+        var email = _externalLoginInfo.Principal.FindFirstValue(ClaimTypes.Email);
         if (string.IsNullOrEmpty(email))
         {
             RedirectManager.RedirectToWithStatus("Account/Login", "Error: External provider did not provide an email address.", HttpContext);
@@ -130,17 +130,17 @@ else
         var existingUser = await UserManager.FindByEmailAsync(email);
         if (existingUser != null)
         {
-            var loginInfo = new UserLoginInfo(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey, externalLoginInfo.ProviderDisplayName);
+            var loginInfo = new UserLoginInfo(_externalLoginInfo.LoginProvider, _externalLoginInfo.ProviderKey, _externalLoginInfo.ProviderDisplayName);
             var addLoginResult = await UserManager.AddLoginAsync(existingUser, loginInfo);
             if (addLoginResult.Succeeded)
             {
-                Logger.LogInformation("Linked {LoginProvider} login to existing user {Email}", externalLoginInfo.LoginProvider, email);
-                await SignInManager.SignInAsync(existingUser, isPersistent: false, externalLoginInfo.LoginProvider);
+                Logger.LogInformation("Linked {LoginProvider} login to existing user {Email}", _externalLoginInfo.LoginProvider, email);
+                await SignInManager.SignInAsync(existingUser, false, _externalLoginInfo.LoginProvider);
                 RedirectManager.RedirectTo(ReturnUrl);
                 return;
             }
 
-            registrationErrorMessage = $"Error linking external login: {string.Join(", ", addLoginResult.Errors.Select(e => e.Description))}";
+            _registrationErrorMessage = $"Error linking external login: {string.Join(", ", addLoginResult.Errors.Select(e => e.Description))}";
             return;
         }
 
@@ -166,19 +166,19 @@ else
             {
                 await UserManager.AddToRoleAsync(user, isFirstAdmin ? AppRoles.Administrator : AppRoles.User);
 
-                var loginInfo = new UserLoginInfo(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey, externalLoginInfo.ProviderDisplayName);
+                var loginInfo = new UserLoginInfo(_externalLoginInfo.LoginProvider, _externalLoginInfo.ProviderKey, _externalLoginInfo.ProviderDisplayName);
                 createResult = await UserManager.AddLoginAsync(user, loginInfo);
                 if (createResult.Succeeded)
                 {
-                    Logger.LogInformation("User created an account using {Name} provider. IsFirstAdmin: {IsFirstAdmin}", externalLoginInfo.LoginProvider, isFirstAdmin);
+                    Logger.LogInformation("User created an account using {Name} provider. IsFirstAdmin: {IsFirstAdmin}", _externalLoginInfo.LoginProvider, isFirstAdmin);
 
-                    await SignInManager.SignInAsync(user, isPersistent: false, externalLoginInfo.LoginProvider);
+                    await SignInManager.SignInAsync(user, false, _externalLoginInfo.LoginProvider);
                     RedirectManager.RedirectTo(ReturnUrl);
                     return;
                 }
             }
 
-            registrationErrorMessage = $"Error creating account: {string.Join(", ", createResult.Errors.Select(e => e.Description))}";
+            _registrationErrorMessage = $"Error creating account: {string.Join(", ", createResult.Errors.Select(e => e.Description))}";
             return;
         }
 

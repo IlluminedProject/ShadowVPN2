@@ -8,7 +8,7 @@ using ILogger = Serilog.ILogger;
 namespace ShadowVPN2.Infrastructure.Configurations;
 
 public class LocalConfiguration {
-    private static readonly ILogger Logger = Log.ForContext<LocalConfiguration>();
+    private static readonly ILogger _logger = Log.ForContext<LocalConfiguration>();
 
     public static readonly AbsolutePath Path = DataUtils.DataFolder / "local";
     public static readonly AbsolutePath CertificatePfxPath = Path / "ca.pfx";
@@ -38,23 +38,23 @@ public class LocalConfiguration {
     }
 
     public static async Task<LocalConfiguration> LoadAsync() {
-        Logger.Information("Initializing local configuration at {Path}", Path);
-        Logger.Debug("Loading Root CA and ensuring trust");
+        _logger.Information("Initializing local configuration at {Path}", Path);
+        _logger.Debug("Loading Root CA and ensuring trust");
         var rootCaPem = X509CertificateLoader.LoadCertificateFromFile(CertificatePemPath.ToString());
         RavenDbCertificates.TrustCustomRootCa(rootCaPem);
 
-        Logger.Information("Loading local configuration from {ConfigPath}", ConfigPath);
+        _logger.Information("Loading local configuration from {ConfigPath}", ConfigPath);
         var configText = await ConfigPath.ReadAllTextAsync();
         var config = JsonSerializer.Deserialize<LocalConfiguration>(configText, DataUtils.DefaultSerializerOptions)
                      ?? throw new Exception($"Failed to deserialize local configuration from {ConfigPath}");
         config.Save();
 
-        Logger.Information("Local configuration initialized successfully");
+        _logger.Information("Local configuration initialized successfully");
         return config;
     }
 
     public void Save() {
-        Logger.Information("Saving local configuration to {ConfigPath}", ConfigPath);
+        _logger.Information("Saving local configuration to {ConfigPath}", ConfigPath);
         var configText = JsonSerializer.Serialize(this, DataUtils.DefaultSerializerOptions);
         ConfigPath.WriteAllText(configText);
     }

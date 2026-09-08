@@ -1,22 +1,16 @@
-using System;
-using Raven.Client.Documents.Changes;
-
 namespace ShadowVPN2.Infrastructure.Authentication;
 
-public class ActionObserver<T> : IObserver<T>
-{
-    private readonly Action<T> _onNext;
-    private readonly Action<Exception>? _onError;
-    private readonly Action? _onCompleted;
-
-    public ActionObserver(Action<T> onNext, Action<Exception>? onError = null, Action? onCompleted = null)
-    {
-        _onNext = onNext;
-        _onError = onError;
-        _onCompleted = onCompleted;
+public class ActionObserver<T>(Action<T> onNext, Action<Exception>? onError = null, Action? onCompleted = null)
+    : IObserver<T> {
+    public void OnCompleted() {
+        onCompleted?.Invoke();
     }
 
-    public void OnCompleted() => _onCompleted?.Invoke();
-    public void OnError(Exception error) => _onError?.Invoke(error);
-    public void OnNext(T value) => _onNext(value);
+    public void OnError(Exception error) {
+        onError?.Invoke(error);
+    }
+
+    public void OnNext(T value) {
+        onNext(value);
+    }
 }

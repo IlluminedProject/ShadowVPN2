@@ -5,31 +5,17 @@ using ShadowVPN2.Entities.Auth;
 
 namespace ShadowVPN2.Infrastructure.Authentication;
 
-public class DynamicAuthenticationManager {
-    private readonly DynamicOpenIddictClientRegistrationStore _clientRegistrationStore;
-    private readonly ILogger<DynamicAuthenticationManager> _logger;
-    private readonly IOptionsMonitorCache<OpenIdConnectOptions> _oidcOptionsCache;
-    private readonly IEnumerable<IPostConfigureOptions<OpenIdConnectOptions>> _oidcPostConfigurers;
-    private readonly IAuthenticationSchemeProvider _schemeProvider;
-
-    public DynamicAuthenticationManager(
-        IAuthenticationSchemeProvider schemeProvider,
-        IOptionsMonitorCache<OpenIdConnectOptions> oidcOptionsCache,
-        IEnumerable<IPostConfigureOptions<OpenIdConnectOptions>> oidcPostConfigurers,
-        DynamicOpenIddictClientRegistrationStore clientRegistrationStore,
-        ILogger<DynamicAuthenticationManager> logger) {
-        _schemeProvider = schemeProvider;
-        _oidcOptionsCache = oidcOptionsCache;
-        _oidcPostConfigurers = oidcPostConfigurers;
-        _clientRegistrationStore = clientRegistrationStore;
-        _logger = logger;
-    }
-
+public class DynamicAuthenticationManager(
+    IAuthenticationSchemeProvider schemeProvider,
+    IOptionsMonitorCache<OpenIdConnectOptions> oidcOptionsCache,
+    IEnumerable<IPostConfigureOptions<OpenIdConnectOptions>> oidcPostConfigurers,
+    DynamicOpenIddictClientRegistrationStore clientRegistrationStore,
+    ILogger<DynamicAuthenticationManager> logger) {
     public async Task AddOrUpdateOidcProviderAsync(OidcAuthProvider dbProvider) {
         var schemeName = dbProvider.SchemeName;
-        _logger.LogInformation("Adding or updating OIDC provider: {SchemeName} ({Authority})", schemeName,
+        logger.LogInformation("Adding or updating OIDC provider: {SchemeName} ({Authority})", schemeName,
             dbProvider.Authority);
-        _clientRegistrationStore.AddOrUpdate(dbProvider);
+        clientRegistrationStore.AddOrUpdate(dbProvider);
 
         // 1. Create options manually to avoid premature validation in OptionsFactory
         var options = new OpenIdConnectOptions {
@@ -49,34 +35,34 @@ public class DynamicAuthenticationManager {
         }
 
         // 2. Run post-configurers (this sets up NonceCookie, CorrelationCookie, DataProtection, etc.)
-        foreach (var postConfigurer in _oidcPostConfigurers) {
+        foreach (var postConfigurer in oidcPostConfigurers) {
             postConfigurer.PostConfigure(schemeName, options);
         }
 
         // 3. Update cache
-        _oidcOptionsCache.TryRemove(schemeName);
-        _oidcOptionsCache.TryAdd(schemeName, options);
-        _logger.LogDebug("Added new OIDC options cache for {SchemeName}", schemeName);
+        oidcOptionsCache.TryRemove(schemeName);
+        oidcOptionsCache.TryAdd(schemeName, options);
+        logger.LogDebug("Added new OIDC options cache for {SchemeName}", schemeName);
 
         // 3. Register scheme in ASP.NET Core if it doesn't exist
-        if (await _schemeProvider.GetSchemeAsync(schemeName) == null) {
-            _logger.LogInformation("Registering new OIDC authentication scheme: {SchemeName}", schemeName);
+        if (await schemeProvider.GetSchemeAsync(schemeName) == null) {
+            logger.LogInformation("Registering new OIDC authentication scheme: {SchemeName}", schemeName);
             var scheme = new AuthenticationScheme(
                 schemeName,
                 dbProvider.DisplayName,
                 typeof(OpenIdConnectHandler));
 
-            _schemeProvider.AddScheme(scheme);
+            schemeProvider.AddScheme(scheme);
         }
         else {
-            _logger.LogDebug("OIDC authentication scheme {SchemeName} is already registered", schemeName);
+            logger.LogDebug("OIDC authentication scheme {SchemeName} is already registered", schemeName);
         }
     }
 
     public void RemoveOidcProvider(string schemeName) {
-        _logger.LogInformation("Removing OIDC provider: {SchemeName}", schemeName);
-        _oidcOptionsCache.TryRemove(schemeName);
-        _clientRegistrationStore.Remove(schemeName);
-        _schemeProvider.RemoveScheme(schemeName);
+        logger.LogInformation("Removing OIDC provider: {SchemeName}", schemeName);
+        oidcOptionsCache.TryRemove(schemeName);
+        clientRegistrationStore.Remove(schemeName);
+        schemeProvider.RemoveScheme(schemeName);
     }
 }

@@ -2,7 +2,6 @@
 
 @attribute [Authorize]
 @rendermode InteractiveServer
-
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using RandomFriendlyNameGenerator
@@ -14,7 +13,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject ClientService ClientService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 
 <PageTitle>VPN Clients</PageTitle>
 
@@ -25,19 +24,19 @@
     </button>
 </div>
 
-@if (!string.IsNullOrEmpty(statusMessage))
+@if (!string.IsNullOrEmpty(_statusMessage))
 {
     <div class="alert alert-info alert-dismissible fade show" role="alert">
-        @statusMessage
-        <button type="button" class="btn-close" @onclick="() => statusMessage = null" aria-label="Close"></button>
+        @_statusMessage
+        <button type="button" class="btn-close" @onclick="() => _statusMessage = null" aria-label="Close"></button>
     </div>
 }
 
-@if (clients is null)
+@if (_clients is null)
 {
     <p><em>Loading...</em></p>
 }
-else if (clients.Count > 0)
+else if (_clients.Count > 0)
 {
     <div class="table-responsive">
         <table class="table table-hover align-middle">
@@ -51,7 +50,7 @@ else if (clients.Count > 0)
             </tr>
             </thead>
             <tbody>
-            @foreach (var client in clients)
+            @foreach (var client in _clients)
             {
                 <tr>
                     <td><strong>@client.Name</strong></td>
@@ -106,7 +105,7 @@ else
     </div>
 }
 
-@if (showCreateModal)
+@if (_showCreateModal)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
         <div class="modal-dialog">
@@ -123,7 +122,8 @@ else
                         <div class="mb-3">
                             <label for="clientName" class="form-label">Device name</label>
                             <div class="input-group">
-                                <InputText @bind-Value="Input.Name" id="clientName" class="form-control" placeholder="@namePlaceholder"/>
+                                <InputText @bind-Value="Input.Name" id="clientName" class="form-control"
+                                           placeholder="@_namePlaceholder"/>
                                 <button type="button" class="btn btn-outline-secondary" @onclick="GenerateRandomName" title="Generate random name">
                                     <span class="bi bi-shuffle" aria-hidden="true"></span>
                                 </button>
@@ -142,20 +142,22 @@ else
     </div>
 }
 
-@if (clientToDelete is not null)
+@if (_clientToDelete is not null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
         <div class="modal-dialog">
             <div class="modal-content text-danger border-danger">
                 <div class="modal-header border-danger">
                     <h5 class="modal-title">Delete Client</h5>
-                    <button type="button" class="btn-close" @onclick="() => clientToDelete = null"></button>
+                    <button type="button" class="btn-close" @onclick="() => _clientToDelete = null"></button>
                 </div>
                 <div class="modal-body text-dark">
-                    Are you sure you want to delete client <strong>@clientToDelete.Name</strong>? This action cannot be undone.
+                    Are you sure you want to delete client <strong>@_clientToDelete.Name</strong>? This action cannot be
+                    undone.
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-secondary" @onclick="() => clientToDelete = null">Cancel</button>
+                    <button type="button" class="btn btn-secondary" @onclick="() => _clientToDelete = null">Cancel
+                    </button>
                     <button type="button" class="btn btn-danger" @onclick="DeleteClient">Delete</button>
                 </div>
             </div>
@@ -164,13 +166,13 @@ else
 }
 
 @code {
-    private ApplicationUser? user;
-    private IReadOnlyList<EntityClient>? clients;
-    private string? statusMessage;
-    private bool showCreateModal;
-    private EntityClient? clientToDelete;
-    private ClientService.ClientSubscription? subscription;
-    private string namePlaceholder = "random-client";
+    private ApplicationUser? _user;
+    private IReadOnlyList<EntityClient>? _clients;
+    private string? _statusMessage;
+    private bool _showCreateModal;
+    private EntityClient? _clientToDelete;
+    private ClientService.ClientSubscription? _subscription;
+    private string _namePlaceholder = "random-client";
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
@@ -180,17 +182,17 @@ else
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateTask;
-        user = await UserManager.GetUserAsync(authState.User);
+        _user = await UserManager.GetUserAsync(authState.User);
 
-        if (user is null)
+        if (_user is null)
         {
             NavigationManager.NavigateTo("Account/Login");
             return;
         }
 
-        subscription = await ClientService.SubscribeAsync(user, async updatedClients =>
+        _subscription = await ClientService.SubscribeAsync(_user, async updatedClients =>
         {
-            clients = updatedClients;
+            _clients = updatedClients;
             await InvokeAsync(StateHasChanged);
         });
 
@@ -199,22 +201,22 @@ else
 
     private async Task LoadClients()
     {
-        if (user is not null)
+        if (_user is not null)
         {
-            clients = await ClientService.GetClientsAsync(user);
+            _clients = await ClientService.GetClientsAsync(_user);
         }
     }
 
     private void ShowCreateModal()
     {
         Input = new();
-        namePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
-        showCreateModal = true;
+        _namePlaceholder = NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLower() ?? "random-client";
+        _showCreateModal = true;
     }
 
     private void CloseCreateModal()
     {
-        showCreateModal = false;
+        _showCreateModal = false;
     }
 
     private void GenerateRandomName()
@@ -224,40 +226,40 @@ else
 
     private async Task AddClient()
     {
-        if (user is null) return;
+        if (_user is null) return;
 
-        var name = string.IsNullOrWhiteSpace(Input.Name) ? namePlaceholder : Input.Name;
-        await ClientService.AddClientAsync(user, name);
-        statusMessage = "Client added successfully.";
-        showCreateModal = false;
+        var name = string.IsNullOrWhiteSpace(Input.Name) ? _namePlaceholder : Input.Name;
+        await ClientService.AddClientAsync(_user, name);
+        _statusMessage = "Client added successfully.";
+        _showCreateModal = false;
         // No need to call LoadClients here as the subscription will trigger it
     }
 
     private void ConfirmDelete(EntityClient client)
     {
-        clientToDelete = client;
+        _clientToDelete = client;
     }
 
     private async Task DeleteClient()
     {
-        if (user is null || clientToDelete is null) return;
+        if (_user is null || _clientToDelete is null) return;
 
-        await ClientService.DeleteClientAsync(clientToDelete.Id, user.Id!);
-        statusMessage = $"Client '{clientToDelete.Name}' deleted.";
-        clientToDelete = null;
+        await ClientService.DeleteClientAsync(_clientToDelete.Id, _user.Id!);
+        _statusMessage = $"Client '{_clientToDelete.Name}' deleted.";
+        _clientToDelete = null;
         // No need to call LoadClients here as the subscription will trigger it
     }
 
     private async Task CopySubscriptionLink(EntityClient client)
     {
         var url = NavigationManager.ToAbsoluteUri($"/s/{client.SubscriptionId}");
-        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", url.ToString());
-        statusMessage = $"Subscription link for '{client.Name}' copied to clipboard.";
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", url.ToString());
+        _statusMessage = $"Subscription link for '{client.Name}' copied to clipboard.";
     }
 
     public void Dispose()
     {
-        subscription?.Dispose();
+        _subscription?.Dispose();
     }
 
     private sealed class InputModel

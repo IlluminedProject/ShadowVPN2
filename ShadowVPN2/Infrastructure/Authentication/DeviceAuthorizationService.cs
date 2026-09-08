@@ -16,38 +16,20 @@ using ProtocolException = OpenIddict.Abstractions.OpenIddictExceptions.ProtocolE
 
 namespace ShadowVPN2.Infrastructure.Authentication;
 
-public sealed class DeviceAuthorizationService {
+public sealed class DeviceAuthorizationService(
+    IDocumentStore documentStore,
+    GlobalConfigurationService configurationService,
+    OpenIddictClientService openIddictClient,
+    UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager,
+    IServiceScopeFactory scopeFactory,
+    IDataProtectionProvider dataProtectionProvider,
+    ILogger<DeviceAuthorizationService> logger,
+    DeviceAuthorizationNotificationService notifications) {
     public const string CorrelationCookie = "shadowvpn-device-correlation";
-    private readonly GlobalConfigurationService configurationService;
-    private readonly IDataProtector deviceCodeProtector;
-    private readonly IDocumentStore documentStore;
-    private readonly ILogger<DeviceAuthorizationService> logger;
-    private readonly DeviceAuthorizationNotificationService notifications;
-    private readonly OpenIddictClientService openIddictClient;
-    private readonly IServiceScopeFactory scopeFactory;
-    private readonly SignInManager<ApplicationUser> signInManager;
-    private readonly UserManager<ApplicationUser> userManager;
 
-    public DeviceAuthorizationService(
-        IDocumentStore documentStore,
-        GlobalConfigurationService configurationService,
-        OpenIddictClientService openIddictClient,
-        UserManager<ApplicationUser> userManager,
-        SignInManager<ApplicationUser> signInManager,
-        IServiceScopeFactory scopeFactory,
-        IDataProtectionProvider dataProtectionProvider,
-        ILogger<DeviceAuthorizationService> logger,
-        DeviceAuthorizationNotificationService notifications) {
-        this.documentStore = documentStore;
-        this.configurationService = configurationService;
-        this.openIddictClient = openIddictClient;
-        this.userManager = userManager;
-        this.signInManager = signInManager;
-        this.scopeFactory = scopeFactory;
-        deviceCodeProtector = dataProtectionProvider.CreateProtector("ShadowVPN2.DeviceCode");
-        this.logger = logger;
-        this.notifications = notifications;
-    }
+    private readonly IDataProtector _deviceCodeProtector =
+        dataProtectionProvider.CreateProtector("ShadowVPN2.DeviceCode");
 
     public async Task<(DeviceAuthorizationStartResponse Response, string CorrelationSecret)> StartAsync(
         CancellationToken cancellationToken) {
@@ -68,7 +50,7 @@ public sealed class DeviceAuthorizationService {
         var transaction = new DeviceAuthorizationTransaction {
             Id = $"DeviceAuthorizationTransactions/{transactionId}",
             ProviderScheme = provider.SchemeName,
-            ProtectedDeviceCode = deviceCodeProtector.Protect(result.DeviceCode),
+            ProtectedDeviceCode = _deviceCodeProtector.Protect(result.DeviceCode),
             CorrelationHash = Hash(correlationSecret),
             UserCode = result.UserCode,
             VerificationUri = result.VerificationUri.AbsoluteUri,
@@ -318,7 +300,7 @@ public sealed class DeviceAuthorizationService {
 
             var result = await openIddictClient.AuthenticateWithDeviceAsync(new DeviceAuthenticationRequest {
                 ProviderName = transaction.ProviderScheme,
-                DeviceCode = deviceCodeProtector.Unprotect(transaction.ProtectedDeviceCode),
+                DeviceCode = _deviceCodeProtector.Unprotect(transaction.ProtectedDeviceCode),
                 Timeout = transaction.ExpiresAtUtc - DateTime.UtcNow,
                 Interval = TimeSpan.FromSeconds(transaction.PollInterval),
                 CancellationToken = CancellationToken.None

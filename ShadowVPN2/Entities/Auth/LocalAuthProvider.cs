@@ -1,16 +1,13 @@
-using System.Threading.Tasks;
+using ShadowVPN2.Infrastructure.Authentication;
 
 namespace ShadowVPN2.Entities.Auth;
 
-public class LocalAuthProvider : AuthProvider
-{
-    public LocalAuthProvider()
-    {
+public class LocalAuthProvider : AuthProvider {
+    public LocalAuthProvider() {
         DisplayName = "Local Database";
     }
 
-    public override Task RegisterSchemeAsync(Infrastructure.Authentication.DynamicAuthenticationManager manager)
-    {
+    public override Task RegisterSchemeAsync(DynamicAuthenticationManager manager) {
         return Task.CompletedTask;
     }
 }

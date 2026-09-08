@@ -29,7 +29,7 @@
             <h3>Cluster Settings</h3>
             <p class="text-muted">Configure AmneziaWG mesh networking between nodes.</p>
 
-            @if (!canManage && !isLoading)
+            @if (!_canManage && !_isLoading)
             {
                 <div class="alert alert-warning py-2 mb-4">
                     <i class="bi bi-exclamation-triangle me-2"></i>
@@ -37,7 +37,7 @@
                 </div>
             }
 
-            @if (isLoading)
+            @if (_isLoading)
             {
                 <div class="d-flex justify-content-center">
                     <div class="spinner-border" role="status">
@@ -45,9 +45,9 @@
                     </div>
                 </div>
             }
-            else if (awgSettings != null)
+            else if (_awgSettings != null)
             {
-                <fieldset disabled="@(!canManage)">
+                <fieldset disabled="@(!_canManage)">
                     <div class="card mb-4">
                         <div class="card-header">
                             <h5 class="mb-0">Network</h5>
@@ -56,7 +56,7 @@
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <label class="form-label">Listen Port</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.ListenPort" min="1"
+                                    <input type="number" class="form-control" @bind="_awgSettings.ListenPort" min="1"
                                            max="65535"/>
                                     <div class="form-text">UDP port for AWG mesh (default: 51820).</div>
                                 </div>
@@ -72,40 +72,40 @@
                             <div class="row g-3">
                                 <div class="col-md-4">
                                     <label class="form-label">Jc</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.Jc"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.Jc"/>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Jmin</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.Jmin"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.Jmin"/>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Jmax</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.Jmax"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.Jmax"/>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">S1</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.S1"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.S1"/>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">S2</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.S2"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.S2"/>
                                 </div>
                                 <div class="col-md-4"></div>
                                 <div class="col-md-3">
                                     <label class="form-label">H1</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.H1"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.H1"/>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">H2</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.H2"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.H2"/>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">H3</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.H3"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.H3"/>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">H4</label>
-                                    <input type="number" class="form-control" @bind="awgSettings.H4"/>
+                                    <input type="number" class="form-control" @bind="_awgSettings.H4"/>
                                 </div>
                             </div>
                             <div class="form-text mt-2">AmneziaWG obfuscation parameters. Randomly generated on first
@@ -115,21 +115,21 @@
                     </div>
                 </fieldset>
 
-                @if (!string.IsNullOrEmpty(errorMessage))
+                @if (!string.IsNullOrEmpty(_errorMessage))
                 {
-                    <div class="alert alert-danger">@errorMessage</div>
+                    <div class="alert alert-danger">@_errorMessage</div>
                 }
 
-                @if (!string.IsNullOrEmpty(successMessage))
+                @if (!string.IsNullOrEmpty(_successMessage))
                 {
-                    <div class="alert alert-success">@successMessage</div>
+                    <div class="alert alert-success">@_successMessage</div>
                 }
 
-                @if (canManage)
+                @if (_canManage)
                 {
                     <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@isSaving">
-                            @if (isSaving)
+                        <button class="btn btn-primary" @onclick="SaveSettings" disabled="@_isSaving">
+                            @if (_isSaving)
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
@@ -143,12 +143,12 @@
 </div>
 
 @code {
-    private bool isLoading = true;
-    private bool isSaving;
-    private bool canManage;
-    private string? errorMessage;
-    private string? successMessage;
-    private AwgGlobalSettings? awgSettings;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _canManage;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private AwgGlobalSettings? _awgSettings;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
@@ -160,41 +160,41 @@
             {
                 var state = await AuthState;
                 var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
-                canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
+                _canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
             }
 
             var config = await GlobalConfigurationService.GetAsync();
-            awgSettings = config.AwgSettings;
+            _awgSettings = config.AwgSettings;
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to load settings: " + ex.Message;
+            _errorMessage = "Failed to load settings: " + ex.Message;
         }
         finally
         {
-            isLoading = false;
+            _isLoading = false;
         }
     }
 
     private async Task SaveSettings()
     {
-        isSaving = true;
-        errorMessage = null;
-        successMessage = null;
+        _isSaving = true;
+        _errorMessage = null;
+        _successMessage = null;
         StateHasChanged();
 
         try
         {
-            await GlobalConfigurationService.UpdateAsync(config => { config.AwgSettings = awgSettings!; });
-            successMessage = "Cluster settings saved. Nodes will update automatically.";
+            await GlobalConfigurationService.UpdateAsync(config => { config.AwgSettings = _awgSettings!; });
+            _successMessage = "Cluster settings saved. Nodes will update automatically.";
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to save settings: " + ex.Message;
+            _errorMessage = "Failed to save settings: " + ex.Message;
         }
         finally
         {
-            isSaving = false;
+            _isSaving = false;
         }
     }
 

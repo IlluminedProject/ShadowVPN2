@@ -18,8 +18,8 @@ using ILogger = Serilog.ILogger;
 
 namespace ShadowVPN2.Infrastructure;
 
-public class FirstLaunchExperienceHelpers {
-    private static readonly ILogger Logger = Log.ForContext<FirstLaunchExperienceHelpers>();
+public static class FirstLaunchExperienceHelpers {
+    private static readonly ILogger _logger = Log.ForContext(typeof(FirstLaunchExperienceHelpers));
 
     public static bool IsFirstLaunch() {
         return !LocalConfiguration.Path.ExistsDirectory()
@@ -29,7 +29,7 @@ public class FirstLaunchExperienceHelpers {
     }
 
     public static async Task InitializeFirstNode() {
-        Logger.Information("Local configuration or certificates not found. Starting first-run setup");
+        _logger.Information("Local configuration or certificates not found. Starting first-run setup");
 
         var localConfiguration = new LocalConfiguration {
             NodeNumber = 1
@@ -39,7 +39,7 @@ public class FirstLaunchExperienceHelpers {
         localConfiguration.AwgPrivateKey = privateKey;
         localConfiguration.Save();
 
-        Logger.Information("Generating new certificates for RavenDB cluster");
+        _logger.Information("Generating new certificates for RavenDB cluster");
         var rootCa = RavenDbCertificates.GenerateRootCa();
         await LocalConfiguration.CertificatePemPath.WriteAllTextAsync(rootCa.ExportCertificatePem());
 
@@ -50,7 +50,7 @@ public class FirstLaunchExperienceHelpers {
         var intermediateCertificate = RavenDbCertificates.SignCertificate(request, rootCa);
         var intermediateCertificateBytes = intermediateCertificate.CopyWithPrivateKey(rsa).Export(X509ContentType.Pfx);
         await LocalConfiguration.CertificatePfxPath.WriteAllBytesAsync(intermediateCertificateBytes);
-        Logger.Information("Certificates generated and saved successfully");
+        _logger.Information("Certificates generated and saved successfully");
     }
 
     public static async Task<(JoinToken Token, ClusterSignJoinResponse Response, string AwgPrivateKey)>
@@ -59,13 +59,13 @@ public class FirstLaunchExperienceHelpers {
         var token = JsonSerializer.Deserialize<JoinToken>(tokenJson, DataUtils.DefaultSerializerOptions)
                     ?? throw new Exception("Failed to deserialize join token");
 
-        Logger.Information("Joining cluster as node {Name} with {NodeCount} seed addresses",
+        _logger.Information("Joining cluster as node {Name} with {NodeCount} seed addresses",
             token.Name, token.NodeAddresses.Count);
 
         // Trust the root CA from the token before connecting to existing nodes
         var rootCaCert = X509Certificate2.CreateFromPem(token.RootCaCertPem);
         RavenDbCertificates.TrustCustomRootCa(rootCaCert);
-        Logger.Information("Trusted cluster Root CA from join token");
+        _logger.Information("Trusted cluster Root CA from join token");
 
         // Generate AWG keypair locally
         var (awgPrivateKey, awgPublicKey) = AwgKeyGenerator.GenerateKeyPair();
@@ -110,15 +110,15 @@ public class FirstLaunchExperienceHelpers {
         foreach (var nodeAddress in token.NodeAddresses)
             try {
                 var url = $"https://{nodeAddress}/api/cluster/exchange-token";
-                Logger.Information("Trying to join cluster via {Url}", url);
+                _logger.Information("Trying to join cluster via {Url}", url);
                 var httpResponse = await httpClient.PostAsJsonAsync(url, joinRequest);
                 httpResponse.EnsureSuccessStatusCode();
                 response = await httpResponse.Content.ReadFromJsonAsync<ClusterSignJoinResponse>();
-                Logger.Information("Successfully joined cluster via {NodeAddress}", nodeAddress);
+                _logger.Information("Successfully joined cluster via {NodeAddress}", nodeAddress);
                 break;
             }
             catch (Exception ex) {
-                Logger.Warning(ex, "Failed to join via {NodeAddress}", nodeAddress);
+                _logger.Warning(ex, "Failed to join via {NodeAddress}", nodeAddress);
             }
 
         if (response == null)
@@ -143,7 +143,7 @@ public class FirstLaunchExperienceHelpers {
             X509Certificate2.CreateFromPem(token.RootCaCertPem).Export(X509ContentType.Pfx));
         localConfiguration.Save();
 
-        Logger.Information("Joined node credentials saved successfully");
+        _logger.Information("Joined node credentials saved successfully");
     }
 
     public static async Task CompleteJoinAsync(JoinToken token, ClusterSignJoinResponse response,
@@ -156,14 +156,14 @@ public class FirstLaunchExperienceHelpers {
 
         var tag = $"{token.Name}-{response.NodeNumber}";
         await WaitRavenDbReplication(documentStore, tag);
-        Logger.Information("Node successfully joined cluster. Rebooting to complete setup");
+        _logger.Information("Node successfully joined cluster. Rebooting to complete setup");
         Environment.Exit(0);
     }
 
     private static async Task BootstrapSingBox(JoinToken token, ClusterSignJoinResponse response,
         string awgPrivateKey,
         IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager) {
-        Logger.Information("Starting bootstrap sing-box for initial cluster connectivity");
+        _logger.Information("Starting bootstrap sing-box for initial cluster connectivity");
 
         var config = new SingBoxConfig();
         var awgSettings = response.AwgSettings;
@@ -219,18 +219,18 @@ public class FirstLaunchExperienceHelpers {
     }
 
     private static async Task<string> ConnectToAnyPeer(ClusterSignJoinResponse response) {
-        Logger.Information("Waiting for connectivity to cluster nodes...");
+        _logger.Information("Waiting for connectivity to cluster nodes...");
 
         // Try to connect to at least one peer's RavenDB port
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
         while (!cts.IsCancellationRequested) {
             foreach (var peer in response.AwgPeers) {
-                Logger.Information("Trying to connect to {PeerIp} ({PublicAddress})", peer.MeshIp, peer.PublicAddress);
+                _logger.Information("Trying to connect to {PeerIp} ({PublicAddress})", peer.MeshIp, peer.PublicAddress);
                 using var tcpClient = new TcpClient();
                 try {
                     await tcpClient.ConnectAsync(peer.MeshIp, 8888, cts.Token);
-                    Logger.Information("Connectivity verified to peer {PeerIp} ({PublicAddress})", peer.MeshIp,
+                    _logger.Information("Connectivity verified to peer {PeerIp} ({PublicAddress})", peer.MeshIp,
                         peer.PublicAddress);
                     return peer.PublicAddress;
                 }
@@ -242,7 +242,7 @@ public class FirstLaunchExperienceHelpers {
             await Task.Delay(1000, cts.Token);
         }
 
-        Logger.Fatal("Failed to verify connectivity to any cluster peer within timeout");
+        _logger.Fatal("Failed to verify connectivity to any cluster peer within timeout");
         throw new Exception("Failed to verify connectivity to any cluster peer within timeout");
     }
 
@@ -251,16 +251,16 @@ public class FirstLaunchExperienceHelpers {
             ? nodeAddress
             : $"https://{nodeAddress}";
         var url = $"{baseUrl.TrimEnd('/')}/api/cluster/finish-join";
-        Logger.Information("Trying to finish joining the cluster via {Url}", url);
+        _logger.Information("Trying to finish joining the cluster via {Url}", url);
         var finishJoinRequest = new ClusterFinishJoinRequest(token.Secret);
         var httpResponse = await httpClient.PostAsJsonAsync(url, finishJoinRequest);
         httpResponse.EnsureSuccessStatusCode();
 
-        Logger.Information("Successfully finished joining the cluster via {Url}", url);
+        _logger.Information("Successfully finished joining the cluster via {Url}", url);
     }
 
     private static async Task WaitRavenDbReplication(IDocumentStore store, string nodeTag) {
-        Logger.Information(
+        _logger.Information(
             "Waiting for RavenDB cluster to fully replicate to this node. If this takes too long, check the connection");
         while (true) {
             var record = await store.Maintenance.Server.SendAsync(
@@ -270,7 +270,7 @@ public class FirstLaunchExperienceHelpers {
                              !record.Topology.Promotables.Contains(nodeTag);
 
             if (replicated) {
-                Logger.Information("RavenDB cluster is fully replicated, node is ready");
+                _logger.Information("RavenDB cluster is fully replicated, node is ready");
                 return;
             }
 

@@ -1,9 +1,6 @@
 ﻿@page "/Account/Manage/Passkeys"
-
-@using ShadowVPN2.Data
-@using Microsoft.AspNetCore.Identity
-@using System.ComponentModel.DataAnnotations
 @using System.Buffers.Text
+@using Microsoft.AspNetCore.Identity
 @using ShadowVPN2.Infrastructure.Authentication
 
 @inject UserManager<ApplicationUser> UserManager
@@ -16,11 +13,11 @@
 
 <StatusMessage/>
 
-@if (currentPasskeys is { Count: > 0 })
+@if (_currentPasskeys is { Count: > 0 })
 {
     <table class="table">
         <tbody>
-        @foreach (var passkey in currentPasskeys)
+        @foreach (var passkey in _currentPasskeys)
         {
             <tr>
                 <td>@(passkey.Name ?? "Unnamed passkey")</td>
@@ -49,7 +46,7 @@ else
 
 <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
     <AntiforgeryToken/>
-    @if (currentPasskeys is { Count: >= MaxPasskeyCount })
+    @if (_currentPasskeys is { Count: >= MaxPasskeyCount })
     {
         <p class="text-danger">You have reached the maximum number of allowed passkeys. Please delete one before adding a new one.</p>
     }
@@ -63,8 +60,8 @@ else
 @code {
     private const int MaxPasskeyCount = 100;
 
-    private ApplicationUser? user;
-    private IList<UserPasskeyInfo>? currentPasskeys;
+    private ApplicationUser? _user;
+    private IList<UserPasskeyInfo>? _currentPasskeys;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -79,19 +76,19 @@ else
     {
         Input ??= new();
 
-        user = await UserManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await UserManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
         }
 
-        currentPasskeys = await UserManager.GetPasskeysAsync(user);
+        _currentPasskeys = await UserManager.GetPasskeysAsync(_user);
     }
 
     private async Task AddPasskey()
     {
-        if (user is null)
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
@@ -109,7 +106,7 @@ else
             return;
         }
 
-        if (currentPasskeys!.Count >= MaxPasskeyCount)
+        if (_currentPasskeys!.Count >= MaxPasskeyCount)
         {
             RedirectManager.RedirectToCurrentPageWithStatus($"Error: You have reached the maximum number of allowed passkeys.", HttpContext);
             return;
@@ -122,7 +119,7 @@ else
             return;
         }
 
-        var addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(user, attestationResult.Passkey);
+        var addPasskeyResult = await UserManager.AddOrUpdatePasskeyAsync(_user, attestationResult.Passkey);
         if (!addPasskeyResult.Succeeded)
         {
             RedirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be added to your account.", HttpContext);
@@ -152,7 +149,7 @@ else
 
     private async Task DeletePasskey()
     {
-        if (user is null)
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
@@ -169,7 +166,7 @@ else
             return;
         }
 
-        var result = await UserManager.RemovePasskeyAsync(user, credentialId);
+        var result = await UserManager.RemovePasskeyAsync(_user, credentialId);
         if (!result.Succeeded)
         {
             RedirectManager.RedirectToCurrentPageWithStatus("Error: The passkey could not be deleted.", HttpContext);

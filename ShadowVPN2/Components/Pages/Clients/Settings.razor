@@ -11,9 +11,9 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject ClientService ClientService
 @inject NavigationManager NavigationManager
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JsRuntime
 
-<PageTitle>Client Settings - @(client?.Name ?? "Loading...")</PageTitle>
+<PageTitle>Client Settings - @(_client?.Name ?? "Loading...")</PageTitle>
 
 <div class="mb-3">
     <a href="/clients" class="btn btn-link ps-0">
@@ -21,9 +21,9 @@
     </a>
 </div>
 
-@if (client is null)
+@if (_client is null)
 {
-    @if (notFound)
+    @if (_notFound)
     {
         <div class="alert alert-danger">
             Client not found or you don't have permission to access it.
@@ -43,11 +43,12 @@ else
                     <h3 class="card-title mb-0">Client Settings</h3>
                 </div>
                 <div class="card-body">
-                    @if (!string.IsNullOrEmpty(statusMessage))
+                    @if (!string.IsNullOrEmpty(_statusMessage))
                     {
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            @statusMessage
-                            <button type="button" class="btn-close" @onclick="() => statusMessage = null" aria-label="Close"></button>
+                            @_statusMessage
+                            <button type="button" class="btn-close" @onclick="() => _statusMessage = null"
+                                    aria-label="Close"></button>
                         </div>
                     }
 
@@ -80,8 +81,8 @@ else
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button type="submit" class="btn btn-primary px-4" disabled="@isSaving">
-                                @if (isSaving)
+                            <button type="submit" class="btn btn-primary px-4" disabled="@_isSaving">
+                                @if (_isSaving)
                                 {
                                     <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                     <span>Saving...</span>
@@ -111,12 +112,12 @@ else
                     <h5 class="card-title"><span class="bi bi-info-circle me-2"></span>Client Info</h5>
                     <dl class="mb-0">
                         <dt class="small text-muted">ID</dt>
-                        <dd class="text-truncate" title="@client.Id"><code>@client.Id</code></dd>
+                        <dd class="text-truncate" title="@_client.Id"><code>@_client.Id</code></dd>
 
                         <dt class="small text-muted mt-2">Subscription Link</dt>
                         <dd>
                             <div class="btn-group btn-group-sm w-100">
-                                <a href="/s/@client.SubscriptionId" target="_blank" class="btn btn-outline-info">
+                                <a href="/s/@_client.SubscriptionId" target="_blank" class="btn btn-outline-info">
                                     <i class="bi bi-box-arrow-up-right me-1"></i> Open
                                 </a>
                                 <button type="button" class="btn btn-outline-secondary" @onclick="CopySubscriptionLink">
@@ -126,20 +127,20 @@ else
                         </dd>
 
                         <dt class="small text-muted mt-2">Assigned IP</dt>
-                        <dd><code>@client.GetAssignedIp()</code></dd>
+                        <dd><code>@_client.GetAssignedIp()</code></dd>
 
                         <dt class="small text-muted mt-2">Created</dt>
-                        <dd>@client.CreatedAt.LocalDateTime.ToString("g")</dd>
+                        <dd>@_client.CreatedAt.LocalDateTime.ToString("g")</dd>
 
-                        @if (client.Hysteria2 != null)
+                        @if (_client.Hysteria2 != null)
                         {
                             <dt class="small text-muted mt-2">Hysteria2 Password</dt>
                             <dd>
                                 <div class="input-group input-group-sm">
                                     <input type="text" class="form-control font-monospace"
-                                           value="@client.Hysteria2.Password" readonly/>
+                                           value="@_client.Hysteria2.Password" readonly/>
                                     <button class="btn btn-outline-secondary" type="button"
-                                            @onclick='() => CopyToClipboard(client.Hysteria2.Password!)'>
+                                            @onclick='() => CopyToClipboard(_client.Hysteria2.Password!)'>
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
@@ -156,11 +157,11 @@ else
     [Parameter]
     public string? ClientId { get; set; }
 
-    private ApplicationUser? user;
-    private EntityClient? client;
-    private bool notFound;
-    private string? statusMessage;
-    private bool isSaving;
+    private ApplicationUser? _user;
+    private EntityClient? _client;
+    private bool _notFound;
+    private string? _statusMessage;
+    private bool _isSaving;
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
@@ -170,9 +171,9 @@ else
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateTask;
-        user = await UserManager.GetUserAsync(authState.User);
+        _user = await UserManager.GetUserAsync(authState.User);
 
-        if (user is null)
+        if (_user is null)
         {
             NavigationManager.NavigateTo("Account/Login");
             return;
@@ -180,56 +181,56 @@ else
 
         if (string.IsNullOrEmpty(ClientId))
         {
-            notFound = true;
+            _notFound = true;
             return;
         }
 
-        client = await ClientService.GetClientAsync(Uri.UnescapeDataString(ClientId), user.Id!);
+        _client = await ClientService.GetClientAsync(Uri.UnescapeDataString(ClientId), _user.Id!);
 
-        if (client is null)
+        if (_client is null)
         {
-            notFound = true;
+            _notFound = true;
         }
         else
         {
             Input = new InputModel
             {
-                Name = client.Name,
-                IsEnabled = client.IsEnabled,
-                WireGuardMtu = client.WireGuard?.Mtu
+                    Name = _client.Name,
+                    IsEnabled = _client.IsEnabled,
+                    WireGuardMtu = _client.WireGuard?.Mtu
             };
         }
     }
 
     private async Task SaveSettings()
     {
-        if (user is null || client is null) return;
+        if (_user is null || _client is null) return;
 
-        isSaving = true;
-        statusMessage = null;
+        _isSaving = true;
+        _statusMessage = null;
 
         WireGuardClientSettings? wg = Input.WireGuardMtu.HasValue
             ? new WireGuardClientSettings { Mtu = Input.WireGuardMtu.Value }
             : null;
 
-        var updated = await ClientService.UpdateClientAsync(client.Id, user.Id!, Input.Name, Input.IsEnabled, wg);
+        var updated = await ClientService.UpdateClientAsync(_client.Id, _user.Id!, Input.Name, Input.IsEnabled, wg);
 
         if (updated is not null)
         {
-            client = updated;
-            statusMessage = "Settings saved successfully.";
+            _client = updated;
+            _statusMessage = "Settings saved successfully.";
         }
         else
         {
-            statusMessage = "Error saving settings.";
+            _statusMessage = "Error saving settings.";
         }
 
-        isSaving = false;
+        _isSaving = false;
     }
 
     private async Task DeleteClient()
     {
-        if (user is null || client is null) return;
+        if (_user is null || _client is null) return;
 
         // In a real app, we might want a confirmation modal here too,
         // but for settings page it's okay to just redirect back to index where they can delete with confirmation
@@ -238,21 +239,21 @@ else
         // For now, let's just go back to the index page and let them delete from there if they want confirmation
         // Or since we already have a Delete button in Index, we can just delete and redirect.
 
-        await ClientService.DeleteClientAsync(client.Id, user.Id!);
+        await ClientService.DeleteClientAsync(_client.Id, _user.Id!);
         NavigationManager.NavigateTo("/clients");
     }
 
     private async Task CopyToClipboard(string text)
     {
-        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
     }
 
     private async Task CopySubscriptionLink()
     {
-        if (client is null) return;
-        var url = NavigationManager.ToAbsoluteUri($"/s/{client.SubscriptionId}");
+        if (_client is null) return;
+        var url = NavigationManager.ToAbsoluteUri($"/s/{_client.SubscriptionId}");
         await CopyToClipboard(url.ToString());
-        statusMessage = "Subscription link copied to clipboard.";
+        _statusMessage = "Subscription link copied to clipboard.";
     }
 
     private sealed class InputModel

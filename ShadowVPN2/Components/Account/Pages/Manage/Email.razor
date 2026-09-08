@@ -1,11 +1,6 @@
 ﻿@page "/Account/Manage/Email"
-
 @using System.ComponentModel.DataAnnotations
-@using System.Text
-@using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.WebUtilities
-@using ShadowVPN2.Data
 @using ShadowVPN2.Infrastructure.Authentication
 
 @inject UserManager<ApplicationUser> UserManager
@@ -16,14 +11,15 @@
 
 <h3>Manage email</h3>
 
-<StatusMessage Message="@message"/>
+<StatusMessage Message="@_message"/>
 <div class="row">
     <div class="col-xl-6">
         <EditForm Model="Input" FormName="change-email" OnValidSubmit="OnValidSubmitAsync" method="post">
             <DataAnnotationsValidator/>
             <ValidationSummary class="text-danger" role="alert"/>
             <div class="form-floating mb-3">
-                <input type="text" value="@email" id="email" class="form-control" placeholder="Enter your email" disabled/>
+                <input type="text" value="@_email" id="email" class="form-control" placeholder="Enter your email"
+                       disabled/>
                 <label for="email" class="form-label">Email</label>
             </div>
             <div class="form-floating mb-3">
@@ -37,9 +33,9 @@
 </div>
 
 @code {
-    private string? message;
-    private ApplicationUser? user;
-    private string? email;
+    private string? _message;
+    private ApplicationUser? _user;
+    private string? _email;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -50,48 +46,48 @@
     {
         Input ??= new();
 
-        user = await UserManager.GetUserAsync(HttpContext.User);
-        if (user is null)
+        _user = await UserManager.GetUserAsync(HttpContext.User);
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
         }
 
-        email = await UserManager.GetEmailAsync(user);
+        _email = await UserManager.GetEmailAsync(_user);
 
-        Input.NewEmail ??= email;
+        Input.NewEmail ??= _email;
     }
 
     private async Task OnValidSubmitAsync()
     {
-        if (Input.NewEmail is null || Input.NewEmail == email)
+        if (Input.NewEmail is null || Input.NewEmail == _email)
         {
-            message = "Your email is unchanged.";
+            _message = "Your email is unchanged.";
             return;
         }
 
-        if (user is null)
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
         }
 
-        var setEmailResult = await UserManager.SetEmailAsync(user, Input.NewEmail);
+        var setEmailResult = await UserManager.SetEmailAsync(_user, Input.NewEmail);
         if (!setEmailResult.Succeeded)
         {
-            message = $"Error setting email: {string.Join(", ", setEmailResult.Errors.Select(e => e.Description))}";
+            _message = $"Error setting email: {string.Join(", ", setEmailResult.Errors.Select(e => e.Description))}";
             return;
         }
 
-        var setUserNameResult = await UserManager.SetUserNameAsync(user, Input.NewEmail);
+        var setUserNameResult = await UserManager.SetUserNameAsync(_user, Input.NewEmail);
         if (!setUserNameResult.Succeeded)
         {
-            message = $"Error setting user name: {string.Join(", ", setUserNameResult.Errors.Select(e => e.Description))}";
+            _message = $"Error setting user name: {string.Join(", ", setUserNameResult.Errors.Select(e => e.Description))}";
             return;
         }
 
-        message = "Your email has been changed.";
-        email = Input.NewEmail;
+        _message = "Your email has been changed.";
+        _email = Input.NewEmail;
     }
 
     private sealed class InputModel

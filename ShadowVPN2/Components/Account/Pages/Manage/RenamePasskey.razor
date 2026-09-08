@@ -1,9 +1,7 @@
 ﻿@page "/Account/Manage/RenamePasskey/{Id}"
-
-@using ShadowVPN2.Data
+@using System.Buffers.Text
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
-@using System.Buffers.Text
 @using ShadowVPN2.Infrastructure.Authentication
 
 @inject UserManager<ApplicationUser> UserManager
@@ -11,7 +9,7 @@
 
 <EditForm Model="Input" OnValidSubmit="Rename" FormName="rename-passkey" method="post">
     <DataAnnotationsValidator/>
-    @if (passkey?.Name is { } name)
+    @if (_passkey?.Name is { } name)
     {
         <h4>Enter a new name for your "@name" passkey</h4>
     }
@@ -32,8 +30,8 @@
 </EditForm>
 
 @code {
-    private ApplicationUser? user;
-    private UserPasskeyInfo? passkey;
+    private ApplicationUser? _user;
+    private UserPasskeyInfo? _passkey;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -45,8 +43,8 @@
     {
         Input ??= new();
 
-        user = (await UserManager.GetUserAsync(HttpContext.User))!;
-        if (user is null)
+        _user = (await UserManager.GetUserAsync(HttpContext.User))!;
+        if (_user is null)
         {
             RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
             return;
@@ -63,8 +61,8 @@
             return;
         }
 
-        passkey = await UserManager.GetPasskeyAsync(user, credentialId);
-        if (passkey is null)
+        _passkey = await UserManager.GetPasskeyAsync(_user, credentialId);
+        if (_passkey is null)
         {
             RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: The specified passkey could not be found.", HttpContext);
             return;
@@ -73,8 +71,8 @@
 
     private async Task Rename()
     {
-        passkey!.Name = Input.Name;
-        var result = await UserManager.AddOrUpdatePasskeyAsync(user!, passkey);
+        _passkey!.Name = Input.Name;
+        var result = await UserManager.AddOrUpdatePasskeyAsync(_user!, _passkey);
         if (!result.Succeeded)
         {
             RedirectManager.RedirectToWithStatus("Account/Manage/Passkeys", "Error: The passkey could not be updated.", HttpContext);

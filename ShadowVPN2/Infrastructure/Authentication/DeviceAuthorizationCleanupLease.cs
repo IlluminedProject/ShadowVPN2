@@ -21,28 +21,28 @@ public sealed class DeviceAuthorizationCleanupLease(IDocumentStore documentStore
     }
 
     public sealed class Lease : IAsyncDisposable {
-        private readonly IDocumentStore documentStore;
-        private readonly long index;
-        private readonly string token;
-        private int released;
+        private readonly IDocumentStore _documentStore;
+        private readonly long _index;
+        private readonly string _token;
+        private int _released;
 
         internal Lease(IDocumentStore documentStore, long index, string token) {
-            this.documentStore = documentStore;
-            this.index = index;
-            this.token = token;
+            _documentStore = documentStore;
+            _index = index;
+            _token = token;
         }
 
         public async ValueTask DisposeAsync() {
-            if (Interlocked.Exchange(ref released, 1) != 0)
+            if (Interlocked.Exchange(ref _released, 1) != 0)
                 return;
 
-            var current = await documentStore.Operations.SendAsync(
+            var current = await _documentStore.Operations.SendAsync(
                 new GetCompareExchangeValueOperation<LeaseValue>(LeaseKey), token: CancellationToken.None);
-            if (current?.Value?.Token != token)
+            if (current?.Value?.Token != _token)
                 return;
 
-            await documentStore.Operations.SendAsync(
-                new DeleteCompareExchangeValueOperation<LeaseValue>(LeaseKey, index), token: CancellationToken.None);
+            await _documentStore.Operations.SendAsync(
+                new DeleteCompareExchangeValueOperation<LeaseValue>(LeaseKey, _index), token: CancellationToken.None);
         }
     }
 

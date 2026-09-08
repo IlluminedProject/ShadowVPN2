@@ -7,12 +7,12 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
     public string? ObfsType { get; set; }
     public string? ObfsPassword { get; set; }
     public string? Sni { get; set; }
-    public string? PinSHA256 { get; set; }
+    public string? PinSha256 { get; set; }
 
     public string CreateShareUrl(string clientName) {
         var queryParams = new Dictionary<string, string?> {
             ["insecure"] = "1",
-            ["pinSHA256"] = PinSHA256,
+            ["pinSHA256"] = PinSha256,
             ["obfs"] = ObfsType is null or "none" ? null : ObfsType,
             ["obfs-password"] = ObfsType is null or "none" ? null : ObfsPassword,
             ["sni"] = Sni,

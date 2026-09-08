@@ -36,16 +36,16 @@
                 </div>
                 <div class="dropdown">
                     <button class="btn btn-outline-primary dropdown-toggle" type="button"
-                            @onclick="ToggleDropdown" aria-expanded="@isDropdownOpen" disabled="@(!canManage)">
+                            @onclick="ToggleDropdown" aria-expanded="@_isDropdownOpen" disabled="@(!_canManage)">
                         <i class="bi bi-plus-lg me-1"></i> Add Protocol
                     </button>
-                    @if (isDropdownOpen)
+                    @if (_isDropdownOpen)
                     {
                         <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;"
-                             @onclick="() => isDropdownOpen = false"></div>
+                             @onclick="() => _isDropdownOpen = false"></div>
                     }
-                    <ul class="dropdown-menu dropdown-menu-end @(isDropdownOpen ? "show" : "")"
-                        style="@(isDropdownOpen ? "display: block; z-index: 1050;" : "display: none;")">
+                    <ul class="dropdown-menu dropdown-menu-end @(_isDropdownOpen ? "show" : "")"
+                        style="@(_isDropdownOpen ? "display: block; z-index: 1050;" : "display: none;")">
                         <li>
                             <button class="dropdown-item" type="button" @onclick='() => AddProtocol("hysteria2")'>
                                 Hysteria2
@@ -60,7 +60,7 @@
                 </div>
             </div>
 
-            @if (!canManage && !isLoading)
+            @if (!_canManage && !_isLoading)
             {
                 <div class="alert alert-warning py-2 mb-4">
                     <i class="bi bi-exclamation-triangle me-2"></i>
@@ -68,7 +68,7 @@
                 </div>
             }
 
-            @if (isLoading)
+            @if (_isLoading)
             {
                 <div class="d-flex justify-content-center my-5">
                     <div class="spinner-border" role="status">
@@ -78,7 +78,7 @@
             }
             else
             {
-                @if (request.Protocols.Count == 0)
+                @if (_request.Protocols.Count == 0)
                 {
                     <div class="alert alert-info text-center py-5">
                         <i class="bi bi-info-circle fs-2 d-block mb-3"></i>
@@ -87,19 +87,19 @@
                 }
                 else
                 {
-                    <fieldset disabled="@(!canManage)">
+                    <fieldset disabled="@(!_canManage)">
                         <div class="card mb-4 border-secondary">
                             <div class="card-header bg-light">
                                 <h5 class="mb-0">Global Main Domain</h5>
                             </div>
                             <div class="card-body">
-                                <input class="form-control" @bind="request.MainDomain"
+                                <input class="form-control" @bind="_request.MainDomain"
                                        placeholder="vpn.example.com"/>
                                 <div class="form-text">Fallback domain for protocols without their own main domain.
                                 </div>
                             </div>
                         </div>
-                        @foreach (var protocol in request.Protocols)
+                        @foreach (var protocol in _request.Protocols)
                         {
                             <div class="card mb-4 border-primary">
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -107,7 +107,7 @@
                                         <span class="badge bg-primary me-2">@protocol.Protocol</span>
                                         @(protocol is Hysteria2GlobalSettings h2 ? $"Port: {h2.ListenPort}" : protocol is WireGuardAmneziaGlobalSettings wg ? $"Port: {wg.ListenPort}" : protocol.Protocol)
                                     </h5>
-                                    @if (canManage)
+                                    @if (_canManage)
                                     {
                                         <button class="btn btn-sm btn-outline-danger"
                                                 @onclick="() => RemoveProtocol(protocol)">
@@ -188,7 +188,7 @@
                                                             <text>No certificate</text>
                                                         }
                                                     </span>
-                                                    @if (canManage)
+                                                    @if (_canManage)
                                                     {
                                                         <button type="button" class="btn btn-sm btn-outline-secondary"
                                                                 @onclick="() => h2Config.GenerateSelfSignedCertificate()">
@@ -277,21 +277,21 @@
                     </fieldset>
                 }
 
-                @if (!string.IsNullOrEmpty(errorMessage))
+                @if (!string.IsNullOrEmpty(_errorMessage))
                 {
-                    <div class="alert alert-danger">@errorMessage</div>
+                    <div class="alert alert-danger">@_errorMessage</div>
                 }
 
-                @if (!string.IsNullOrEmpty(successMessage))
+                @if (!string.IsNullOrEmpty(_successMessage))
                 {
-                    <div class="alert alert-success">@successMessage</div>
+                    <div class="alert alert-success">@_successMessage</div>
                 }
 
-                @if (canManage && request.Protocols.Count > 0)
+                @if (_canManage && _request.Protocols.Count > 0)
                 {
                     <div class="d-flex justify-content-end mt-4">
-                        <button class="btn btn-primary btn-lg px-5" @onclick="SaveSettings" disabled="@isSaving">
-                            @if (isSaving)
+                        <button class="btn btn-primary btn-lg px-5" @onclick="SaveSettings" disabled="@_isSaving">
+                            @if (_isSaving)
                             {
                                 <span class="spinner-border spinner-border-sm me-2"></span>
                             }
@@ -305,17 +305,17 @@
 </div>
 
 @code {
-    private bool isLoading = true;
-    private bool isSaving;
-    private bool canManage;
-    private bool isDropdownOpen;
-    private string? errorMessage;
-    private string? successMessage;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _canManage;
+    private bool _isDropdownOpen;
+    private string? _errorMessage;
+    private string? _successMessage;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
 
-    private readonly UpdateProtocolsSettingsRequest request = new();
-    private IReadOnlyList<ProtocolDomainRouteResponse> domainRoutes = [];
+    private readonly UpdateProtocolsSettingsRequest _request = new();
+    private IReadOnlyList<ProtocolDomainRouteResponse> _domainRoutes = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -325,32 +325,32 @@
             {
                 var state = await AuthState;
                 var result = await AuthorizationService.AuthorizeAsync(state.User, AppPermissions.Settings.Manage);
-                canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
+                _canManage = result.Succeeded || state.User.IsInRole(AppRoles.Administrator);
             }
 
             var settings = await ProtocolSettingsService.GetSettingsAsync();
-            request.Protocols = settings.Protocols;
-            request.MainDomain = settings.MainDomain;
-            domainRoutes = await ProtocolDomainService.GetRoutesAsync();
+            _request.Protocols = settings.Protocols;
+            _request.MainDomain = settings.MainDomain;
+            _domainRoutes = await ProtocolDomainService.GetRoutesAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to load settings: " + ex.Message;
+            _errorMessage = "Failed to load settings: " + ex.Message;
         }
         finally
         {
-            isLoading = false;
+            _isLoading = false;
         }
     }
 
     private void ToggleDropdown()
     {
-        isDropdownOpen = !isDropdownOpen;
+        _isDropdownOpen = !_isDropdownOpen;
     }
 
     private void AddProtocol(string type)
     {
-        isDropdownOpen = false;
+        _isDropdownOpen = false;
         if (type == "hysteria2")
         {
             var settings = new Hysteria2GlobalSettings
@@ -359,21 +359,21 @@
                 ListenPort = GetNextAvailablePort()
             };
             settings.GenerateSelfSignedCertificate();
-            request.Protocols.Add(settings);
+            _request.Protocols.Add(settings);
         }
-        else if (type == "wireguard" && request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
+        else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
         {
-            request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
+            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
         }
-        else if (type == "wireguard" && request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
+        else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
         {
-            request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
+            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
         }
     }
 
     private int GetNextAvailablePort()
     {
-        var usedPorts = request.Protocols.OfType<Hysteria2GlobalSettings>().Select(p => p.ListenPort).ToHashSet();
+        var usedPorts = _request.Protocols.OfType<Hysteria2GlobalSettings>().Select(p => p.ListenPort).ToHashSet();
         var port = 4443;
         while (usedPorts.Contains(port)) port++;
         return port;
@@ -381,49 +381,49 @@
 
     private void RemoveProtocol(ProtocolGlobalSettings protocol)
     {
-        request.Protocols.Remove(protocol);
+        _request.Protocols.Remove(protocol);
     }
 
     private async Task SaveSettings()
     {
-        isSaving = true;
-        errorMessage = null;
-        successMessage = null;
+        _isSaving = true;
+        _errorMessage = null;
+        _successMessage = null;
         StateHasChanged();
 
         try
         {
-            foreach (var protocol in request.Protocols)
+            foreach (var protocol in _request.Protocols)
             {
                 if (protocol is Hysteria2GlobalSettings h2 && h2.Enabled)
                 {
                     if (string.IsNullOrWhiteSpace(h2.TlsCertificatePem) || string.IsNullOrWhiteSpace(h2.TlsKeyPem))
                     {
-                        errorMessage = $"TLS certificate is missing for Hysteria2 (Port {h2.ListenPort}). Click Regenerate.";
-                        isSaving = false;
+                        _errorMessage = $"TLS certificate is missing for Hysteria2 (Port {h2.ListenPort}). Click Regenerate.";
+                        _isSaving = false;
                         return;
                     }
                 }
             }
 
-            await ProtocolSettingsService.UpdateSettingsAsync(request);
-            domainRoutes = await ProtocolDomainService.GetRoutesAsync();
-            successMessage = "Protocol settings saved successfully. Nodes will be updated automatically.";
+            await ProtocolSettingsService.UpdateSettingsAsync(_request);
+            _domainRoutes = await ProtocolDomainService.GetRoutesAsync();
+            _successMessage = "Protocol settings saved successfully. Nodes will be updated automatically.";
         }
         catch (Exception ex)
         {
-            errorMessage = "Failed to save settings: " + ex.Message;
+            _errorMessage = "Failed to save settings: " + ex.Message;
         }
         finally
         {
-            isSaving = false;
+            _isSaving = false;
         }
     }
 
     private ProtocolDomainRouteResponse? GetDomainRoute(ProtocolGlobalSettings protocol)
     {
-        var index = request.Protocols.IndexOf(protocol);
-        return domainRoutes.FirstOrDefault(route => route.ProtocolIndex == index);
+        var index = _request.Protocols.IndexOf(protocol);
+        return _domainRoutes.FirstOrDefault(route => route.ProtocolIndex == index);
     }
 
     private static string GetRouteAlertClass(ProtocolDomainRouteState state) => state switch
