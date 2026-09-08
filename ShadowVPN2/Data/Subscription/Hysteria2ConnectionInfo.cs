@@ -10,22 +10,15 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
     public string? PinSha256 { get; set; }
 
     public string CreateShareUrl(string clientName) {
-        var queryParams = new Dictionary<string, string?> {
-            ["insecure"] = "1",
-            ["pinSHA256"] = PinSha256,
-            ["obfs"] = ObfsType is null or "none" ? null : ObfsType,
-            ["obfs-password"] = ObfsType is null or "none" ? null : ObfsPassword,
-            ["sni"] = Sni,
-            ["name"] = clientName
-        };
-        var query = string.Join("&", queryParams
-            .Where(parameter => !string.IsNullOrEmpty(parameter.Value))
-            .Select(parameter => $"{parameter.Key}={Uri.EscapeDataString(parameter.Value!)}"));
+        var builder = new ProxyUriBuilder("hysteria2", ServerAddress, ServerPort)
+            .WithCredentials(Password)
+            .AddQuery("insecure", "1")
+            .AddQuery("pinSHA256", PinSha256)
+            .AddQueryIf(ObfsType is not null and not "none", "obfs", ObfsType)
+            .AddQueryIf(ObfsType is not null and not "none", "obfs-password", ObfsPassword)
+            .AddQuery("sni", Sni)
+            .AddQuery("name", clientName);
 
-        return $"hysteria2://{Uri.EscapeDataString(Password)}@{FormatHost(ServerAddress)}:{ServerPort}/?{query}";
-    }
-
-    private static string FormatHost(string host) {
-        return host.Contains(':') && !host.StartsWith('[') ? $"[{host}]" : host;
+        return builder.Build();
     }
 }
