@@ -12,7 +12,6 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
-@inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject IAsyncDocumentSession DocumentSession
 
@@ -30,12 +29,14 @@
             <hr/>
             <ValidationSummary class="text-danger" role="alert"/>
             <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
+                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control"
+                           autocomplete="username webauthn" aria-required="true" placeholder="name@example.com"/>
                 <label for="Input.Email" class="form-label">Email</label>
                 <ValidationMessage For="() => Input.Email" class="text-danger"/>
             </div>
             <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password"/>
+                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control"
+                           autocomplete="current-password" aria-required="true" placeholder="password"/>
                 <label for="Input.Password" class="form-label">Password</label>
                 <ValidationMessage For="() => Input.Password" class="text-danger"/>
             </div>
@@ -51,35 +52,47 @@
 
             <div class="d-flex flex-column mt-3 text-center">
                 <div class="d-flex align-items-center mb-2">
-                    <hr class="flex-grow-1" />
+                    <hr class="flex-grow-1"/>
                     <span class="mx-2 text-secondary small">OR</span>
-                    <hr class="flex-grow-1" />
+                    <hr class="flex-grow-1"/>
                 </div>
-                <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
+                <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email"
+                               class="btn btn-link mx-auto">Log in with a passkey
+                </PasskeySubmit>
             </div>
         </EditForm>
     </section>
 }
 
-@if (externalLogins.Length > 0)
+@if (deviceFlowEnabled || externalLogins.Length > 0)
 {
     @if (isLocalLoginEnabled)
     {
         <div class="d-flex align-items-center my-4">
-            <hr class="flex-grow-1" />
+            <hr class="flex-grow-1"/>
             <span class="mx-3 text-secondary">OR</span>
-            <hr class="flex-grow-1" />
+            <hr class="flex-grow-1"/>
         </div>
     }
 
     <section class="text-center">
         <h3 class="h4">Use another service</h3>
         <hr/>
-        <ExternalLoginPicker/>
+        @if (deviceFlowEnabled)
+        {
+            <a class="btn btn-primary" data-enhance-nav="false"
+               href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
+                Login with OAuth
+            </a>
+        }
+        else
+        {
+            <ExternalLoginPicker/>
+        }
     </section>
 }
 
-@if (!isLocalLoginEnabled && externalLogins.Length == 0)
+@if (!isLocalLoginEnabled && !deviceFlowEnabled && externalLogins.Length == 0)
 {
     <div class="alert alert-warning text-center">
         Authentication is currently disabled. Please contact the administrator.
@@ -91,6 +104,7 @@
     private EditContext editContext = default!;
     private bool isLocalLoginEnabled = true;
     private AuthenticationScheme[] externalLogins = [];
+    private bool deviceFlowEnabled;
 
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
@@ -114,6 +128,7 @@
         isLocalLoginEnabled = globalConfig?.Providers.OfType<LocalAuthProvider>().FirstOrDefault()?.IsEnabled ?? false;
 
         externalLogins = (await SignInManager.GetExternalAuthenticationSchemesAsync()).ToArray();
+        deviceFlowEnabled = globalConfig?.Providers.OfType<OidcAuthProvider>().Any(x => x.IsEnabled && x.DeviceFlowEnabled) == true;
     }
 
     public async Task LoginUser()

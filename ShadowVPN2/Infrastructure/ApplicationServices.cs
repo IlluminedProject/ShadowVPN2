@@ -1,11 +1,12 @@
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Data;
-using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Infrastructure;
@@ -40,6 +41,10 @@ public static class ApplicationServices {
         builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());
         builder.Services.AddSingleton<SetupService>();
         builder.Services.AddScoped<SettingsService>();
+        builder.Services.AddScoped<DeviceAuthorizationService>();
+        builder.Services.AddSingleton<DeviceAuthorizationNotificationService>();
+        builder.Services.AddHostedService<DeviceAuthorizationCleanupService>();
+        builder.Services.AddSingleton<DeviceAuthorizationCleanupLease>();
         builder.Services.AddScoped<SubscriptionService>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, Hysteria2SubscriptionContributor>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, WireGuardSubscriptionContributor>();

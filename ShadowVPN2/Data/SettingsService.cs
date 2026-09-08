@@ -8,17 +8,13 @@ public class SettingsService(
     IHttpClientFactory httpClientFactory,
     GlobalConfigurationService globalConfigService,
     DynamicAuthenticationManager authManager,
-    ILogger<SettingsService> logger)
-{
-    public async Task<EntityGlobalConfiguration> GetConfigurationAsync()
-    {
+    ILogger<SettingsService> logger) {
+    public async Task<EntityGlobalConfiguration> GetConfigurationAsync() {
         return await globalConfigService.GetAsync();
     }
 
-    public async Task<bool> TestOidcConnectionAsync(string authority)
-    {
-        try
-        {
+    public async Task<bool> TestOidcConnectionAsync(string authority) {
+        try {
             if (string.IsNullOrWhiteSpace(authority)) return false;
 
             var client = httpClientFactory.CreateClient();
@@ -31,23 +27,19 @@ public class SettingsService(
             logger.LogInformation("OIDC discovery endpoint returned {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogWarning(ex, "Failed to connect to OIDC authority {Authority}", authority);
             return false;
         }
     }
 
-    public async Task SaveAuthSettingsAsync(UpdateAuthSettingsRequest request)
-    {
-        await globalConfigService.UpdateAsync(async globalConfig =>
-        {
+    public async Task SaveAuthSettingsAsync(UpdateAuthSettingsRequest request) {
+        await globalConfigService.UpdateAsync(async globalConfig => {
             globalConfig.SelfRegistrationEnabled = request.SelfRegistrationEnabled;
 
             // 1. Handle Local Auth
             var local = globalConfig.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
-            if (local == null)
-            {
+            if (local == null) {
                 local = new LocalAuthProvider();
                 globalConfig.Providers.Add(local);
             }
@@ -60,10 +52,8 @@ public class SettingsService(
 
             var current = existingOidcProviders.FirstOrDefault(p => p.SchemeName == schemeName);
 
-            if (request.EnableOidc && request.OidcSettings != null)
-            {
-                if (current == null)
-                {
+            if (request.EnableOidc && request.OidcSettings != null) {
+                if (current == null) {
                     current = new OidcAuthProvider { SchemeName = schemeName };
                     globalConfig.Providers.Add(current);
                 }
@@ -71,21 +61,21 @@ public class SettingsService(
                 current.DisplayName = request.OidcSettings.DisplayName;
                 current.Authority = request.OidcSettings.Authority;
                 current.ClientId = request.OidcSettings.ClientId;
-                current.ClientSecret = request.OidcSettings.ClientSecret;
                 current.Scopes = request.OidcSettings.Scopes;
+                current.DeviceFlowEnabled = request.OidcSettings.DeviceFlowEnabled;
+                if (!string.IsNullOrWhiteSpace(request.OidcSettings.ClientSecret))
+                    current.ClientSecret = request.OidcSettings.ClientSecret;
                 current.IsEnabled = true;
 
                 await authManager.AddOrUpdateOidcProviderAsync(current);
             }
-            else if (current != null)
-            {
+            else if (current != null) {
                 current.IsEnabled = false;
                 authManager.RemoveOidcProvider(current.SchemeName);
             }
 
             // Remove any other OIDC providers that might have been added manually
-            foreach (var p in existingOidcProviders.Where(p => p.SchemeName != schemeName))
-            {
+            foreach (var p in existingOidcProviders.Where(p => p.SchemeName != schemeName)) {
                 authManager.RemoveOidcProvider(p.SchemeName);
                 globalConfig.Providers.Remove(p);
             }

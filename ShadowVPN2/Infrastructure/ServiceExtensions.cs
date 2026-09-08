@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using OpenIddict.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Identity;
@@ -38,7 +39,19 @@ public static class ServiceExtensions {
         builder.Services.AddScoped<IdentityRedirectManager>();
         builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
         builder.Services.AddSingleton<DynamicAuthenticationManager>();
+        builder.Services.AddSingleton<DynamicOpenIddictClientRegistrationStore>();
         builder.Services.AddHostedService<DynamicAuthInitializerService>();
+        builder.Services.AddOptions<OpenIddictClientOptions>()
+            .Configure<DynamicOpenIddictClientRegistrationStore>((options, store) =>
+                options.Registrations.AddRange(store.GetRegistrations()));
+
+        builder.Services.AddOpenIddict()
+            .AddClient(options => {
+                options.AllowDeviceAuthorizationFlow();
+                options.DisableTokenStorage();
+                options.DisableWebServicesFederationClaimMapping();
+                options.UseSystemNetHttp();
+            });
 
         var authBuilder = builder.Services.AddAuthentication(options => {
             options.DefaultScheme = IdentityConstants.ApplicationScheme;
