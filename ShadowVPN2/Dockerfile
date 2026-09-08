@@ -14,7 +14,7 @@ RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/rele
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
 # Ensure Data directory exists and has correct permissions for volumes
-RUN mkdir -p /data && chown -R $APP_UID:$APP_UID /data
+RUN install -d -o $APP_UID -g $APP_UID /data
 
 USER $APP_UID
 WORKDIR /app
@@ -24,12 +24,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
-RUN dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
+RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
+    dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
 COPY . .
 WORKDIR "/src/ShadowVPN2"
-RUN dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-FROM build AS dev
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
+USER root
 COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
@@ -41,17 +42,19 @@ ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile"]
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
+    dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish \
+    --no-restore /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --chown=1654:1654 --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data
 VOLUME ["/data"]
 
 # RavenDB Embedded creates its server package directories below the application folder.
 USER root
-RUN mkdir -p /app/RavenDBServer && chown -R $APP_UID:$APP_UID /app/RavenDBServer
+RUN install -d -o 1654 -g 1654 /app/RavenDBServer
 USER $APP_UID
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
