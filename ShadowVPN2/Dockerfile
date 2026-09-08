@@ -28,6 +28,8 @@ RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
 COPY . .
 WORKDIR "/src/ShadowVPN2"
+RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
+    dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/build --no-restore
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
 USER root
@@ -44,7 +46,7 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish \
-    --no-restore /p:UseAppHost=false
+    /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
