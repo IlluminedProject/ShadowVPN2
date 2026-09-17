@@ -38,7 +38,7 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
              [Peer]
              PublicKey = {ServerPublicKey}
              Endpoint = {FormatHost(ServerAddress)}:{ServerPort}
-             AllowedIPs = 0.0.0.0/0, ::/0
+             AllowedIPs = 0.0.0.0/0
              PersistentKeepalive = 25
 
              """;
