@@ -9,12 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download and install amnezia-box (sing-box fork)
-RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/1.14.0-rc.1-awgm.15/singbox-1.14.0-rc.1-awgm.15-linux-amd64 \
+ARG AMNEZIA_BOX_VERSION=1.14.1-awgm.17
+RUN curl -fLo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/${AMNEZIA_BOX_VERSION}/singbox-${AMNEZIA_BOX_VERSION}-linux-amd64 \
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
 ARG FREETURN_VERSION=v3.4.0
-RUN curl -Lo /usr/local/bin/free-turn-proxy \
+RUN curl -fLo /usr/local/bin/free-turn-proxy \
         https://github.com/samosvalishe/free-turn-proxy/releases/download/${FREETURN_VERSION}/server-linux-amd64 \
     && chmod +x /usr/local/bin/free-turn-proxy
 
