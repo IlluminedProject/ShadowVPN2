@@ -44,7 +44,7 @@
 }
 
 @code {
-    [Parameter][EditorRequired] public IReadOnlyList<ProtocolSubscription> Protocols { get; set; } = [];
+    [Parameter] [EditorRequired] public IReadOnlyList<ProtocolSubscription> Protocols { get; set; } = [];
 
     private bool _pingStarted;
     private bool _pingInProgress;
@@ -142,9 +142,22 @@
 
     private static string GetStatusUrl(string address)
     {
-        var authority = Uri.TryCreate(address, UriKind.Absolute, out var uri)
-            ? uri.GetLeftPart(UriPartial.Authority)
-            : $"https://{EndpointAddress.FormatHostForUri(EndpointAddress.GetHost(address))}";
+        Uri uri;
+        if (Uri.TryCreate(address, UriKind.Absolute, out var parsedUri) && !string.IsNullOrEmpty(parsedUri.Host))
+        {
+            uri = parsedUri;
+        }
+        else if (Uri.TryCreate($"https://{address}", UriKind.Absolute, out parsedUri) &&
+                 !string.IsNullOrEmpty(parsedUri.Host))
+        {
+            uri = parsedUri;
+        }
+        else
+        {
+            uri = new Uri($"https://{EndpointAddress.FormatHostForUri(address)}", UriKind.Absolute);
+        }
+
+        var authority = uri.GetLeftPart(UriPartial.Authority);
 
         return $"{authority.TrimEnd('/')}/api/node/status";
     }
