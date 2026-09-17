@@ -30,9 +30,9 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
+COPY . .
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
-COPY . .
 WORKDIR "/src/ShadowVPN2"
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
