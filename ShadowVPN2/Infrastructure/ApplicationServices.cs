@@ -18,6 +18,7 @@ public static class ApplicationServices {
 
         builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
         builder.Services.AddSingleton<IPostConfigureOptions<SingBoxOptions>, SingBoxOptionsPostConfigure>();
+        builder.Services.AddOptions<FreeTurnOptions>().BindConfiguration("FreeTurn");
         builder.Services.AddSingleton<AwgTunCapabilityProbe>();
         builder.Services.AddOptions<LocalConfiguration>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
@@ -56,12 +57,15 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<DomainValidationService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
         builder.Services.AddSingleton<SingBoxService>();
+        builder.Services.AddSingleton<FreeTurnClientIdService>();
+        builder.Services.AddSingleton<FreeTurnService>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<FreeTurnService>());
         builder.Services.AddControllers();
         builder.Services.AddSignalR();
     }

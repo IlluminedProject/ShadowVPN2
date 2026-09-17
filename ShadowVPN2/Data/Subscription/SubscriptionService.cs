@@ -1,8 +1,9 @@
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
+using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
-using ShadowVPN2.Data.Certificates;
 
 namespace ShadowVPN2.Data.Subscription;
 
@@ -12,6 +13,7 @@ public class SubscriptionService(
     NodeNetworkService nodeNetworkService,
     ManagedCertificateService managedCertificateService,
     GlobalConfigurationService globalConfigService,
+    FreeTurnClientIdService freeTurnClientIdService,
     IEnumerable<ISubscriptionConnectionContributor> contributors) {
     public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) {
         var client = await session.Query<EntityClient>()
@@ -21,6 +23,10 @@ public class SubscriptionService(
 
         var globalConfig = await globalConfigService.GetAsync();
         var nodes = await nodeService.GetNodesAsync();
+        var freeTurnTransports = globalConfig.Transports
+            .OfType<FreeTurnTransportSettings>()
+            .Where(transport => transport.Enabled)
+            .ToList();
         var protocolSubscriptions = new List<ProtocolSubscription>();
 
         foreach (var settings in globalConfig.Protocols.Where(p => p.Enabled)) {
@@ -42,6 +48,8 @@ public class SubscriptionService(
                     "Main");
                 if (mainEndpoint is not null) {
                     endpoints.Add(mainEndpoint);
+                    AddTransportConnections(mainEndpoint, settings, freeTurnTransports, client,
+                        EndpointAddress.GetHost(mainDomain));
                 }
             }
 
@@ -65,6 +73,7 @@ public class SubscriptionService(
                     string.IsNullOrWhiteSpace(node.Name) ? host : node.Name);
                 if (nodeEndpoint is not null) {
                     endpoints.Add(nodeEndpoint);
+                    AddTransportConnections(nodeEndpoint, settings, freeTurnTransports, client, host);
                 }
             }
 
@@ -101,5 +110,30 @@ public class SubscriptionService(
             IsMain = isMain,
             Connection = connection
         };
+    }
+
+    private void AddTransportConnections(
+        SubscriptionEndpoint directEndpoint,
+        ProtocolGlobalSettings protocol,
+        IReadOnlyList<FreeTurnTransportSettings> transports,
+        EntityClient client,
+        string publicHost) {
+        var transportConnections = directEndpoint.Transports.ToList();
+        foreach (var freeTurn in transports.Where(transport => transport.ProtocolId == protocol.Id)) {
+            var mode = ProtocolDefinitionMetadata.GetSocketKind(protocol);
+            var relayAddress = $"{EndpointAddress.FormatHostForUri(publicHost)}:{freeTurn.ListenPort}";
+            var transportInfo = new FreeTurnConnectionInfo {
+                Peer = relayAddress,
+                ObfuscationProfile = freeTurn.ObfuscationProfile,
+                ObfuscationKey = freeTurn.ObfuscationKey,
+                TurnTransport = freeTurn.TurnTransport,
+                Mode = mode,
+                Streams = freeTurn.Streams,
+                ClientId = freeTurnClientIdService.GetClientId(client.SubscriptionId)
+            };
+            transportConnections.Add(transportInfo);
+        }
+
+        directEndpoint.Transports = transportConnections.AsReadOnly();
     }
 }

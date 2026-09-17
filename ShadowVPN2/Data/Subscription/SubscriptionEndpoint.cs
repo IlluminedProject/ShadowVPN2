@@ -5,4 +5,5 @@ public class SubscriptionEndpoint {
     public required string Address { get; set; }
     public bool IsMain { get; set; }
     public required ProtocolConnectionInfo Connection { get; set; }
+    public IReadOnlyList<TransportConnectionInfo> Transports { get; set; } = [];
 }

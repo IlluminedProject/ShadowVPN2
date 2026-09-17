@@ -12,21 +12,31 @@ public class ProtocolSettingsService(
     }
 
     public async Task<ProtocolsSettingsResponse> GetSettingsAsync() {
-        var protocols = await GetConfigurationAsync();
+        var config = await globalConfigService.GetAsync();
         return new ProtocolsSettingsResponse {
-            MainDomain = (await globalConfigService.GetAsync()).MainDomain,
-            Protocols = protocols.ToList()
+            MainDomain = config.MainDomain,
+            Protocols = config.Protocols.ToList(),
+            Transports = config.Transports.ToList()
         };
     }
 
     public async Task UpdateSettingsAsync(UpdateProtocolsSettingsRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
         request.MainDomain = domainValidationService.Normalize(request.MainDomain);
         foreach (var protocol in request.Protocols)
             protocol.MainDomain = domainValidationService.Normalize(protocol.MainDomain);
 
+        var configuration = new EntityGlobalConfiguration {
+            MainDomain = request.MainDomain,
+            Protocols = request.Protocols,
+            Transports = request.Transports
+        };
+        GlobalConfigurationValidator.Validate(configuration);
+
         await globalConfigService.UpdateAsync(config => {
             config.MainDomain = request.MainDomain;
             config.Protocols = request.Protocols;
+            config.Transports = request.Transports;
         });
         logger.LogInformation("Global protocol settings synchronized. Count: {Count}", request.Protocols.Count);
     }

@@ -13,6 +13,11 @@ RUN curl -Lo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/rele
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
+ARG FREETURN_VERSION=v3.4.0
+RUN curl -Lo /usr/local/bin/free-turn-proxy \
+        https://github.com/samosvalishe/free-turn-proxy/releases/download/${FREETURN_VERSION}/server-linux-amd64 \
+    && chmod +x /usr/local/bin/free-turn-proxy
+
 # Ensure Data directory exists and has correct permissions for volumes
 RUN install -d -o $APP_UID -g $APP_UID /data
 
@@ -34,6 +39,7 @@ RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
 USER root
 COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
+COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
     && rm -rf /var/lib/apt/lists/* \

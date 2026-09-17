@@ -3,37 +3,35 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace ShadowVPN2.Entities;
 
-public class Hysteria2GlobalSettings : ProtocolGlobalSettings
-{
+public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
     public override string Protocol => "Hysteria2";
-    public int ListenPort { get; set; } = 4443;
+    public override int ListenPort { get; set; } = 4443;
     public string ObfsType { get; set; } = "salamander";
     public string ObfsPassword { get; set; } = GeneratePassword();
     public string TlsCertificatePem { get; set; } = "";
     public string TlsKeyPem { get; set; } = "";
 
-    public string? GetCertificateFingerprint()
-    {
+    public static ProtocolSocketKind SocketKind {
+        get => ProtocolSocketKind.Udp;
+    }
+
+    public string? GetCertificateFingerprint() {
         if (string.IsNullOrEmpty(TlsCertificatePem)) return null;
-        try
-        {
+        try {
             using var cert = X509Certificate2.CreateFromPem(TlsCertificatePem);
             var hash = cert.GetCertHash(HashAlgorithmName.SHA256);
             return BitConverter.ToString(hash).Replace("-", ":");
         }
-        catch
-        {
+        catch {
             return null;
         }
     }
 
-    public static string GeneratePassword()
-    {
+    public static string GeneratePassword() {
         return RandomNumberGenerator.GetString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 32);
     }
 
-    public void GenerateSelfSignedCertificate()
-    {
+    public void GenerateSelfSignedCertificate() {
         using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var req = new CertificateRequest(
             "CN=ShadowVPN-Hysteria2",

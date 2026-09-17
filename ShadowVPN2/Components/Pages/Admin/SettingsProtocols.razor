@@ -274,6 +274,98 @@
                                 </div>
                             </div>
                         }
+
+                        <div class="card mb-4 border-secondary">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Transports</h5>
+                                @if (_canManage && _request.Protocols.Count > 0)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            @onclick="AddFreeTurnTransport">
+                                        <i class="bi bi-plus-lg me-1"></i> Add FreeTurn
+                                    </button>
+                                }
+                            </div>
+                            <div class="card-body">
+                                @if (_request.Transports.Count == 0)
+                                {
+                                    <p class="text-muted mb-0">No transport overlays configured.</p>
+                                }
+                                else
+                                {
+                                    @foreach (var transport in _request.Transports)
+                                    {
+                                        <div class="border rounded p-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                                <strong>@GetTransportName(transport)</strong>
+                                                @if (_canManage)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                                            @onclick="() => RemoveTransport(transport)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Protocol</label>
+                                                    <select class="form-select" @bind="transport.ProtocolId">
+                                                        @foreach (var protocolOption in _request.Protocols)
+                                                        {
+                                                            <option
+                                                                value="@protocolOption.Id">@GetProtocolName(protocolOption)</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Relay Listen Port</label>
+                                                    <input type="number" class="form-control"
+                                                           @bind="transport.ListenPort"
+                                                           min="1" max="65535"/>
+                                                    <div class="form-text">External port opened by the transport.</div>
+                                                </div>
+                                                @if (transport is FreeTurnTransportSettings freeTurn)
+                                                {
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">Obfuscation Profile</label>
+                                                        <select class="form-select" @bind="freeTurn.ObfuscationProfile">
+                                                            <option value="">Disabled</option>
+                                                            <option value="RtpOpus">RTP/Opus</option>
+                                                            <option value="RtpOpus2">RTP/Opus 2</option>
+                                                            <option value="RtpOpus3">RTP/Opus 3</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">TURN Transport</label>
+                                                        <select class="form-select" @bind="freeTurn.TurnTransport">
+                                                            <option value="Tcp">TCP/TLS</option>
+                                                            <option value="Udp">UDP</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label class="form-label">TURN Streams</label>
+                                                        <input type="number" class="form-control"
+                                                               @bind="freeTurn.Streams"
+                                                               min="1" max="64"/>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label class="form-label">Obfuscation Key</label>
+                                                        <input class="form-control font-monospace"
+                                                               @bind="freeTurn.ObfuscationKey"
+                                                               placeholder="64 hexadecimal characters"/>
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="form-check form-switch mt-3">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                       @bind="transport.Enabled"/>
+                                                <label class="form-check-label">Enable transport</label>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
                     </fieldset>
                 }
 
@@ -330,6 +422,7 @@
 
             var settings = await ProtocolSettingsService.GetSettingsAsync();
             _request.Protocols = settings.Protocols;
+            _request.Transports = settings.Transports;
             _request.MainDomain = settings.MainDomain;
             _domainRoutes = await ProtocolDomainService.GetRoutesAsync();
         }
@@ -355,6 +448,7 @@
         {
             var settings = new Hysteria2GlobalSettings
             {
+                Id = Guid.NewGuid(),
                 Enabled = true,
                 ListenPort = GetNextAvailablePort()
             };
@@ -363,11 +457,11 @@
         }
         else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
         {
-            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
+            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
         }
         else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
         {
-            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Enabled = true });
+            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
         }
     }
 
@@ -381,7 +475,49 @@
 
     private void RemoveProtocol(ProtocolGlobalSettings protocol)
     {
+        _request.Transports.RemoveAll(transport => transport.ProtocolId == protocol.Id);
         _request.Protocols.Remove(protocol);
+    }
+
+    private void AddFreeTurnTransport()
+    {
+        var protocol = _request.Protocols.FirstOrDefault();
+        if (protocol is null)
+            return;
+
+        _request.Transports.Add(new FreeTurnTransportSettings
+        {
+            Id = Guid.NewGuid(),
+            ProtocolId = protocol.Id,
+            ListenPort = GetNextTransportPort(),
+            ObfuscationKey = FreeTurnTransportSettings.GenerateObfuscationKey()
+        });
+    }
+
+    private void RemoveTransport(TransportSettings transport)
+    {
+        _request.Transports.Remove(transport);
+    }
+
+    private int GetNextTransportPort()
+    {
+        var usedPorts = _request.Protocols.Select(protocol => protocol.ListenPort)
+            .Concat(_request.Transports.Select(transport => transport.ListenPort))
+            .ToHashSet();
+        var port = 56000;
+        while (usedPorts.Contains(port)) port++;
+        return port;
+    }
+
+    private string GetTransportName(TransportSettings transport)
+    {
+        var protocol = _request.Protocols.FirstOrDefault(item => item.Id == transport.ProtocolId);
+        return $"{transport.GetType().Name.Replace("TransportSettings", string.Empty)} → {GetProtocolName(protocol)}";
+    }
+
+    private static string GetProtocolName(ProtocolGlobalSettings? protocol)
+    {
+        return protocol is null ? "Unknown protocol" : $"{protocol.Protocol} : {protocol.ListenPort}";
     }
 
     private async Task SaveSettings()

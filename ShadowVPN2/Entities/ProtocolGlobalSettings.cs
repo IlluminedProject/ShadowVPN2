@@ -6,7 +6,11 @@ namespace ShadowVPN2.Entities;
 [JsonDerivedType(typeof(Hysteria2GlobalSettings), "hysteria2")]
 [JsonDerivedType(typeof(WireGuardAmneziaGlobalSettings), "wireguard")]
 public abstract class ProtocolGlobalSettings {
+    public Guid Id { get; set; }
+
     public abstract string Protocol { get; }
+
+    public abstract int ListenPort { get; set; }
 
     public bool Enabled { get; set; }
 

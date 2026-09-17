@@ -21,4 +21,16 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
 
         return builder.Build();
     }
+
+    public Hysteria2ConnectionInfo WithEndpoint(string serverAddress, int serverPort) {
+        return new Hysteria2ConnectionInfo {
+            ServerAddress = serverAddress,
+            ServerPort = serverPort,
+            Password = Password,
+            ObfsType = ObfsType,
+            ObfsPassword = ObfsPassword,
+            Sni = Sni,
+            PinSha256 = PinSha256
+        };
+    }
 }

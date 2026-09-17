@@ -3,12 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Entities;
 
-public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings {
+public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
     public override string Protocol {
         get => "WireGuard";
     }
 
-    public int ListenPort { get; set; } = 51820;
+    public override int ListenPort { get; set; } = 51820;
     public int Mtu { get; set; } = 1408;
     public string ServerAddress { get; set; } = "100.64.0.1/10";
     public string PrivateKey { get; set; } = GenerateKey();
@@ -37,6 +37,10 @@ public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings {
                || !string.IsNullOrWhiteSpace(I1) || !string.IsNullOrWhiteSpace(I2)
                || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
                || !string.IsNullOrWhiteSpace(I5);
+    }
+
+    public static ProtocolSocketKind SocketKind {
+        get => ProtocolSocketKind.Udp;
     }
 
     private static string GenerateKey() {

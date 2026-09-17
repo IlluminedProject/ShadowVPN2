@@ -72,6 +72,34 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
         return $"wireguard://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateConfig()))}";
     }
 
+    public WireGuardConnectionInfo WithEndpoint(string serverAddress, int serverPort, int mtu) {
+        return new WireGuardConnectionInfo {
+            ServerAddress = serverAddress,
+            ServerPort = serverPort,
+            PrivateKey = PrivateKey,
+            AssignedIp = AssignedIp,
+            ServerPublicKey = ServerPublicKey,
+            Mtu = mtu,
+            IsAmneziaWg = IsAmneziaWg,
+            Jc = Jc,
+            Jmin = Jmin,
+            Jmax = Jmax,
+            S1 = S1,
+            S2 = S2,
+            S3 = S3,
+            S4 = S4,
+            H1 = H1,
+            H2 = H2,
+            H3 = H3,
+            H4 = H4,
+            I1 = I1,
+            I2 = I2,
+            I3 = I3,
+            I4 = I4,
+            I5 = I5
+        };
+    }
+
     private static string FormatHost(string host) {
         return host.Contains(':') && !host.StartsWith('[') ? $"[{host}]" : host;
     }

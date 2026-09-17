@@ -52,22 +52,54 @@ else
                             <div class="fw-semibold">@endpoint.Name</div>
                             <div class="text-muted small">@endpoint.Address</div>
                         </div>
-                        @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
-                        {
-                            <a class="btn btn-outline-primary text-nowrap" download="shadowvpn.conf"
-                               href="@CreateConfigDataUrl(wireGuard)">
-                                <i class="bi bi-download me-1"></i>
-                                Download
-                            </a>
-                        }
-                        else
-                        {
-                            <button class="btn btn-outline-primary text-nowrap" type="button"
-                                    @onclick="() => CopyConnectionAsync(protocol, endpoint, _response.ClientName)">
-                                <i class="bi bi-clipboard me-1"></i>
-                                @(key == _copiedKey ? "Copied" : "Copy")
-                            </button>
-                        }
+                        <div class="d-flex flex-wrap justify-content-end gap-2">
+                            @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
+                            {
+                                <a class="btn btn-outline-primary text-nowrap" download="shadowvpn.conf"
+                                   href="@CreateConfigDataUrl(wireGuard)">
+                                    <i class="bi bi-download me-1"></i>
+                                    VPN config
+                                </a>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-primary text-nowrap" type="button"
+                                        @onclick="() => CopyConnectionAsync(protocol, endpoint, _response.ClientName)">
+                                    <i class="bi bi-clipboard me-1"></i>
+                                    @(key == _copiedKey ? "Copied" : "Copy")
+                                </button>
+                            }
+                            @foreach (var transport in endpoint.Transports)
+                            {
+                                if (transport is FreeTurnConnectionInfo freeTurn)
+                                {
+                                    var transportKey = $"{key}:{freeTurn.Peer}";
+                                    if (CreateTransportConnection(endpoint.Connection) is WireGuardConnectionInfo transportWireGuard)
+                                    {
+                                        <a class="btn btn-outline-primary text-nowrap"
+                                           download="shadowvpn-freeturn.conf"
+                                           href="@CreateConfigDataUrl(transportWireGuard)">
+                                            <i class="bi bi-download me-1"></i>
+                                            FreeTurn VPN config
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-outline-primary text-nowrap" type="button"
+                                                @onclick="() => CopyTransportProtocolAsync(endpoint.Connection, _response.ClientName, transportKey)">
+                                            <i class="bi bi-clipboard me-1"></i>
+                                            @(transportKey == _copiedKey ? "Copied" : "FreeTurn protocol")
+                                        </button>
+                                    }
+
+                                    <button class="btn btn-outline-primary text-nowrap" type="button"
+                                            @onclick="() => CopyTransportAsync(transport, _response.ClientName, transportKey)">
+                                        <i class="bi bi-clipboard me-1"></i>
+                                        @(transportKey == _copiedKey ? "Copied" : "FreeTurn")
+                                    </button>
+                                }
+                            }
+                        </div>
                     </div>
                 }
             }
@@ -110,6 +142,47 @@ else
         _copiedKey = $"{protocol.Protocol}:{endpoint.Address}";
     }
 
+    private async Task CopyProtocolAsync(ProtocolSubscription protocol, SubscriptionEndpoint endpoint,
+        string clientName)
+    {
+        await CopyConnectionAsync(protocol, endpoint, clientName);
+    }
+
+    private async Task CopyTransportAsync(TransportConnectionInfo transport, string clientName, string key)
+    {
+        if (transport is not FreeTurnConnectionInfo freeTurn)
+            return;
+
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", freeTurn.CreateShareUrl(clientName));
+        _copiedKey = key;
+    }
+
+    private static ProtocolConnectionInfo? CreateTransportConnection(
+        ProtocolConnectionInfo connection)
+    {
+        return connection switch
+        {
+            WireGuardConnectionInfo wireGuard => wireGuard.WithEndpoint("127.0.0.1",
+                FreeTurnConnectionInfo.DefaultClientListenPort, Math.Min(wireGuard.Mtu, 1280)),
+            Hysteria2ConnectionInfo hysteria2 => hysteria2.WithEndpoint("127.0.0.1",
+                FreeTurnConnectionInfo.DefaultClientListenPort),
+            _ => null
+        };
+    }
+
+    private async Task CopyTransportProtocolAsync(
+        ProtocolConnectionInfo connection, string clientName, string key)
+    {
+        var text = CreateTransportConnection(connection) switch
+        {
+            Hysteria2ConnectionInfo info => info.CreateShareUrl(clientName),
+            WireGuardConnectionInfo info => info.CreateShareUrl(),
+            _ => throw new InvalidOperationException("Unsupported transport protocol")
+        };
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        _copiedKey = key;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -121,4 +194,5 @@ else
             _loading = false;
         }
     }
+
 }

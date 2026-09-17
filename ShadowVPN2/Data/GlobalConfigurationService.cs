@@ -17,38 +17,7 @@ public class GlobalConfigurationService(IServiceProvider serviceProvider, ILogge
         using var scope = serviceProvider.CreateScope();
         var documentStore = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
 
-        // 1. Data Migration for Protocols (if needed)
-        try {
-            using var session = documentStore.OpenAsyncSession();
-            var oldProtocols = await session.Advanced
-                .AsyncDocumentQuery<ProtocolGlobalSettings>(collectionName: "Protocols")
-                .ToListAsync(cancellationToken);
-
-            if (oldProtocols.Any()) {
-                logger.LogInformation(
-                    "Migrating {Count} legacy ProtocolGlobalSettings documents to GlobalConfiguration",
-                    oldProtocols.Count);
-                var config =
-                    await session.LoadAsync<EntityGlobalConfiguration>("GlobalConfiguration", cancellationToken) ??
-                    new EntityGlobalConfiguration();
-
-                foreach (var p in oldProtocols) {
-                    if (!config.Protocols.Any(x => x.Protocol == p.Protocol)) config.Protocols.Add(p);
-
-                    var id = session.Advanced.GetDocumentId(p);
-                    if (id != null) session.Delete(id);
-                }
-
-                await session.StoreAsync(config, "GlobalConfiguration", cancellationToken);
-                await session.SaveChangesAsync(cancellationToken);
-                logger.LogInformation("Successfully migrated ProtocolGlobalSettings");
-            }
-        }
-        catch (Exception ex) {
-            logger.LogError(ex, "Error during ProtocolGlobalSettings migration");
-        }
-
-        // 2. Subscribe to GlobalConfiguration changes
+        // Subscribe to GlobalConfiguration changes
         _documentSubscription = documentStore.Changes()
             .ForDocument("GlobalConfiguration")
             .Subscribe(new ActionObserver<DocumentChange>(change => {
