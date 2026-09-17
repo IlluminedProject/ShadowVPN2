@@ -6,6 +6,7 @@ services:
       target: dev
     container_name: shadowvpn2
     restart: unless-stopped
+    stop_grace_period: 30s
     network_mode: host
     cap_add:
       - NET_ADMIN

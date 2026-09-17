@@ -6,7 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin \
     iproute2 \
     iptables \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
+
+COPY docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
+RUN chmod 755 /usr/local/bin/shadowvpn2-entrypoint
 
 # Download and install amnezia-box (sing-box fork)
 ARG AMNEZIA_BOX_VERSION=1.14.1-awgm.17
@@ -41,13 +45,16 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
 USER root
 COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
 COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
+COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
+    gosu \
     && rm -rf /var/lib/apt/lists/* \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 RUN mkdir -p /data
 WORKDIR /src/ShadowVPN2
-ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile"]
+ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
+CMD ["dotnet", "watch", "run", "--no-launch-profile"]
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
@@ -64,9 +71,10 @@ VOLUME ["/data"]
 # RavenDB Embedded creates its server package directories below the application folder.
 USER root
 RUN install -d -o 1654 -g 1654 /app/RavenDBServer
-USER $APP_UID
+USER root
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f https://localhost:8080/api/node/status || exit 1
 
-ENTRYPOINT ["dotnet", "ShadowVPN2.dll"]
+ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
+CMD ["dotnet", "ShadowVPN2.dll"]

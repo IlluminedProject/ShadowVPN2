@@ -5,6 +5,7 @@ services:
       dockerfile: ShadowVPN2/Dockerfile
       target: dev
     container_name: shadowvpn2
+    stop_grace_period: 30s
     network_mode: host
     cap_add:
       - NET_ADMIN
