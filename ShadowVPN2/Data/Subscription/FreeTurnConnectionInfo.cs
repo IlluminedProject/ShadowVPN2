@@ -26,7 +26,7 @@ public sealed class FreeTurnConnectionInfo : TransportConnectionInfo {
 
     public required string ClientId { get; init; }
 
-    public string CreateShareUrl(string clientName) {
+    public string CreateShareUrl(string clientName, string? vpnConfig = null) {
         var payload = new Payload {
             Provider = "vk",
             Peer = Peer,
@@ -36,7 +36,8 @@ public sealed class FreeTurnConnectionInfo : TransportConnectionInfo {
             Key = ObfuscationKey,
             N = Streams,
             ClientId = ClientId,
-            Name = clientName
+            Name = clientName,
+            WireGuardConfig = vpnConfig
         };
 
         var json = JsonSerializer.Serialize(payload, SerializerOptions);
@@ -64,5 +65,6 @@ public sealed class FreeTurnConnectionInfo : TransportConnectionInfo {
         [JsonPropertyName("n")] public int N { get; init; }
         [JsonPropertyName("cid")] public required string ClientId { get; init; }
         [JsonPropertyName("name")] public string? Name { get; init; }
+        [JsonPropertyName("wg")] public string? WireGuardConfig { get; init; }
     }
 }

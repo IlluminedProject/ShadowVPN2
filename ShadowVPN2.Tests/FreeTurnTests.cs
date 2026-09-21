@@ -89,4 +89,24 @@ public sealed class FreeTurnTests {
         payload.Should().Contain("\"obf\":\"rtpopus3\"");
         payload.Should().Contain("\"cid\":\"client-id\"");
     }
+
+    [Fact]
+    public void FreeTurn_share_url_should_embed_vpn_config() {
+        var connection = new FreeTurnConnectionInfo {
+            Peer = "vpn.example.com:56000",
+            ObfuscationProfile = null,
+            ObfuscationKey = null,
+            TurnTransport = FreeTurnTurnTransport.Tcp,
+            Mode = ProtocolSocketKind.Udp,
+            Streams = 12,
+            ClientId = "client-id"
+        };
+
+        var shareUrl = connection.CreateShareUrl("Laptop", "[Interface]\nPrivateKey = secret");
+        var encoded = shareUrl["freeturn://".Length..].Replace('-', '+').Replace('_', '/');
+        encoded = encoded.PadRight((encoded.Length + 3) / 4 * 4, '=');
+        var payload = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+
+        payload.Should().Contain("\"wg\":\"[Interface]\\nPrivateKey = secret\"");
+    }
 }

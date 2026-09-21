@@ -74,26 +74,14 @@ else
                                 if (transport is FreeTurnConnectionInfo freeTurn)
                                 {
                                     var transportKey = $"{key}:{freeTurn.Peer}";
-                                    if (CreateTransportConnection(endpoint.Connection) is WireGuardConnectionInfo transportWireGuard)
-                                    {
-                                        <a class="btn btn-outline-primary text-nowrap"
-                                           download="shadowvpn-freeturn.conf"
-                                           href="@CreateConfigDataUrl(transportWireGuard)">
-                                            <i class="bi bi-download me-1"></i>
-                                            FreeTurn VPN config
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-outline-primary text-nowrap" type="button"
-                                                @onclick="() => CopyTransportProtocolAsync(endpoint.Connection, _response.ClientName, transportKey)">
-                                            <i class="bi bi-clipboard me-1"></i>
-                                            @(transportKey == _copiedKey ? "Copied" : "FreeTurn protocol")
-                                        </button>
-                                    }
+                                    <button class="btn btn-outline-primary text-nowrap" type="button"
+                                            @onclick="() => CopyTransportProtocolAsync(endpoint.Connection, _response.ClientName, transportKey)">
+                                        <i class="bi bi-clipboard me-1"></i>
+                                        @(transportKey == _copiedKey ? "Copied" : "FreeTurn protocol")
+                                    </button>
 
                                     <button class="btn btn-outline-primary text-nowrap" type="button"
-                                            @onclick="() => CopyTransportAsync(transport, _response.ClientName, transportKey)">
+                                            @onclick="() => CopyTransportAsync(transport, endpoint.Connection, _response.ClientName, transportKey)">
                                         <i class="bi bi-clipboard me-1"></i>
                                         @(transportKey == _copiedKey ? "Copied" : "FreeTurn")
                                     </button>
@@ -148,12 +136,16 @@ else
         await CopyConnectionAsync(protocol, endpoint, clientName);
     }
 
-    private async Task CopyTransportAsync(TransportConnectionInfo transport, string clientName, string key)
+    private async Task CopyTransportAsync(TransportConnectionInfo transport, ProtocolConnectionInfo connection,
+        string clientName, string key)
     {
         if (transport is not FreeTurnConnectionInfo freeTurn)
             return;
 
-        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", freeTurn.CreateShareUrl(clientName));
+        var vpnConfig = CreateTransportConnection(connection) is WireGuardConnectionInfo wireGuard
+            ? wireGuard.CreateConfig()
+            : null;
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", freeTurn.CreateShareUrl(clientName, vpnConfig));
         _copiedKey = key;
     }
 
