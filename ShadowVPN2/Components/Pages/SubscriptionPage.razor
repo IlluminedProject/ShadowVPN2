@@ -55,7 +55,8 @@ else
                         <div class="d-flex flex-wrap justify-content-end gap-2">
                             @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
                             {
-                                <a class="btn btn-outline-primary text-nowrap" download="shadowvpn.conf"
+                                <a class="btn btn-outline-primary text-nowrap"
+                                   download="@CreateConfigFileName(_response.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)"
                                    href="@CreateConfigDataUrl(wireGuard)">
                                     <i class="bi bi-download me-1"></i>
                                     VPN config
@@ -115,6 +116,28 @@ else
     private static string CreateConfigDataUrl(WireGuardConnectionInfo info)
     {
         return $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(info.CreateConfig()))}";
+    }
+
+    private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
+        string serverAddress)
+    {
+        var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress }
+            .Select(SanitizeFileNamePart)
+            .Where(part => part.Length > 0);
+        var name = string.Join('-', parts);
+        return $"{name[..Math.Min(name.Length, 180)]}.conf";
+    }
+
+    private static string SanitizeFileNamePart(string value)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(value.Trim()
+            .Select(character => char.IsControl(character) || invalidChars.Contains(character) || character is '/' or '\\'
+                ? '-'
+                : character)
+            .ToArray());
+
+        return sanitized.Trim(' ', '.', '-');
     }
 
     private async Task CopyConnectionAsync(ProtocolSubscription protocol, SubscriptionEndpoint endpoint,
