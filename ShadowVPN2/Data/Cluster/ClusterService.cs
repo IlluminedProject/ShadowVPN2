@@ -96,7 +96,7 @@ public class ClusterService(
         foreach (var node in nodes.Where(node => node.NodeId != pendingNode.NodeId && node.AwgPublicKey != null)) {
             var host = await nodeNetworkService.GetPublicHostAsync(node);
             if (!string.IsNullOrWhiteSpace(host))
-                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, host));
+                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, HostAddress.Parse(host)));
         }
 
         return new ClusterSignJoinResponse {

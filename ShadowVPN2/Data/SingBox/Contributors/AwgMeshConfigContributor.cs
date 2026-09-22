@@ -1,7 +1,4 @@
-using System.Net;
-using System.Net.Sockets;
 using Microsoft.Extensions.Options;
-using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
@@ -60,17 +57,7 @@ public class AwgMeshConfigContributor(
 
             var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
             if (!string.IsNullOrEmpty(publicHost)) {
-                // Ensure proper formatting for IPv6 addresses
-                if (IPAddress.TryParse(publicHost, out var ip)) {
-                    if (ip.IsIPv4MappedToIPv6)
-                        ip = ip.MapToIPv4();
-
-                    peer.Address = ip.AddressFamily == AddressFamily.InterNetworkV6
-                        ? $"[{ip}]"
-                        : ip.ToString();
-                }
-                else
-                    peer.Address = new AwgPeerInfo(string.Empty, string.Empty, publicHost).PublicHost;
+                peer.Address = HostAddress.Parse(publicHost).FormatForUri();
 
                 peer.Port = awgSettings.ListenPort;
             }

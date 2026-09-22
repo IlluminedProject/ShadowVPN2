@@ -37,7 +37,7 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
 
              [Peer]
              PublicKey = {ServerPublicKey}
-             Endpoint = {FormatHost(ServerAddress)}:{ServerPort}
+              Endpoint = {HostAddress.Parse(ServerAddress).FormatWithPort(ServerPort)}
              AllowedIPs = 0.0.0.0/0
              PersistentKeepalive = 25
 
@@ -98,10 +98,6 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
             I4 = I4,
             I5 = I5
         };
-    }
-
-    private static string FormatHost(string host) {
-        return host.Contains(':') && !host.StartsWith('[') ? $"[{host}]" : host;
     }
 
     private static string Optional(string name, string? value) {

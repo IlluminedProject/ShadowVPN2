@@ -1,3 +1,4 @@
+@using ShadowVPN2.Data
 @using ShadowVPN2.Data.Subscription
 @inject IJSRuntime JsRuntime
 
@@ -57,7 +58,7 @@
             var servers = Protocols
                 .SelectMany(protocol => protocol.Endpoints)
                 .Select(endpoint => new ServerPingState(endpoint))
-                .DistinctBy(server => server.Address, StringComparer.OrdinalIgnoreCase);
+                .DistinctBy(server => server.Address.ToString(), StringComparer.OrdinalIgnoreCase);
 
             _servers.AddRange(servers);
         }
@@ -140,26 +141,9 @@
         };
     }
 
-    private static string GetStatusUrl(string address)
+    private static string GetStatusUrl(HostAddress address)
     {
-        Uri uri;
-        if (Uri.TryCreate(address, UriKind.Absolute, out var parsedUri) && !string.IsNullOrEmpty(parsedUri.Host))
-        {
-            uri = parsedUri;
-        }
-        else if (Uri.TryCreate($"https://{address}", UriKind.Absolute, out parsedUri) &&
-                 !string.IsNullOrEmpty(parsedUri.Host))
-        {
-            uri = parsedUri;
-        }
-        else
-        {
-            uri = new Uri($"https://{EndpointAddress.FormatHostForUri(address)}", UriKind.Absolute);
-        }
-
-        var authority = uri.GetLeftPart(UriPartial.Authority);
-
-        return $"{authority.TrimEnd('/')}/api/node/status";
+        return $"https://{address}/api/node/status";
     }
 
     private sealed class ServerPingState(SubscriptionEndpoint endpoint)
@@ -167,7 +151,7 @@
         public PingStatus Status { get; set; } = PingStatus.Pending;
         public int? Latency { get; set; }
         public string Name { get; } = endpoint.Name;
-        public string Address { get; } = endpoint.Address;
+        public HostAddress Address { get; } = endpoint.Address;
     }
 
     private enum PingStatus
@@ -177,5 +161,4 @@
         Available,
         Unavailable
     }
-
 }

@@ -187,17 +187,17 @@ public static class FirstLaunchExperienceHelpers {
         };
 
         foreach (var peerInfo in response.AwgPeers) {
-            var peerAddress = peerInfo.PublicHost;
-            if (string.IsNullOrEmpty(peerAddress)) {
+            var peerAddress = peerInfo.PublicAddress;
+            if (string.IsNullOrEmpty(peerAddress.Value)) {
                 peerAddress = token.NodeAddresses
-                    .Select(address => new AwgPeerInfo(string.Empty, string.Empty, address).PublicHost)
-                    .FirstOrDefault(address => !string.IsNullOrEmpty(address));
+                    .Select(HostAddress.Parse)
+                    .FirstOrDefault(address => !string.IsNullOrEmpty(address.Value));
             }
 
             var peer = new WireGuardPeer {
                 PublicKey = peerInfo.PublicKey,
                 AllowedIps = [$"{peerInfo.MeshIp}/32"],
-                Address = peerAddress,
+                Address = peerAddress.Value,
                 Port = awgSettings.ListenPort,
                 PersistentKeepaliveInterval = 25
             };

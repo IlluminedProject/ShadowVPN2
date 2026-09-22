@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 
 namespace ShadowVPN2.Data.Subscription;
@@ -67,7 +65,7 @@ public sealed class ProxyUriBuilder {
             builder.Append('@');
         }
 
-        builder.Append(FormatHost(Host)).Append(':').Append(Port).Append('/');
+        builder.Append(HostAddress.Parse(Host).FormatWithPort(Port)).Append('/');
 
         if (_queryParams.Count > 0) {
             builder.Append('?');
@@ -87,15 +85,5 @@ public sealed class ProxyUriBuilder {
             builder.Append('#').Append(Uri.EscapeDataString(Fragment));
 
         return builder.ToString();
-    }
-
-    private static string FormatHost(string host) {
-        if (host.StartsWith('[') && host.EndsWith(']'))
-            return host;
-
-        if (IPAddress.TryParse(host, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6)
-            return $"[{host}]";
-
-        return host.Contains(':') ? $"[{host}]" : host;
     }
 }
