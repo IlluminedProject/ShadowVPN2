@@ -190,7 +190,6 @@ public static class FirstLaunchExperienceHelpers {
             var peerAddress = peerInfo.PublicAddress;
             if (string.IsNullOrEmpty(peerAddress.Value)) {
                 peerAddress = token.NodeAddresses
-                    .Select(HostAddress.Parse)
                     .FirstOrDefault(address => !string.IsNullOrEmpty(address.Value));
             }
 

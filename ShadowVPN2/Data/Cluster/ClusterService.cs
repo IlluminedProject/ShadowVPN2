@@ -41,11 +41,11 @@ public class ClusterService(
         await session.StoreAsync(node);
         await session.SaveChangesAsync();
 
-        var nodeAddresses = new List<string>();
+        var nodeAddresses = new List<HostAddress>();
         foreach (var existingNode in existingNodes.Where(candidate => !candidate.JoinSecret.HasValue)) {
             var host = await nodeNetworkService.GetPublicHostAsync(existingNode);
-            if (!string.IsNullOrWhiteSpace(host))
-                nodeAddresses.Add(host);
+            if (host.HasValue)
+                nodeAddresses.Add(host.Value);
         }
 
         var rootCaPem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value);
@@ -95,8 +95,8 @@ public class ClusterService(
         var peers = new List<AwgPeerInfo>();
         foreach (var node in nodes.Where(node => node.NodeId != pendingNode.NodeId && node.AwgPublicKey != null)) {
             var host = await nodeNetworkService.GetPublicHostAsync(node);
-            if (!string.IsNullOrWhiteSpace(host))
-                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, HostAddress.Parse(host)));
+            if (host.HasValue)
+                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, host.Value));
         }
 
         return new ClusterSignJoinResponse {

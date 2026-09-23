@@ -56,8 +56,8 @@ public class AwgMeshConfigContributor(
             };
 
             var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
-            if (!string.IsNullOrEmpty(publicHost)) {
-                peer.Address = HostAddress.Parse(publicHost).FormatForUri();
+            if (publicHost.HasValue) {
+                peer.Address = publicHost.Value.FormatForUri();
 
                 peer.Port = awgSettings.ListenPort;
             }

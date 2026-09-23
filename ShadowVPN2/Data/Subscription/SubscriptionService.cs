@@ -37,26 +37,26 @@ public class SubscriptionService(
             var endpoints = new List<SubscriptionEndpoint>();
             var mainDomain = settings.MainDomain ?? globalConfig.MainDomain;
             if (!string.IsNullOrWhiteSpace(mainDomain)) {
+                var mainHost = HostAddress.Parse(mainDomain);
                 var mainEndpoint = await CreateEndpointAsync(
                     contributor,
                     client,
                     settings,
-                    HostAddress.Parse(mainDomain),
-                    HostAddress.Parse(mainDomain),
+                    mainHost,
+                    mainHost,
                     mainDomain,
                     true,
                     "Main");
                 if (mainEndpoint is not null) {
                     endpoints.Add(mainEndpoint);
-                    AddTransportConnections(mainEndpoint, settings, freeTurnTransports, client,
-                        HostAddress.Parse(mainDomain));
+                    AddTransportConnections(mainEndpoint, settings, freeTurnTransports, client, mainHost);
                 }
             }
 
             foreach (var node in nodes.Where(n => !n.JoinSecret.HasValue)) {
                 var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
-                if (string.IsNullOrWhiteSpace(publicHost)) continue;
-                var host = HostAddress.Parse(publicHost);
+                if (!publicHost.HasValue) continue;
+                var host = publicHost.Value;
                 var certificate = managedCertificateService.GetForNode(node.NodeId);
                 var sni = !string.IsNullOrWhiteSpace(node.Domain) &&
                           certificate?.Domains.Contains(node.Domain, StringComparer.OrdinalIgnoreCase) == true
