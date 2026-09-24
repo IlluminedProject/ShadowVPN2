@@ -290,21 +290,26 @@
             {
                 Id = Guid.NewGuid(),
                 Enabled = true,
-                ListenPort = GetNextAvailablePort()
+                ListenPort = GetNextAvailablePort(4443)
             };
             settings.GenerateSelfSignedCertificate();
             _request.Protocols.Add(settings);
         }
-        else if (type == "wireguard" && _request.Protocols.All(p => p is not AwgGlobalSettings))
+        else if (type == "wireguard")
         {
-            _request.Protocols.Add(new AwgGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
+            _request.Protocols.Add(new AwgGlobalSettings
+            {
+                Id = Guid.NewGuid(),
+                Enabled = true,
+                ListenPort = GetNextAvailablePort(51820)
+            });
         }
     }
 
-    private int GetNextAvailablePort()
+    private int GetNextAvailablePort(int startPort)
     {
-        var usedPorts = _request.Protocols.OfType<Hysteria2GlobalSettings>().Select(p => p.ListenPort).ToHashSet();
-        var port = 4443;
+        var usedPorts = _request.Protocols.Select(p => p.ListenPort).ToHashSet();
+        var port = startPort;
         while (usedPorts.Contains(port)) port++;
         return port;
     }
@@ -397,5 +402,4 @@
         var index = _request.Protocols.IndexOf(protocol);
         return _domainRoutes.FirstOrDefault(route => route.ProtocolIndex == index);
     }
-
 }
