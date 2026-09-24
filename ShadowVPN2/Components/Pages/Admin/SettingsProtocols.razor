@@ -108,7 +108,7 @@
                                 {
                                     <Hysteria2ProtocolSettings Settings="h2Config" CanManage="_canManage"/>
                                 }
-                                else if (protocol is WireGuardAmneziaGlobalSettings wgConfig)
+                                else if (protocol is AwgGlobalSettings wgConfig)
                                 {
                                     <WireGuardAmneziaProtocolSettings Settings="wgConfig"/>
                                 }
@@ -295,13 +295,9 @@
             settings.GenerateSelfSignedCertificate();
             _request.Protocols.Add(settings);
         }
-        else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
+        else if (type == "wireguard" && _request.Protocols.All(p => p is not AwgGlobalSettings))
         {
-            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
-        }
-        else if (type == "wireguard" && _request.Protocols.All(p => p is not WireGuardAmneziaGlobalSettings))
-        {
-            _request.Protocols.Add(new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
+            _request.Protocols.Add(new AwgGlobalSettings { Id = Guid.NewGuid(), Enabled = true });
         }
     }
 

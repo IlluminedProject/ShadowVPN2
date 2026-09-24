@@ -10,7 +10,7 @@ namespace ShadowVPN2.Tests;
 public sealed class FreeTurnTests {
     [Fact]
     public void Valid_transport_should_reference_protocol_and_have_distinct_ports() {
-        var protocol = new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid() };
+        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid() };
         var configuration = new EntityGlobalConfiguration {
             Protocols = [protocol],
             Transports = [
@@ -31,7 +31,7 @@ public sealed class FreeTurnTests {
     [Fact]
     public void Invalid_transport_reference_should_be_rejected() {
         var configuration = new EntityGlobalConfiguration {
-            Protocols = [new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid() }],
+            Protocols = [new AwgGlobalSettings { Id = Guid.NewGuid() }],
             Transports = [
                 new FreeTurnTransportSettings {
                     Id = Guid.NewGuid(),
@@ -48,7 +48,7 @@ public sealed class FreeTurnTests {
 
     [Fact]
     public void Null_obfuscation_profile_should_not_require_a_key() {
-        var protocol = new WireGuardAmneziaGlobalSettings { Id = Guid.NewGuid() };
+        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid() };
         var configuration = new EntityGlobalConfiguration {
             Protocols = [protocol],
             Transports = [

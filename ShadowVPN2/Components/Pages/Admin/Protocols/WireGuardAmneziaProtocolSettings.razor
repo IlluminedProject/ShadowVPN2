@@ -24,18 +24,8 @@
     </div>
     <h6>AmneziaWG parameters</h6>
     <AmneziaWgParametersSettings Settings="Settings"/>
-    <div class="row g-3 mt-1">
-        <div class="col-md-3"><label class="form-label">H1</label><input class="form-control" @bind="Settings.H1"/>
-        </div>
-        <div class="col-md-3"><label class="form-label">H2</label><input class="form-control" @bind="Settings.H2"/>
-        </div>
-        <div class="col-md-3"><label class="form-label">H3</label><input class="form-control" @bind="Settings.H3"/>
-        </div>
-        <div class="col-md-3"><label class="form-label">H4</label><input class="form-control" @bind="Settings.H4"/>
-        </div>
-    </div>
 </div>
 
 @code {
-    [Parameter][EditorRequired] public WireGuardAmneziaGlobalSettings Settings { get; set; } = null!;
+    [Parameter] [EditorRequired] public AwgGlobalSettings Settings { get; set; } = null!;
 }

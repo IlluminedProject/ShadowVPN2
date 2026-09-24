@@ -7,7 +7,7 @@ namespace ShadowVPN2.Data.SingBox.Contributors;
 public sealed class WireGuardAmneziaConfigContributor(WireGuardKeyService keyService) : ISingBoxConfigContributor {
     public async Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
-        var settings = protocols.OfType<WireGuardAmneziaGlobalSettings>().FirstOrDefault(s => s.Enabled);
+        var settings = protocols.OfType<AwgGlobalSettings>().FirstOrDefault(s => s.Enabled);
         if (settings is null) return;
 
         EndpointConfig endpoint;

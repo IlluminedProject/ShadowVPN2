@@ -12,7 +12,7 @@ public sealed class WireGuardSubscriptionContributor(
 
     public async Task<ProtocolConnectionInfo?> CreateAsync(EntityClient client, ProtocolGlobalSettings settings,
         string host, string sni, CancellationToken cancellationToken = default) {
-        if (settings is not WireGuardAmneziaGlobalSettings wg || !client.IsEnabled)
+        if (settings is not AwgGlobalSettings wg || !client.IsEnabled)
             return null;
 
         await keyService.EnsureKeyAsync(client, cancellationToken);

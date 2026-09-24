@@ -4,7 +4,7 @@ namespace ShadowVPN2.Entities;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(Hysteria2GlobalSettings), "hysteria2")]
-[JsonDerivedType(typeof(WireGuardAmneziaGlobalSettings), "wireguard")]
+[JsonDerivedType(typeof(AwgGlobalSettings), "wireguard")]
 public abstract class ProtocolGlobalSettings {
     public Guid Id { get; set; }
 

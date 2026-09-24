@@ -4,6 +4,8 @@ using ShadowVPN2.Entities.Base;
 namespace ShadowVPN2.Entities;
 
 public class EntityGlobalConfiguration : IEntityId {
+    public const string ConfigurationDocumentId = "GlobalConfiguration";
+
     public string? GlobalDomain { get; set; }
     public string? MainDomain { get; set; }
 
@@ -11,7 +13,7 @@ public class EntityGlobalConfiguration : IEntityId {
     public List<AuthProvider> Providers { get; set; } = new();
     public List<ProtocolGlobalSettings> Protocols { get; set; } = new();
     public List<TransportSettings> Transports { get; set; } = new();
-    public AwgGlobalSettings AwgSettings { get; set; } = new();
+    public AwgGlobalSettings AwgSettings { get; set; } = AwgGlobalSettings.CreateForCluster();
     public AcmeSettings AcmeSettings { get; set; } = new();
-    public string Id { get; init; } = "GlobalConfiguration";
+    public string Id { get; init; } = ConfigurationDocumentId;
 }

@@ -1,5 +1,13 @@
 @using ShadowVPN2.Entities
 <div class="row g-3">
+    <div class="col-md-3"><label class="form-label">H1</label><input class="form-control" @bind="Settings.H1"
+                                                                     placeholder="Value or range, e.g. 100-200"/></div>
+    <div class="col-md-3"><label class="form-label">H2</label><input class="form-control" @bind="Settings.H2"
+                                                                     placeholder="Value or range, e.g. 300-400"/></div>
+    <div class="col-md-3"><label class="form-label">H3</label><input class="form-control" @bind="Settings.H3"
+                                                                     placeholder="Value or range, e.g. 500-600"/></div>
+    <div class="col-md-3"><label class="form-label">H4</label><input class="form-control" @bind="Settings.H4"
+                                                                     placeholder="Value or range, e.g. 700-800"/></div>
     <div class="col-md-3"><label class="form-label">Jc</label><input type="number" class="form-control"
                                                                      @bind="Settings.Jc" min="0"/></div>
     <div class="col-md-3"><label class="form-label">Jmin</label><input type="number" class="form-control"
@@ -29,5 +37,5 @@
 </div>
 
 @code {
-    [Parameter][EditorRequired] public IAmneziaWgParameters Settings { get; set; } = null!;
+    [Parameter] [EditorRequired] public AwgGlobalSettings Settings { get; set; } = null!;
 }
