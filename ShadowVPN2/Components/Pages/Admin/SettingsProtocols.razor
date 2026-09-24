@@ -196,6 +196,16 @@
                                                     </div>
                                                 }
                                             </div>
+                                            @if (transport is FreeTurnTransportSettings &&
+                                                 _request.Protocols.FirstOrDefault(protocol => protocol.Id == transport.ProtocolId) is AwgGlobalSettings awg &&
+                                                 awg.IsAmneziaWg)
+                                            {
+                                                <div class="alert alert-warning py-2 mt-3 mb-0">
+                                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                                    FreeTurn is compatible only with vanilla WireGuard and does not
+                                                    support AmneziaWG (AWG).
+                                                </div>
+                                            }
                                             <div class="form-check form-switch mt-3">
                                                 <input class="form-check-input" type="checkbox" role="switch"
                                                        @bind="transport.Enabled"/>
