@@ -1,39 +1,126 @@
 @using ShadowVPN2.Entities
-<div class="row g-3">
-    <div class="col-md-3"><label class="form-label">H1</label><input class="form-control" @bind="Settings.H1"
-                                                                     placeholder="Value or range, e.g. 100-200"/></div>
-    <div class="col-md-3"><label class="form-label">H2</label><input class="form-control" @bind="Settings.H2"
-                                                                     placeholder="Value or range, e.g. 300-400"/></div>
-    <div class="col-md-3"><label class="form-label">H3</label><input class="form-control" @bind="Settings.H3"
-                                                                     placeholder="Value or range, e.g. 500-600"/></div>
-    <div class="col-md-3"><label class="form-label">H4</label><input class="form-control" @bind="Settings.H4"
-                                                                     placeholder="Value or range, e.g. 700-800"/></div>
-    <div class="col-md-3"><label class="form-label">Jc</label><input type="number" class="form-control"
-                                                                     @bind="Settings.Jc" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">Jmin</label><input type="number" class="form-control"
-                                                                       @bind="Settings.Jmin" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">Jmax</label><input type="number" class="form-control"
-                                                                       @bind="Settings.Jmax" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">S1</label><input type="number" class="form-control"
-                                                                     @bind="Settings.S1" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">S2</label><input type="number" class="form-control"
-                                                                     @bind="Settings.S2" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">S3</label><input type="number" class="form-control"
-                                                                     @bind="Settings.S3" min="0"/></div>
-    <div class="col-md-3"><label class="form-label">S4</label><input type="number" class="form-control"
-                                                                     @bind="Settings.S4" min="0"/></div>
+<div class="alert alert-info py-2">
+    <strong>Client/server matching:</strong> H1-H4 and S1-S4 must have the same values on both ends. I1-I5 and
+    Jc/Jmin/Jmax control packets sent by this endpoint, so they do not need to match the other end.
 </div>
-<div class="row g-3 mt-1">
-    <div class="col-md-6"><label class="form-label">I1</label><input class="form-control font-monospace"
-                                                                     @bind="Settings.I1"/></div>
-    <div class="col-md-6"><label class="form-label">I2</label><input class="form-control font-monospace"
-                                                                     @bind="Settings.I2"/></div>
-    <div class="col-md-6"><label class="form-label">I3</label><input class="form-control font-monospace"
-                                                                     @bind="Settings.I3"/></div>
-    <div class="col-md-6"><label class="form-label">I4</label><input class="form-control font-monospace"
-                                                                     @bind="Settings.I4"/></div>
-    <div class="col-md-6"><label class="form-label">I5</label><input class="form-control font-monospace"
-                                                                     @bind="Settings.I5"/></div>
+
+<h6>Packet headers</h6>
+<p class="text-muted small">Header identifiers may be fixed numbers or ranges. Keep the H1-H4 ranges
+    non-overlapping.</p>
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <label class="form-label">H1 — Init</label>
+        <input class="form-control" @bind="Settings.H1" placeholder="Value or range, e.g. 100-200"/>
+        <div class="form-text">Identifier for handshake initiation packets. Must match on client and server.</div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">H2 — Response</label>
+        <input class="form-control" @bind="Settings.H2" placeholder="Value or range, e.g. 300-400"/>
+        <div class="form-text">Identifier for handshake response packets. Must match on client and server.</div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">H3 — Cookie</label>
+        <input class="form-control" @bind="Settings.H3" placeholder="Value or range, e.g. 500-600"/>
+        <div class="form-text">Identifier for cookie reply packets. Must match on client and server.</div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">H4 — Data</label>
+        <input class="form-control" @bind="Settings.H4" placeholder="Value or range, e.g. 700-800"/>
+        <div class="form-text">Identifier for transport data packets. Must match on client and server.</div>
+    </div>
+</div>
+
+<h6>Packet size padding</h6>
+<p class="text-muted small">Extra random bytes added to each packet type. Set the same values at both ends; 0 disables
+    padding for that type.</p>
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <label class="form-label">S1 — Init</label>
+        <input type="number" class="form-control" @bind="Settings.S1" min="0"/>
+        <div class="form-text">Padding length in bytes for handshake initiation packets. Must match on client and
+            server.
+        </div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">S2 — Response</label>
+        <input type="number" class="form-control" @bind="Settings.S2" min="0"/>
+        <div class="form-text">Padding length in bytes for handshake response packets. Must match on client and
+            server.
+        </div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">S3 — Cookie</label>
+        <input type="number" class="form-control" @bind="Settings.S3" min="0"/>
+        <div class="form-text">Padding length in bytes for cookie reply packets. Must match on client and server.</div>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">S4 — Data</label>
+        <input type="number" class="form-control" @bind="Settings.S4" min="0"/>
+        <div class="form-text">Padding length in bytes for transport data packets. Must match on client and server.
+        </div>
+    </div>
+</div>
+
+<h6>Pre-handshake signature packets</h6>
+<p class="text-muted small">Optional CPS packet descriptions sent in order before the handshake. They are configured per
+    sender and need no matching values on the other end.</p>
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <label class="form-label">I1</label>
+        <input class="form-control font-monospace" @bind="Settings.I1"/>
+        <div class="form-text">First optional signature packet sent by this endpoint. Does not need to match the other
+            end.
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">I2</label>
+        <input class="form-control font-monospace" @bind="Settings.I2"/>
+        <div class="form-text">Second optional signature packet sent by this endpoint. Does not need to match the other
+            end.
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">I3</label>
+        <input class="form-control font-monospace" @bind="Settings.I3"/>
+        <div class="form-text">Third optional signature packet sent by this endpoint. Does not need to match the other
+            end.
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">I4</label>
+        <input class="form-control font-monospace" @bind="Settings.I4"/>
+        <div class="form-text">Fourth optional signature packet sent by this endpoint. Does not need to match the other
+            end.
+        </div>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">I5</label>
+        <input class="form-control font-monospace" @bind="Settings.I5"/>
+        <div class="form-text">Fifth optional signature packet sent by this endpoint. Does not need to match the other
+            end.
+        </div>
+    </div>
+</div>
+
+<h6>Junk packets</h6>
+<p class="text-muted small">Random packets sent by this endpoint around connection setup. These values are
+    sender-specific and do not need to match the other end.</p>
+<div class="row g-3">
+    <div class="col-md-4">
+        <label class="form-label">Jc</label>
+        <input type="number" class="form-control" @bind="Settings.Jc" min="0"/>
+        <div class="form-text">Number of junk packets to send. 0 disables junk packet sending.</div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Jmin</label>
+        <input type="number" class="form-control" @bind="Settings.Jmin" min="0"/>
+        <div class="form-text">Minimum junk packet size in bytes. Used with Jmax.</div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Jmax</label>
+        <input type="number" class="form-control" @bind="Settings.Jmax" min="0"/>
+        <div class="form-text">Maximum junk packet size in bytes; must be at least Jmin.</div>
+    </div>
 </div>
 
 @code {

@@ -3,19 +3,31 @@
     <div class="mb-3">
         <label class="form-label">Main Domain</label>
         <input class="form-control" @bind="Settings.MainDomain" placeholder="vpn.example.com"/>
+        <div class="form-text">Public hostname clients use to reach this server. It must resolve to the server; it does
+            not need to match a client setting.
+        </div>
     </div>
     <div class="row g-3 mb-3">
         <div class="col-md-4">
             <label class="form-label">Listen Port</label>
             <input type="number" class="form-control" @bind="Settings.ListenPort" min="1" max="65535"/>
+            <div class="form-text">UDP port this server accepts WireGuard/AWG connections on. The client peer endpoint
+                must use this port.
+            </div>
         </div>
         <div class="col-md-4">
             <label class="form-label">MTU</label>
             <input type="number" class="form-control" @bind="Settings.Mtu" min="576" max="9000"/>
+            <div class="form-text">Maximum tunnel packet size in bytes. It does not have to match exactly on client and
+                server; adjust it if the network has a smaller MTU.
+            </div>
         </div>
         <div class="col-md-4">
             <label class="form-label">Server VPN Address</label>
             <input class="form-control" @bind="Settings.ServerAddress"/>
+            <div class="form-text">Tunnel IP/prefix assigned to the server. Client tunnel addresses must be unique and
+                belong to the same VPN network.
+            </div>
         </div>
     </div>
     <div class="alert @(Settings.IsAmneziaWg ? "alert-warning" : "alert-success") py-2">
