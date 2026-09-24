@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
@@ -31,6 +32,8 @@ public static class ApplicationServices {
 
         builder.SetupKestrelHttps();
         builder.SetupRavenDb();
+        builder.Services.AddSingleton<RavenMigrationLock>();
+        builder.Services.AddSingleton<RavenMigrationRunner>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();

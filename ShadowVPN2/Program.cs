@@ -1,5 +1,6 @@
 using Serilog;
 using ShadowVPN2.Components;
+using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Middleware;
@@ -26,6 +27,8 @@ try {
     var app = builder.Build();
 
     await app.Services.GetRequiredService<ApplicationBootstrapper>().InitializeAsync();
+    await app.Services.GetRequiredService<RavenMigrationRunner>()
+        .RunAsync(app.Lifetime.ApplicationStopping);
 
     app.UseSerilogRequestLogging();
 
@@ -58,6 +61,7 @@ try {
 }
 catch (Exception ex) {
     Log.Fatal(ex, "Application terminated unexpectedly");
+    Environment.ExitCode = 1;
 }
 finally {
     await Log.CloseAndFlushAsync();
