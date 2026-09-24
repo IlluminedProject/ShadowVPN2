@@ -1,10 +1,12 @@
 @page "/admin/settings/cluster"
 @using ShadowVPN2.Data
+@using ShadowVPN2.Data.Cluster
 @using ShadowVPN2.Entities
 @using ShadowVPN2.Infrastructure.Authentication
 @attribute [Authorize(Policy = AppPermissions.Settings.View)]
 @rendermode InteractiveServer
 @inject GlobalConfigurationService GlobalConfigurationService
+@inject ClusterSettingsService ClusterSettingsService
 @inject IAuthorizationService AuthorizationService
 
 <div class="container-fluid">
@@ -48,6 +50,18 @@
             else if (_awgSettings != null)
             {
                 <fieldset disabled="@(!_canManage)">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Global Node Domain</h5>
+                        </div>
+                        <div class="card-body">
+                            <input class="form-control" @bind="_globalDomain" placeholder="vpn.example.com"/>
+                            <div class="form-text">Common domain for the main node and all nodes. Node-specific domains
+                                take precedence.
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card mb-4">
                         <div class="card-header">
                             <h5 class="mb-0">Network</h5>
@@ -148,6 +162,7 @@
     private bool _canManage;
     private string? _errorMessage;
     private string? _successMessage;
+    private string? _globalDomain;
     private AwgGlobalSettings? _awgSettings;
 
     [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
@@ -164,7 +179,9 @@
             }
 
             var config = await GlobalConfigurationService.GetAsync();
+            var clusterSettings = await ClusterSettingsService.GetSettingsAsync();
             _awgSettings = config.AwgSettings;
+            _globalDomain = clusterSettings.GlobalDomain;
         }
         catch (Exception ex)
         {
@@ -185,6 +202,10 @@
 
         try
         {
+            await ClusterSettingsService.UpdateSettingsAsync(new UpdateClusterSettingsRequest
+            {
+                GlobalDomain = _globalDomain
+            });
             await GlobalConfigurationService.UpdateAsync(config => { config.AwgSettings = _awgSettings!; });
             _successMessage = "Cluster settings saved. Nodes will update automatically.";
         }

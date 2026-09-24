@@ -4,6 +4,7 @@ using ShadowVPN2.Entities.Base;
 namespace ShadowVPN2.Entities;
 
 public class EntityGlobalConfiguration : IEntityId {
+    public string? GlobalDomain { get; set; }
     public string? MainDomain { get; set; }
 
     public bool SelfRegistrationEnabled { get; set; } = true;

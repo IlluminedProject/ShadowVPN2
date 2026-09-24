@@ -37,12 +37,18 @@ public sealed class ProtocolDomainService(
                        .FirstOrDefaultAsync(candidate => candidate.NodeId == nodeId, cancellationToken)
                    ?? throw new KeyNotFoundException("Node not found");
         var status = await nodeNetworkService.GetStatusAsync(nodeId, cancellationToken);
+        var globalConfiguration = await globalConfigurationService.GetAsync(cancellationToken);
         var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var nodeDomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
             status?.PublicIpv6, cancellationToken);
         if (nodeDomainStatus.State == DomainValidationState.Valid && nodeDomainStatus.Domain != null)
             domains.Add(nodeDomainStatus.Domain);
+
+        var globalDomainStatus = await domainValidationService.CheckAsync(globalConfiguration.GlobalDomain,
+            status?.PublicIpv4, status?.PublicIpv6, cancellationToken);
+        if (globalDomainStatus.State == DomainValidationState.Valid && globalDomainStatus.Domain != null)
+            domains.Add(globalDomainStatus.Domain);
 
         foreach (var route in await GetRoutesAsync(cancellationToken))
             if (route.Enabled && route.State == ProtocolDomainRouteState.Valid && route.NodeId == nodeId &&

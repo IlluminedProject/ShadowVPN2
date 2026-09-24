@@ -8,7 +8,21 @@ namespace ShadowVPN2.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ClusterController(ClusterService clusterService) : ControllerBase {
+public class ClusterController(ClusterService clusterService, ClusterSettingsService clusterSettingsService)
+    : ControllerBase {
+    [HttpGet("settings")]
+    [Authorize(Policy = AppPermissions.Settings.View)]
+    public async Task<ClusterSettingsResponse> GetSettings(CancellationToken cancellationToken) {
+        return await clusterSettingsService.GetSettingsAsync(cancellationToken);
+    }
+
+    [HttpPut("settings")]
+    [Authorize(Policy = AppPermissions.Settings.Manage)]
+    public async Task UpdateSettings([FromBody] UpdateClusterSettingsRequest request,
+        CancellationToken cancellationToken) {
+        await clusterSettingsService.UpdateSettingsAsync(request, cancellationToken);
+    }
+
     [HttpGet("root-ca")]
     [AllowAnonymous]
     public async Task<FileContentResult> DownloadRootCa() {

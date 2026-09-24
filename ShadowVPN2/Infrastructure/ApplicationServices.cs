@@ -51,6 +51,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, WireGuardSubscriptionContributor>();
         builder.Services.AddSingleton<ProtocolSettingsService>();
         builder.Services.AddSingleton<ProtocolDomainService>();
+        builder.Services.AddSingleton<ClusterSettingsService>();
         builder.Services.AddSingleton<NodeService>();
         builder.Services.AddSingleton<NodeNetworkService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<NodeNetworkService>());
