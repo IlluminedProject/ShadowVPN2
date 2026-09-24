@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Entities;
 
-public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
+public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition, IAmneziaWgParameters {
     public override string Protocol {
         get => "WireGuard";
     }
@@ -12,23 +12,10 @@ public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings, IProtocolD
     public int Mtu { get; set; } = 1408;
     public string ServerAddress { get; set; } = "100.64.0.1/10";
     public string PrivateKey { get; set; } = GenerateKey();
-
-    public int Jc { get; set; }
-    public int Jmin { get; set; }
-    public int Jmax { get; set; }
-    public int S1 { get; set; }
-    public int S2 { get; set; }
-    public int S3 { get; set; }
-    public int S4 { get; set; }
     public string H1 { get; set; } = "1";
     public string H2 { get; set; } = "2";
     public string H3 { get; set; } = "3";
     public string H4 { get; set; } = "4";
-    public string? I1 { get; set; }
-    public string? I2 { get; set; }
-    public string? I3 { get; set; }
-    public string? I4 { get; set; }
-    public string? I5 { get; set; }
 
     [JsonIgnore]
     public bool IsAmneziaWg {
@@ -38,6 +25,19 @@ public class WireGuardAmneziaGlobalSettings : ProtocolGlobalSettings, IProtocolD
                || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
                || !string.IsNullOrWhiteSpace(I5);
     }
+
+    public int Jc { get; set; }
+    public int Jmin { get; set; }
+    public int Jmax { get; set; }
+    public int S1 { get; set; }
+    public int S2 { get; set; }
+    public int S3 { get; set; }
+    public int S4 { get; set; }
+    public string? I1 { get; set; }
+    public string? I2 { get; set; }
+    public string? I3 { get; set; }
+    public string? I4 { get; set; }
+    public string? I5 { get; set; }
 
     public static ProtocolSocketKind SocketKind {
         get => ProtocolSocketKind.Udp;

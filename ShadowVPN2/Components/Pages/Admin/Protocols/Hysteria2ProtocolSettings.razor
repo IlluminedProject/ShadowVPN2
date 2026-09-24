@@ -1,0 +1,60 @@
+@using ShadowVPN2.Entities
+<div class="ms-4 p-3 border-start">
+    <div class="mb-3">
+        <label class="form-label">Main Domain</label>
+        <input class="form-control" @bind="Settings.MainDomain" placeholder="hysteria.example.com"/>
+        <div class="form-text">Overrides the global main domain for this protocol.</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Listen Port</label>
+            <input type="number" class="form-control" @bind="Settings.ListenPort" min="1" max="65535"/>
+            <div class="form-text">UDP port for Hysteria2.</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Obfuscation Type</label>
+            <select class="form-select" @bind="Settings.ObfsType">
+                <option value="salamander">salamander</option>
+                <option value="none">none</option>
+            </select>
+        </div>
+        @if (Settings.ObfsType != "none")
+        {
+            <div class="col-md-4">
+                <label class="form-label">Obfuscation Password</label>
+                <input type="text" class="form-control" @bind="Settings.ObfsPassword"/>
+            </div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">TLS Certificate</label>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small">
+                @if (!string.IsNullOrEmpty(Settings.TlsCertificatePem))
+                {
+                    <i class="bi bi-check-circle text-success me-1"></i>
+                    <text>Self-signed certificate generated</text>
+                }
+                else
+                {
+                    <i class="bi bi-x-circle text-danger me-1"></i>
+                    <text>No certificate</text>
+                }
+            </span>
+            @if (CanManage)
+            {
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        @onclick="Settings.GenerateSelfSignedCertificate">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Regenerate
+                </button>
+            }
+        </div>
+        <div class="form-text">Auto-generated self-signed certificate. Regenerate if needed.</div>
+    </div>
+</div>
+
+@code {
+    [Parameter][EditorRequired] public Hysteria2GlobalSettings Settings { get; set; } = null!;
+    [Parameter] public bool CanManage { get; set; }
+}

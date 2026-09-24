@@ -1,0 +1,33 @@
+@using ShadowVPN2.Entities
+<div class="row g-3">
+    <div class="col-md-3"><label class="form-label">Jc</label><input type="number" class="form-control"
+                                                                     @bind="Settings.Jc" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">Jmin</label><input type="number" class="form-control"
+                                                                       @bind="Settings.Jmin" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">Jmax</label><input type="number" class="form-control"
+                                                                       @bind="Settings.Jmax" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">S1</label><input type="number" class="form-control"
+                                                                     @bind="Settings.S1" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">S2</label><input type="number" class="form-control"
+                                                                     @bind="Settings.S2" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">S3</label><input type="number" class="form-control"
+                                                                     @bind="Settings.S3" min="0"/></div>
+    <div class="col-md-3"><label class="form-label">S4</label><input type="number" class="form-control"
+                                                                     @bind="Settings.S4" min="0"/></div>
+</div>
+<div class="row g-3 mt-1">
+    <div class="col-md-6"><label class="form-label">I1</label><input class="form-control font-monospace"
+                                                                     @bind="Settings.I1"/></div>
+    <div class="col-md-6"><label class="form-label">I2</label><input class="form-control font-monospace"
+                                                                     @bind="Settings.I2"/></div>
+    <div class="col-md-6"><label class="form-label">I3</label><input class="form-control font-monospace"
+                                                                     @bind="Settings.I3"/></div>
+    <div class="col-md-6"><label class="form-label">I4</label><input class="form-control font-monospace"
+                                                                     @bind="Settings.I4"/></div>
+    <div class="col-md-6"><label class="form-label">I5</label><input class="form-control font-monospace"
+                                                                     @bind="Settings.I5"/></div>
+</div>
+
+@code {
+    [Parameter][EditorRequired] public IAmneziaWgParameters Settings { get; set; } = null!;
+}

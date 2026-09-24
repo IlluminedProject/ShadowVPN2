@@ -42,10 +42,17 @@ public class AwgMeshConfigContributor(
             Jmax = awgSettings.Jmax,
             S1 = awgSettings.S1,
             S2 = awgSettings.S2,
+            S3 = awgSettings.S3,
+            S4 = awgSettings.S4,
             H1 = awgSettings.H1.ToString(),
             H2 = awgSettings.H2.ToString(),
             H3 = awgSettings.H3.ToString(),
-            H4 = awgSettings.H4.ToString()
+            H4 = awgSettings.H4.ToString(),
+            I1 = awgSettings.I1,
+            I2 = awgSettings.I2,
+            I3 = awgSettings.I3,
+            I4 = awgSettings.I4,
+            I5 = awgSettings.I5
         };
 
         foreach (var node in nodesWithAwg.Where(n => n.NodeId != localConfiguration.Value.NodeId)) {

@@ -1,4 +1,5 @@
 @page "/admin/settings/cluster"
+@using ShadowVPN2.Components.Pages.Admin.Protocols
 @using ShadowVPN2.Data
 @using ShadowVPN2.Data.Cluster
 @using ShadowVPN2.Entities
@@ -83,28 +84,8 @@
                             <h5 class="mb-0">Obfuscation Parameters</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label class="form-label">Jc</label>
-                                    <input type="number" class="form-control" @bind="_awgSettings.Jc"/>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Jmin</label>
-                                    <input type="number" class="form-control" @bind="_awgSettings.Jmin"/>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Jmax</label>
-                                    <input type="number" class="form-control" @bind="_awgSettings.Jmax"/>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">S1</label>
-                                    <input type="number" class="form-control" @bind="_awgSettings.S1"/>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">S2</label>
-                                    <input type="number" class="form-control" @bind="_awgSettings.S2"/>
-                                </div>
-                                <div class="col-md-4"></div>
+                            <AmneziaWgParametersSettings Settings="_awgSettings"/>
+                            <div class="row g-3 mt-1">
                                 <div class="col-md-3">
                                     <label class="form-label">H1</label>
                                     <input type="number" class="form-control" @bind="_awgSettings.H1"/>
