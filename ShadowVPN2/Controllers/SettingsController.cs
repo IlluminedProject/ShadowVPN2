@@ -18,6 +18,7 @@ public class SettingsController(SettingsService settingsService) : ControllerBas
 
         return new AuthSettingsResponse {
             EnableLocalLogin = local?.IsEnabled == true,
+            SelfRegistrationEnabled = config.SelfRegistrationEnabled,
             EnableOidc = oidc?.IsEnabled == true,
             OidcSettings = oidc == null
                 ? null

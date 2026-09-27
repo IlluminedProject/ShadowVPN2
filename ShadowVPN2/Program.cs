@@ -1,6 +1,5 @@
 using Serilog;
 using ShadowVPN2.Components;
-using ShadowVPN2.Data;
 using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
@@ -50,6 +49,7 @@ try {
 
     app.UseAntiforgery();
 
+    app.UseStaticFiles();
     app.MapStaticAssets();
     app.MapControllers();
     app.MapHub<NodeHub>("/api/node/hub");
@@ -58,10 +58,7 @@ try {
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();
 
-    await app.StartAsync();
-    await app.Services.GetRequiredService<NodeNetworkService>()
-        .RefreshLocalAsync(app.Lifetime.ApplicationStopping);
-    await app.WaitForShutdownAsync();
+    await app.RunAsync();
 }
 catch (Exception ex) {
     Log.Fatal(ex, "Application terminated unexpectedly");

@@ -1,0 +1,187 @@
+@page "/clients"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IClientApplicationService ClientsApi
+@inject IClientUpdatesService ClientRealtime
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@using System.Net
+@implements IAsyncDisposable
+
+<PageTitle>VPN clients - ShadowVPN2</PageTitle>
+
+<FrontendNav/>
+<main>
+    <h1>VPN clients</h1>
+
+    @if (_loading)
+    {
+        <p class="muted">Loading clients…</p>
+    }
+    else if (!_authenticated)
+    {
+        <p>You need to sign in to manage VPN clients.</p>
+        <a href="@LoginUrl">Sign in</a>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error" role="alert">@_error</p>
+        }
+
+        <EditForm Model="_newClient" OnValidSubmit="CreateClientAsync">
+            <DataAnnotationsValidator/>
+            <div class="actions">
+                <InputText @bind-Value="_newClient.Name" placeholder="Device name"/>
+                <button type="submit" disabled="@_saving">Add client</button>
+            </div>
+            <ValidationMessage For="() => _newClient.Name"/>
+        </EditForm>
+
+        @if (_clients.Count == 0)
+        {
+            <p class="muted">No VPN clients configured yet.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>IP address</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var client in _clients)
+                {
+                    <tr>
+                        <td>@client.Name</td>
+                        <td><code>@client.AssignedIp</code></td>
+                        <td>@(client.IsEnabled ? "Enabled" : "Disabled")</td>
+                        <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
+                        <td class="actions">
+                            <a href="@($"/clients/settings/{EscapeDocumentId(client.Id)}")">Settings</a>
+                            <a href="@($"/s/{client.SubscriptionId}")" target="_blank">Subscription</a>
+                            <button @onclick="() => DeleteClientAsync(client)">Delete</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+</main>
+
+@code {
+    private IReadOnlyList<ClientResponse> _clients = [];
+    private readonly CreateClientRequest _newClient = new() { Name = string.Empty };
+    private bool _loading = true;
+    private bool _authenticated;
+    private bool _saving;
+    private string? _error;
+    private IAsyncDisposable? _realtimeSubscription;
+
+    private string LoginUrl => $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
+
+    private static string EscapeDocumentId(string id) =>
+            string.Join('/', id.Split('/').Select(Uri.EscapeDataString));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadClientsAsync();
+            _authenticated = true;
+            _realtimeSubscription = await ClientRealtime.SubscribeAsync(clients => InvokeAsync(() =>
+            {
+                _clients = clients;
+                StateHasChanged();
+            }));
+        }
+        catch (ApplicationServiceException exception)
+        {
+            HandleApiError(exception, "Could not load VPN clients.");
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadClientsAsync()
+    {
+        _clients = await ClientsApi.GetClientsAsync();
+    }
+
+    private async Task CreateClientAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            await ClientsApi.CreateClientAsync(_newClient);
+            _newClient.Name = string.Empty;
+            await LoadClientsAsync();
+        }
+        catch (ApplicationServiceException exception)
+        {
+            HandleApiError(exception, "Could not create the client.");
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteClientAsync(ClientResponse client)
+    {
+        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", $"Delete client '{client.Name}'?");
+        if (!confirmed)
+            return;
+
+        _error = null;
+        try
+        {
+            await ClientsApi.DeleteClientAsync(client.Id);
+            await LoadClientsAsync();
+        }
+        catch (ApplicationServiceException exception)
+        {
+            HandleApiError(exception, "Could not delete the client.");
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+    }
+
+    private void HandleApiError(ApplicationServiceException exception, string message)
+    {
+        if (exception.StatusCodeNet.HttpStatusCode.Unauthorized)
+            _authenticated = false;
+        else
+        {
+            _authenticated = true;
+            _error = message;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_realtimeSubscription is not null)
+            await _realtimeSubscription.DisposeAsync();
+    }
+
+}

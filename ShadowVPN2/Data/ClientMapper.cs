@@ -1,11 +1,10 @@
+using ShadowVPN2.Contracts.Clients;
 using ShadowVPN2.Entities.Proxy;
 
 namespace ShadowVPN2.Data;
 
-public static class ClientMapper
-{
-    public static ClientResponse MapToResponse(EntityClient client) => new()
-    {
+public static class ClientMapper {
+    public static ClientResponse MapToResponse(EntityClient client) => new() {
         Id = client.Id,
         SubscriptionId = client.SubscriptionId,
         Name = client.Name,

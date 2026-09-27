@@ -1,0 +1,142 @@
+@page "/admin/settings/auth"
+@using System.Net
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+@inject IAdminSettingsService AdminApi
+
+<PageTitle>Authorization settings - ShadowVPN2</PageTitle>
+
+<header><strong>ShadowVPN2 settings</strong></header>
+<main>
+    <AdminSettingsNav/>
+    <h1>Authorization settings</h1>
+    @if (_loading)
+    {
+        <p class="muted">Loading settings…</p>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error" role="alert">@_error</p>
+    }
+    else
+    {
+        <label>
+            <InputCheckbox @bind-Value="_request.EnableLocalLogin"/>
+            Enable local login</label>
+        <label>
+            <InputCheckbox @bind-Value="_request.SelfRegistrationEnabled"/>
+            Enable self-registration</label>
+        <label>
+            <InputCheckbox @bind-Value="_request.EnableOidc"/>
+            Enable OpenID Connect</label>
+        @if (_request.EnableOidc)
+        {
+            <label for="display-name">Display name</label>
+            <InputText id="display-name" @bind-Value="_request.OidcSettings!.DisplayName"/>
+            <label>
+                <InputCheckbox @bind-Value="_request.OidcSettings!.DeviceFlowEnabled"/>
+                Enable device flow</label>
+            <label for="authority">Issuer URL</label>
+            <InputText id="authority" type="url" @bind-Value="_request.OidcSettings!.Authority"/>
+            <label for="client-id">Client ID</label>
+            <InputText id="client-id" @bind-Value="_request.OidcSettings!.ClientId"/>
+            <label for="client-secret">Client secret (blank keeps the saved secret)</label>
+            <InputText id="client-secret" type="password" @bind-Value="_request.OidcSettings!.ClientSecret"/>
+            <label for="scopes">Scopes</label>
+            <InputText id="scopes" @bind-Value="_request.OidcSettings!.Scopes"/>
+            @if (!_request.OidcSettings.DeviceFlowEnabled)
+            {
+                <p>Redirect URI: <code>@RedirectUri</code></p>
+            }
+
+            <button @onclick="TestOidcAsync" disabled="@_busy">Test provider</button>
+        }
+
+        <button @onclick="SaveAsync" disabled="@_busy">Save settings</button>
+    }
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p role="status">@_message</p>
+    }
+</main>
+
+@code {
+    private UpdateAuthSettingsRequest _request = new() { OidcSettings = new OidcAuthSettings() };
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private string? _message;
+    private string RedirectUri => NavigationManager.ToAbsoluteUri("/signin-OIDC").ToString();
+
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await AdminApi.GetAuthSettingsAsync();
+            _request.EnableLocalLogin = response.EnableLocalLogin;
+            _request.SelfRegistrationEnabled = response.SelfRegistrationEnabled;
+            _request.EnableOidc = response.EnableOidc;
+            _request.OidcSettings = response.OidcSettings ?? new OidcAuthSettings();
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ?   ? "You do not have permission to view settings."
+                    : "Could not load authorization settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await AdminApi.SaveAuthSettingsAsync(_request);
+            _message = "Settings saved.";
+        });
+    }
+
+    private async Task TestOidcAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var success = await AdminApi.TestOidcAsync(_request.OidcSettings!.Authority);
+            _message = success ? "Connected to the OIDC discovery endpoint." : "OIDC discovery failed.";
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await action();
+        }
+        catch (ApplicationServiceException ex)
+        {
+    _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ?           ? "You do not have permission to change settings."
+                    : "The operation failed.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+}

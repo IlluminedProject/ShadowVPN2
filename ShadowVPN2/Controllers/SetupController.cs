@@ -7,43 +7,41 @@ namespace ShadowVPN2.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [AllowAnonymous]
-public class SetupController(SetupService setupService) : ControllerBase
-{
+public class SetupController(SetupService setupService) : ControllerBase {
     [HttpGet("public-ip")]
-    public async Task<string> GetPublicIp()
-    {
+    public async Task<string> GetPublicIp() {
         var ip = await setupService.GetPublicIpAsync();
         return ip ?? throw new InvalidOperationException("Unable to determine public IP");
     }
 
     [HttpPost("node")]
-    public async Task ConfigureNode([FromBody] NodeSetupRequest request)
-    {
+    public async Task ConfigureNode([FromBody] NodeSetupRequest request) {
         await setupService.ConfigureNodeAsync(request);
     }
 
     [HttpPost("auth/local")]
-    public async Task ConfigureLocalAuth([FromBody] LocalAuthSetupRequest request)
-    {
+    public async Task ConfigureLocalAuth([FromBody] LocalAuthSetupRequest request) {
         await setupService.ConfigureLocalAuthAsync(request);
     }
 
     [HttpPost("auth/oidc")]
-    public async Task ConfigureOidc([FromBody] OidcAuthSetupRequest request)
-    {
+    public async Task ConfigureOidc([FromBody] OidcAuthSetupRequest request) {
         await setupService.ConfigureOidcAsync(request);
     }
 
+    [HttpPost("auth/oidc/test")]
+    public async Task<bool> TestOidcConnection([FromBody] string authority) {
+        return await setupService.TestOidcConnectionAsync(authority);
+    }
+
     [HttpGet("root-ca")]
-    public async Task<FileContentResult> DownloadRootCa()
-    {
+    public async Task<FileContentResult> DownloadRootCa() {
         var bytes = await setupService.GetRootCaBytesAsync();
         return File(bytes, "application/x-pkcs12", "root-ca.pfx");
     }
 
     [HttpPost("finish")]
-    public async Task FinishSetup()
-    {
+    public async Task FinishSetup() {
         await setupService.FinishSetupAsync();
     }
 }

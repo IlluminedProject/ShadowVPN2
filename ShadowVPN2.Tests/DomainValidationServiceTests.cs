@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using ShadowVPN2.Contracts.Nodes;
 using ShadowVPN2.Data;
 using Xunit;
 

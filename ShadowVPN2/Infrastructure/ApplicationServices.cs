@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Cluster;
@@ -7,6 +8,7 @@ using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Contributors;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 
@@ -41,6 +43,15 @@ public static class ApplicationServices {
         builder.SetupContainerValidation();
 
         builder.Services.AddHttpClient();
+        builder.Services.AddScoped<FrontendUserContext>();
+        builder.Services.AddScoped<IClientApplicationService, ClientApplicationService>();
+        builder.Services.AddScoped<IClientUpdatesService, ClientUpdatesService>();
+        builder.Services.AddScoped<ISetupApplicationService, SetupApplicationService>();
+        builder.Services.AddScoped<INodeApplicationService, NodeApplicationService>();
+        builder.Services.AddScoped<INodeUpdatesService, NodeUpdatesService>();
+        builder.Services.AddScoped<IClusterApplicationService, ClusterApplicationService>();
+        builder.Services.AddScoped<ISubscriptionApplicationService, SubscriptionApplicationService>();
+        builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
         builder.Services.AddSingleton<GlobalConfigurationService>();
         builder.Services.AddSingleton<WireGuardKeyService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());

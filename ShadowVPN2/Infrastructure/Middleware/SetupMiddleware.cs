@@ -21,12 +21,13 @@ public class SetupMiddleware(RequestDelegate next) {
 
         var needsSetup = await setupService.NeedsSetupAsync();
         var isApi = path != null && path.StartsWith("/api/");
-        var isSetupRoute = path == "/setup" || (path != null && path.StartsWith("/api/setup"));
+        var isSetupRoute = path == "/setup";
+        var isSetupApiRoute = path != null && path.StartsWith("/api/setup");
         var isStatusRoute = path != null && path.StartsWith("/api/node/status");
 
         if (needsSetup) {
             // If setup is needed, block access to everything except setup routes and status route
-            if (!isSetupRoute && !isStatusRoute) {
+            if (!isSetupRoute && !isSetupApiRoute && !isStatusRoute) {
                 if (isApi) {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     await context.Response.WriteAsJsonAsync(new { message = "Initial setup is required." });
@@ -39,8 +40,8 @@ public class SetupMiddleware(RequestDelegate next) {
         }
         else {
             // If setup is complete, block access to setup routes
-            if (isSetupRoute) {
-                if (isApi) {
+            if (isSetupRoute || isSetupApiRoute) {
+                if (isSetupApiRoute) {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
                     await context.Response.WriteAsJsonAsync(new { message = "Setup is already completed." });
                     return;

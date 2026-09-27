@@ -1,0 +1,216 @@
+@page "/s/{SubscriptionId:guid}"
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+@layout PublicLayout
+@inject ISubscriptionApplicationService SubscriptionApi
+@inject IJSRuntime JsRuntime
+
+<PageTitle>Connection setup - ShadowVPN2</PageTitle>
+
+<FrontendNav/>
+<main>
+    @if (_loading)
+    {
+        <p class="muted">Loading connection details…</p>
+    }
+    else if (_subscription is null)
+    {
+        <h1>Invalid link</h1>
+        <p class="muted">This subscription link is invalid or has been removed.</p>
+    }
+    else
+    {
+        <h1>@_subscription.ClientName</h1>
+        <h2>Available connection hosts</h2>
+        @if (!_subscription.Protocols.Any())
+        {
+            <p class="muted">No connection protocols are enabled for this client.</p>
+        }
+
+        @foreach (var protocol in _subscription.Protocols)
+        {
+            <h3>@protocol.Protocol</h3>
+            @foreach (var endpoint in protocol.Endpoints)
+            {
+                <section class="endpoint">
+                    <div><strong>@endpoint.Name</strong> <span class="muted">@endpoint.Address</span></div>
+                    <div class="actions">
+                        @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
+                        {
+                            <a href="@CreateConfigDataUrl(wireGuard)"
+                               download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
+                                Download VPN config
+                            </a>
+                        }
+                        <button @onclick="() => CopyConnectionAsync(protocol, endpoint)">
+                            @(CopiedKey == ConnectionKey(protocol, endpoint) ? "Copied" : "Copy connection")
+                        </button>
+                        @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
+                        {
+                            <button @onclick="() => CopyFreeTurnAsync(endpoint, transport)">Copy FreeTurn link</button>
+                        }
+                    </div>
+                </section>
+            }
+        }
+
+        @if (_servers.Count > 0)
+        {
+            <section>
+                <h2>Server latency</h2>
+                <p class="muted">Measured from your device.</p>
+                <button @onclick="PingServersAsync" disabled="@_pinging">Check again</button>
+                @foreach (var server in _servers)
+                {
+                    <p>@server.Name — @server.Address — @PingText(server)</p>
+                }
+            </section>
+        }
+    }
+</main>
+
+@code {
+    [Parameter] public Guid SubscriptionId { get; set; }
+
+    private SubscriptionResponse? _subscription;
+    private bool _loading = true;
+    private bool _pinging;
+    private string? _copiedKey;
+    private readonly List<ServerState> _servers = [];
+    private string? CopiedKey => _copiedKey;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        try
+        {
+            _subscription = await SubscriptionApi.GetSubscriptionAsync(SubscriptionId);
+            BuildServerList();
+        }
+        catch (Exception)
+        {
+            _subscription = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _servers.Count > 0)
+            await PingServersAsync();
+    }
+
+    private void BuildServerList()
+    {
+        _servers.Clear();
+        if (_subscription is null)
+            return;
+
+        _servers.AddRange(_subscription.Protocols.SelectMany(protocol => protocol.Endpoints)
+                .DistinctBy(endpoint => endpoint.Address, StringComparer.OrdinalIgnoreCase)
+                .Select(endpoint => new ServerState(endpoint.Name, endpoint.Address)));
+    }
+
+    private async Task PingServersAsync()
+    {
+        if (_pinging) return;
+        _pinging = true;
+        foreach (var server in _servers)
+        {
+            server.Checking = true;
+            server.Latency = null;
+        }
+
+        StateHasChanged();
+
+        await Task.WhenAll(_servers.Select(async server =>
+        {
+            try
+            {
+                server.Latency = await JsRuntime.InvokeAsync<int>("pingServer",
+                        $"https://{server.Address}/api/node/status", 3000);
+            }
+            catch (Exception)
+            {
+                server.Latency = -1;
+            }
+            finally
+            {
+                server.Checking = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }));
+        _pinging = false;
+    }
+
+    private async Task CopyConnectionAsync(ProtocolSubscription protocol, SubscriptionEndpoint endpoint)
+    {
+        var shareUrl = endpoint.Connection switch
+        {
+                Hysteria2ConnectionInfo hysteria2 => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria2,
+                        _subscription!.ClientName),
+                WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
+                _ => string.Empty
+        };
+        await CopyAsync(shareUrl, ConnectionKey(protocol, endpoint));
+    }
+
+    private async Task CopyFreeTurnAsync(SubscriptionEndpoint endpoint, FreeTurnConnectionInfo transport)
+    {
+        var localConnection = SubscriptionLinkBuilder.CreateLocalConnection(endpoint.Connection);
+        var wireGuardConfig = localConnection is WireGuardConnectionInfo wireGuard
+                ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)
+                : null;
+        var shareUrl = SubscriptionLinkBuilder.CreateFreeTurnShareUrl(transport, _subscription!.ClientName,
+                wireGuardConfig);
+        await CopyAsync(shareUrl, $"{endpoint.Name}:{transport.Peer}");
+    }
+
+    private async Task CopyAsync(string text, string key)
+    {
+        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        _copiedKey = key;
+    }
+
+    private static string ConnectionKey(ProtocolSubscription protocol, SubscriptionEndpoint endpoint) =>
+            $"{protocol.Protocol}:{endpoint.Address}";
+
+    private static string CreateConfigDataUrl(WireGuardConnectionInfo wireGuard) =>
+            $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)))}";
+
+    private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
+            string serverAddress)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress }
+                .Select(part => new string(part.Trim().Select(character => char.IsControl(character) ||
+                                                                           invalidChars.Contains(character) || character is '/' or '\\'
+                                ? '-'
+                                : character).ToArray())
+                        .Trim(' ', '.', '-'))
+                .Where(part => part.Length > 0);
+        var name = string.Join('-', parts);
+        return $"{name[..Math.Min(name.Length, 180)]}.conf";
+    }
+
+    private static string PingText(ServerState server) => server.Checking
+            ? "Checking…"
+            : server.Latency switch
+            {
+                    null => "—",
+                    -1 => "Unavailable",
+                    _ => $"{server.Latency} ms"
+            };
+
+    private sealed class ServerState(string name, string address)
+    {
+        public string Name { get; } = name;
+        public string Address { get; } = address;
+        public bool Checking { get; set; }
+        public int? Latency { get; set; }
+    }
+
+}

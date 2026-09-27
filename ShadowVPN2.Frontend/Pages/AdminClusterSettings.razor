@@ -1,0 +1,148 @@
+@page "/admin/settings/cluster"
+@using System.Net
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+@inject IAdminSettingsService AdminApi
+
+<PageTitle>Cluster settings - ShadowVPN2</PageTitle>
+
+<header><strong>ShadowVPN2 settings</strong></header>
+<main>
+    <AdminSettingsNav/>
+    <h1>Cluster settings</h1>
+    @if (_loading)
+    {
+        <p class="muted">Loading settings…</p>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error" role="alert">@_error</p>
+    }
+    else
+    {
+        <label for="global-domain">Global node domain</label>
+        <InputText id="global-domain" @bind-Value="_cluster.GlobalDomain"/>
+        <label for="awg-port">AmneziaWG mesh listen port</label>
+        <InputNumber id="awg-port" @bind-Value="_awg.ListenPort"/>
+        <h2>Obfuscation parameters</h2>
+        <p class="muted">H1-H4 and S1-S4 must match between all nodes.</p>
+        <div class="settings-grid">
+            <label>H1
+                <InputText @bind-Value="_awg.H1"/>
+            </label>
+            <label>H2
+                <InputText @bind-Value="_awg.H2"/>
+            </label>
+            <label>H3
+                <InputText @bind-Value="_awg.H3"/>
+            </label>
+            <label>H4
+                <InputText @bind-Value="_awg.H4"/>
+            </label>
+            <label>Jc
+                <InputNumber @bind-Value="_awg.Jc"/>
+            </label>
+            <label>Jmin
+                <InputNumber @bind-Value="_awg.Jmin"/>
+            </label>
+            <label>Jmax
+                <InputNumber @bind-Value="_awg.Jmax"/>
+            </label>
+            <label>S1
+                <InputNumber @bind-Value="_awg.S1"/>
+            </label>
+            <label>S2
+                <InputNumber @bind-Value="_awg.S2"/>
+            </label>
+            <label>S3
+                <InputNumber @bind-Value="_awg.S3"/>
+            </label>
+            <label>S4
+                <InputNumber @bind-Value="_awg.S4"/>
+            </label>
+            <label>I1
+                <InputText @bind-Value="_awg.I1"/>
+            </label>
+            <label>I2
+                <InputText @bind-Value="_awg.I2"/>
+            </label>
+            <label>I3
+                <InputText @bind-Value="_awg.I3"/>
+            </label>
+            <label>I4
+                <InputText @bind-Value="_awg.I4"/>
+            </label>
+            <label>I5
+                <InputText @bind-Value="_awg.I5"/>
+            </label>
+        </div>
+        <button @onclick="SaveAsync" disabled="@_busy">Save settings</button>
+    }
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p role="status">@_message</p>
+    }
+</main>
+
+@code {
+    private ClusterSettingsResponse _cluster = new();
+    private AwgClusterSettings _awg = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var clusterTask = AdminApi.GetClusterSettingsAsync();
+            var awgTask = AdminApi.GetAwgSettingsAsync();
+            await Task.WhenAll(clusterTask, awgTask);
+            _cluster = await clusterTask;
+            _awg = await awgTask;
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                    ? "You do not have permission to view settings."
+                    : "Could not load cluster settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await AdminApi.SaveClusterSettingsAsync(new UpdateClusterSettingsRequest { GlobalDomain = _cluster.GlobalDomain });
+            await AdminApi.SaveAwgSettingsAsync(_awg);
+            _message = "Cluster settings saved.";
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.Statustem.Net.HttpStatusCode.Forbidden
+                    ? "You do not have permission to change settings."
+                    : "Could not save cluster settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+}

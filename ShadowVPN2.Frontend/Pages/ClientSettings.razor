@@ -1,0 +1,169 @@
+@page "/clients/settings/{*ClientId}"
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IClientApplicationService ClientsApi
+@inject NavigationManager Navigation
+
+<PageTitle>Client settings - ShadowVPN2</PageTitle>
+
+<FrontendNav/>
+<main>
+    <p><a href="/clients">← VPN clients</a></p>
+    <h1>Client settings</h1>
+
+    @if (_loading)
+    {
+        <p class="muted">Loading client…</p>
+    }
+    else if (!_authenticated)
+    {
+        <p>You need to sign in to manage VPN clients.</p>
+        <a href="@LoginUrl">Sign in</a>
+    }
+    else if (_client is null)
+    {
+        <p class="error">Client not found or access denied.</p>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error" role="alert">@_error</p>
+        }
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <p role="status">@_message</p>
+        }
+
+        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator/>
+            <div>
+                <label for="client-name">Device name</label>
+                <InputText id="client-name" @bind-Value="_form.Name"/>
+                <ValidationMessage For="() => _form.Name"/>
+            </div>
+            <div>
+                <InputCheckbox id="client-enabled" @bind-Value="_form.IsEnabled"/>
+                <label for="client-enabled">Enabled</label>
+            </div>
+            <div>
+                <label for="client-mtu">WireGuard MTU</label>
+                <InputNumber id="client-mtu" @bind-Value="_form.WireGuardMtu"/>
+                <ValidationMessage For="() => _form.WireGuardMtu"/>
+            </div>
+            <button type="submit" disabled="@_saving">Save</button>
+        </EditForm>
+
+        <section>
+            <h2>Connection details</h2>
+            <dl>
+                <dt>Assigned IP</dt>
+                <dd>@_client.AssignedIp</dd>
+                <dt>Subscription</dt>
+                <dd><a href="/s/@_client.SubscriptionId" target="_blank">Open subscription</a></dd>
+                @if (_client.Hysteria2 is not null)
+                {
+                    <dt>Hysteria2 password</dt>
+                    <dd><code>@_client.Hysteria2.Password</code></dd>
+                }
+            </dl>
+        </section>
+    }
+</main>
+
+@code {
+    [Parameter] public string? ClientId { get; set; }
+
+    private ClientResponse? _client;
+    private FormModel _form = new();
+    private bool _loading = true;
+    private bool _authenticated;
+    private bool _saving;
+    private string? _error;
+    private string? _message;
+
+    private string LoginUrl => $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(ClientId))
+            {
+                _client = await ClientsApi.GetClientAsync(Uri.UnescapeDataString(ClientId));
+                _form = new FormModel
+                {
+                        Name = _client.Name,
+                        IsEnabled = _client.IsEnabled,
+                        WireGuardMtu = _client.WireGuard?.Mtu
+                };
+            }
+
+            _authenticated = true;
+        }
+        catch (ApplicationServiceException exception)
+        {
+            if (exception.St System.Net.HttpStatusCode.Unauthorized)
+                _authenticated = false;
+            else if (exception.St System.Net.HttpStatusCode.NotFound)
+                _error = "Could not load client settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_client is null)
+            return;
+
+        _saving = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            var request = new UpdateClientRequest
+            {
+                    Name = _form.Name,
+                    IsEnabled = _form.IsEnabled,
+                    WireGuard = _client.WireGuard is null && !_form.WireGuardMtu.HasValue
+                            ? null
+                            : new WireGuardClientSettingsRequest { Mtu = _form.WireGuardMtu }
+            };
+            _client = await ClientsApi.UpdateClientAsync(_client.Id, request);
+            _message = "Settings saved.";
+        }
+        catch (ApplicationServiceException exception)
+        {
+ if (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                _authenticated = false;
+            else
+                _error = "Could not save client settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    privat [System.ComponentM [System.ComponentModel.DataAnnotations.StringLength(100, MinimumLength = 1)]
+        public string Name { get; set; } = string.Empty;
+
+        public bool Is [System.ComponentModel.DataAnnotations.Range(576, 9000)]
+        public int? WireGuardMtu { get; set; }
+    }
+
+}

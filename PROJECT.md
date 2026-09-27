@@ -22,7 +22,9 @@ ShadowVPN2 is a distributed control panel for VPN and proxy services, designed t
 -   **Setup Wizard:** A web-based first-run experience to configure the cluster, generate Docker configs, and initialize the first node.
 
 ## Technical Stack
--   **Framework:** .NET 10 (Blazor WebApp, Interactive Server mode)
+
+- **Framework:** .NET 10 (interactive server-side Blazor UI in a separate Razor Class Library hosted by the ASP.NET Core
+  backend)
 -   **Database:** RavenDB (Embedded + Clustering)
 -   **Security:** ASP.NET Core Identity + OpenIDDict
 -   **Core Engine:** sing-box

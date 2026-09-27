@@ -42,4 +42,10 @@ public sealed class NodesController(
         CancellationToken cancellationToken) {
         return await protocolDomainService.GetCertificateDomainsAsync(nodeId, cancellationToken);
     }
+
+    [HttpGet("protocol-domain-routes")]
+    public async Task<IReadOnlyList<ProtocolDomainRouteResponse>> GetProtocolDomainRoutes(
+        CancellationToken cancellationToken) {
+        return await protocolDomainService.GetRoutesAsync(cancellationToken);
+    }
 }

@@ -1,0 +1,327 @@
+@page "/"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Nodes.View")]
+@inject INodeApplicationService NodesApi
+@inject IClusterApplicationService ClusterApi
+@inject INodeUpdatesService NodeRealtime
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@using System.Net
+@implements IAsyncDisposable
+
+<PageTitle>Nodes - ShadowVPN2</PageTitle>
+
+<FrontendNav/>
+<main>
+    <div class="actions">
+        <h1>Nodes</h1>
+        <button @onclick="OpenAddNode">Add node</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="muted">Loading nodes…</p>
+    }
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error" role="alert">@_error</p>
+        @if (_authenticationRequired)
+        {
+            <a href="@LoginUrl">Sign in</a>
+        }
+    }
+    @if (_nodes.Count == 0 && !_loading)
+    {
+        <p class="muted">No nodes found. Add a node to start.</p>
+    }
+    else if (_nodes.Count > 0)
+    {
+        <table>
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Domain</th>
+                <th>Public IP</th>
+                <th>Mesh IP</th>
+                <th>Protocol domains</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var node in _nodes)
+            {
+                <tr>
+                    <td>@node.Number</td>
+                    <td>@node.Name</td>
+                    <td>
+                        <code>@(string.IsNullOrWhiteSpace(node.Domain) ? "—" : node.Domain)</code>
+                        @if (node.DomainStatus is not null)
+                        {
+                            <div class="muted">@DomainStatusText(node.DomainStatus.State)</div>
+                        }
+                    </td>
+                    <td><code>@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code></td>
+                    <td><code>@node.AwgMeshIp</code></td>
+                    <td>
+                        @foreach (var route in _protocolRoutes.Where(route => route.NodeId == node.NodeId &&
+                                                                              route.State is ProtocolDomainRouteState.Valid or
+                                                                                      ProtocolDomainRouteState.PartialMatch))
+                        {
+                            <div><code>@route.Domain</code></div>
+                        }
+                    </td>
+                    <td>@(node.IsPending ? "Pending" : "Joined")</td>
+                    <td>
+                        <button @onclick="() => EditNodeAsync(node)">Edit domain</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</main>
+
+@if (_showAddNode)
+{
+    <div class="modal-backdrop">
+        <section class="dialog">
+            <h2>Add node</h2>
+            @if (_joinToken is null)
+            {
+                <label for="node-name">Node name</label>
+                <InputText id="node-name" @bind-Value="_newNodeName"/>
+                <label for="node-domain">Domain (optional)</label>
+                <InputText id="node-domain" @bind-Value="_newNodeDomain"/>
+                <button @onclick="GenerateTokenAsync" disabled="@_busy">Generate join token</button>
+            }
+            else
+            {
+                <p>Set this token as <code>JoinToken</code> on the new node.</p>
+                <textarea rows="5" readonly>@_joinToken</textarea>
+                <button @onclick="CopyTokenAsync">Copy token</button>
+            }
+            <button @onclick="CloseAddNode">Close</button>
+        </section>
+    </div>
+}
+
+@if (_editingNode is not null)
+{
+    <div class="modal-backdrop">
+        <section class="dialog">
+            <h2>Node: @_editingNode.Name</h2>
+            <label for="edit-domain">Domain</label>
+            <InputText id="edit-domain" @bind-Value="_editingDomain"/>
+            <p class="muted">
+                Public IPv4: @_editingNode.PublicIpv4 — Public IPv6: @_editingNode.PublicIpv6
+            </p>
+            <p>Internal addresses: @(_editingNode.InternalAddresses.Count == 0
+                                               ? "—"
+                                               : string.Join(", ", _editingNode.InternalAddresses))</p>
+            @if (_editingNode.DomainStatus is not null)
+            {
+                <p>@DomainStatusText(_editingNode.DomainStatus.State)</p>
+                @if (_editingNode.DomainStatus.ResolvedAddresses.Count > 0)
+                {
+                    <p>Resolved: @string.Join(", ", _editingNode.DomainStatus.ResolvedAddresses)</p>
+                }
+            }
+            @if (_certificateDomains is not null)
+            {
+                <p>Certificate domains: @(_certificateDomains.Domains.Count == 0
+                                                    ? "none"
+                                                    : string.Join(", ", _certificateDomains.Domains))</p>
+            }
+            @foreach (var route in _protocolRoutes.Where(route => route.NodeId == _editingNode.NodeId &&
+                                                                  route.State is ProtocolDomainRouteState.Valid or
+                                                                          ProtocolDomainRouteState.PartialMatch))
+            {
+                <p><code>@route.Domain</code> — @route.Protocol</p>
+            }
+            <div class="actions">
+                <button @onclick="CheckDomainAsync" disabled="@_busy">Check DNS</button>
+                <button @onclick="SaveDomainAsync" disabled="@_busy">Save</button>
+                <button @onclick="() => _editingNode = null">Close</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<NodeResponse> _nodes = [];
+    private IReadOnlyList<ProtocolDomainRouteResponse> _protocolRoutes = [];
+    private NodeCertificateDomainsResponse? _certificateDomains;
+    private IAsyncDisposable? _subscription;
+    private NodeResponse? _editingNode;
+    private string? _editingDomain;
+    private string _newNodeName = "new-node";
+    private string? _newNodeDomain;
+    private string? _joinToken;
+    private bool _showAddNode;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _authenticationRequired;
+    private string? _error;
+
+    private string LoginUrl =>
+            $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadNodesAsync();
+            _protocolRoutes = await NodesApi.GetProtocolDomainRoutesAsync();
+            _subscription = await NodeRealtime.SubscribeAsync(nodes => InvokeAsync(() =>
+            {
+                _nodes = nodes.OrderBy(node => node.Number).ToArray();
+                StateHasChanged();
+            }));
+        }
+        catch (ApplicationServiceException exception)
+        {
+            _authenticationRxception.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            _error = _authenticationRequired
+                    ? "Sign in to access nodes."
+         : exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+                            ? "You do not have permission to view nodes."
+                            : "Could not load nodes.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadNodesAsync()
+    {
+        _nodes = (await NodesApi.GetNodesAsync()).OrderBy(node => node.Number).ToArray();
+    }
+
+    private void OpenAddNode()
+    {
+        _showAddNode = true;
+        _joinToken = null;
+        _error = null;
+    }
+
+    private void CloseAddNode() => _showAddNode = false;
+
+    private async Task GenerateTokenAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNodeName.Trim(),
+                    string.IsNullOrWhiteSpace(_newNodeDomain) ? null : _newNodeDomain.Trim());
+        }
+        catch (ApplicationServiceException exce    {
+            _error = exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "Only administrators can add nodes."
+                    : "Could not generate a node join token.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CopyTokenAsync()
+    {
+        if (_joinToken is not null)
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _joinToken);
+    }
+
+    private async Task EditNodeAsync(NodeResponse node)
+    {
+        _editingNode = node;
+        _editingDomain = node.Domain;
+        _certificateDomains = await NodesApi.GetCertificateDomainsAsync(node.NodeId);
+        _error = null;
+    }
+
+    private async Task SaveDomainAsync()
+    {
+        if (_editingNode is null)
+            return;
+
+        _busy = true;
+        try
+        {
+            await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            await ReloadAsync();
+            _editingNode = null;
+        }
+        catch (ApplicationServiceExcepton)
+        {
+            _error = exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    ? "You do not have permission to edit nodes."
+                    : "Could not update the node domain.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CheckDomainAsync()
+    {
+        if (_editingNode is null)
+            return;
+
+        _busy = true;
+        try
+        {
+            if (!string.Equals(_editingDomain?.Trim(), _editingNode.Domain, StringComparison.OrdinalIgnoreCase))
+                await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            else
+                _editingNode.DomainStatus = await NodesApi.CheckDomainAsync(_editingNode.NodeId);
+            await ReloadAsync();
+            _editingNode = _nodes.FirstOrDefault(node => node.NodeId == _editingNode.NodeId);
+        }
+        catch (ApplicationServiceException)
+        {
+            _error = "Could not check the node domain.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadNodesAsync();
+        _protocolRoutes = await NodesApi.GetProtocolDomainRoutesAsync();
+    }
+
+    private static string DomainStatusText(DomainValidationState state) => state switch
+    {
+            DomainValidationState.Valid => "Domain points to this node",
+            DomainValidationState.PartialMatch => "Some DNS records point to this node",
+            DomainValidationState.NoDomain => "No domain configured",
+            DomainValidationState.PublicIpUnknown => "Public IP is unknown",
+            DomainValidationState.NoRecords => "No A/AAAA records",
+            DomainValidationState.Mismatch => "Domain points elsewhere",
+            DomainValidationState.LookupFailed => "DNS lookup failed",
+            _ => state.ToString()
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_subscription is not null)
+            await _subscription.DisposeAsync();
+    }
+
+}

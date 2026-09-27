@@ -1,0 +1,360 @@
+@page "/admin/settings/protocols"
+@using System.Net
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+@inject IAdminSettingsService AdminApi
+
+<PageTitle>Protocol settings - ShadowVPN2</PageTitle>
+
+<header><strong>ShadowVPN2 settings</strong></header>
+<main>
+    <AdminSettingsNav/>
+    <div class="actions">
+        <div>
+            <h1>Protocol settings</h1>
+            <p class="muted">Configure VPN protocols and transport overlays.</p>
+        </div>
+        <button @onclick="AddHysteria2">Add Hysteria2</button>
+        <button @onclick="AddWireGuard">Add WireGuard / AmneziaWG</button>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="muted">Loading protocol settings…</p>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error" role="alert">@_error</p>
+    }
+    else
+    {
+        <label for="main-domain">Global main domain</label>
+        <InputText id="main-domain" @bind-Value="_request.MainDomain" placeholder="vpn.example.com"/>
+
+        @foreach (var item in _request.Protocols.ToArray())
+        {
+            <section class="settings-card">
+                <div class="actions">
+                    <h2>@ProtocolName(item)</h2>
+                    <button @onclick="() => RemoveProtocol(item)">Remove</button>
+                </div>
+                <label>
+                    <InputCheckbox @bind-Value="item.Enabled"/>
+                    Enabled</label>
+                <label>Listen port
+                    <InputNumber @bind-Value="item.ListenPort"/>
+                </label>
+                <label>Main domain override
+                    <InputText @bind-Value="item.MainDomain"/>
+                </label>
+                @{ var protocolIndex = _request.Protocols.IndexOf(item); }
+                @if (protocolIndex >= 0 && protocolIndex < _domainRoutes.Count &&
+                     _domainRoutes[protocolIndex].State != ProtocolDomainRouteState.NoDomain)
+                {
+                    <p class="muted">
+                        @_domainRoutes[protocolIndex].Domain — @_domainRoutes[protocolIndex].State
+                        @if (_domainRoutes[protocolIndex].NodeName is not null)
+                        {
+                            <span> (@_domainRoutes[protocolIndex].NodeName)</span>
+                        }
+                    </p>
+                }
+                @if (item is Hysteria2ProtocolSettingsDto hysteria2)
+                {
+                    <label>Obfuscation type
+                        <InputSelect @bind-Value="hysteria2.ObfsType">
+                            <option value="salamander">salamander</option>
+                            <option value="none">none</option>
+                        </InputSelect>
+                    </label>
+                    @if (hysteria2.ObfsType != "none")
+                    {
+                        <label>Obfuscation password
+                            <InputText @bind-Value="hysteria2.ObfsPassword"/>
+                        </label>
+                    }
+
+                    <p class="muted">TLS certificate: @(hysteria2.HasTlsCertificate ? "generated" : "missing")</p>
+                    <button @onclick="() => RegenerateCertificateAsync(hysteria2.Id)" disabled="@_saving">
+                        Regenerate TLS certificate
+                    </button>
+                }
+                else if (item is AwgProtocolSettingsDto awg)
+                {
+                    <details>
+                        <summary>AmneziaWG parameters</summary>
+                        <p class="muted">H1-H4 and S1-S4 must match between all nodes.</p>
+                        <div class="settings-grid">
+                            <label>H1
+                                <InputText @bind-Value="awg.H1"/>
+                            </label>
+                            <label>H2
+                                <InputText @bind-Value="awg.H2"/>
+                            </label>
+                            <label>H3
+                                <InputText @bind-Value="awg.H3"/>
+                            </label>
+                            <label>H4
+                                <InputText @bind-Value="awg.H4"/>
+                            </label>
+                            <label>Jc
+                                <InputNumber @bind-Value="awg.Jc"/>
+                            </label>
+                            <label>Jmin
+                                <InputNumber @bind-Value="awg.Jmin"/>
+                            </label>
+                            <label>Jmax
+                                <InputNumber @bind-Value="awg.Jmax"/>
+                            </label>
+                            <label>S1
+                                <InputNumber @bind-Value="awg.S1"/>
+                            </label>
+                            <label>S2
+                                <InputNumber @bind-Value="awg.S2"/>
+                            </label>
+                            <label>S3
+                                <InputNumber @bind-Value="awg.S3"/>
+                            </label>
+                            <label>S4
+                                <InputNumber @bind-Value="awg.S4"/>
+                            </label>
+                            <label>I1
+                                <InputText @bind-Value="awg.I1"/>
+                            </label>
+                            <label>I2
+                                <InputText @bind-Value="awg.I2"/>
+                            </label>
+                            <label>I3
+                                <InputText @bind-Value="awg.I3"/>
+                            </label>
+                            <label>I4
+                                <InputText @bind-Value="awg.I4"/>
+                            </label>
+                            <label>I5
+                                <InputText @bind-Value="awg.I5"/>
+                            </label>
+                        </div>
+                    </details>
+                }
+            </section>
+        }
+
+        <section class="settings-card">
+            <div class="actions">
+                <h2>Transports</h2>
+                <button @onclick="AddFreeTurn" disabled="@(_request.Protocols.Count == 0)">Add FreeTurn</button>
+            </div>
+            @if (_request.Transports.Count == 0)
+            {
+                <p class="muted">No transport overlays configured.</p>
+            }
+            @foreach (var transport in _request.Transports.OfType<FreeTurnTransportSettingsDto>().ToArray())
+            {
+                <div class="transport-row">
+                    <label>
+                        <InputCheckbox @bind-Value="transport.Enabled"/>
+                        Enabled</label>
+                    <label>Protocol
+                        <InputSelect @bind-Value="transport.ProtocolId">
+                            @foreach (var protocol in _request.Protocols)
+                            {
+                                <option value="@protocol.Id">@ProtocolName(protocol)</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label>Listen port
+                        <InputNumber @bind-Value="transport.ListenPort"/>
+                    </label>
+                    <label>Obfuscation
+                        <InputSelect @bind-Value="transport.ObfuscationProfile">
+                            <option value="">Disabled</option>
+                            <option value="RtpOpus">RTP/Opus</option>
+                            <option value="RtpOpus2">RTP/Opus 2</option>
+                            <option value="RtpOpus3">RTP/Opus 3</option>
+                        </InputSelect>
+                    </label>
+                    <label>TURN transport
+                        <InputSelect @bind-Value="transport.TurnTransport">
+                            <option value="Tcp">TCP/TLS</option>
+                            <option value="Udp">UDP</option>
+                        </InputSelect>
+                    </label>
+                    <label>Streams
+                        <InputNumber @bind-Value="transport.Streams"/>
+                    </label>
+                    <label>Obfuscation key
+                        <InputText @bind-Value="transport.ObfuscationKey"/>
+                    </label>
+                    <button @onclick="() => _request.Transports.Remove(transport)">Remove</button>
+                </div>
+            }
+        </section>
+        <button @onclick="SaveAsync" disabled="@_saving">Save all changes</button>
+    }
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p role="status">@_message</p>
+    }
+</main>
+
+@code {
+    private UpdateProtocolsSettingsRequest _request = new();
+    private IReadOnlyList<ProtocolDomainRouteResponse> _domainRoutes = [];
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await AdminApi.GetProtocolsAsync();
+            _request = new UpdateProtocolsSettingsRequest
+            {
+                MainDomain = settings.MainDomain,
+                Protocols = settings.Protocols,
+                Transports = settings.Transports
+            };
+            _domainRoutes = await LoadDomainRoutesAsync();
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view settings."
+                : "Could not load protocol settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<IReadOnlyList<ProtocolDomainRouteResponse>> LoadDomainRoutesAsync()
+    {
+        try
+        {
+            return await NodesApi.GetProtocolDomainRoutesAsync();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private void AddHysteria2()
+    {
+        var settings = new Hysteria2ProtocolSettingsDto
+        {
+            Id = Guid.NewGuid(),
+            Enabled = true,
+            ListenPort = NextPort(4443),
+            ObfsPassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant()
+        };
+        _request.Protocols.Add(settings);
+    }
+
+    private void AddWireGuard() => _request.Protocols.Add(new AwgProtocolSettingsDto
+    {
+        Id = Guid.NewGuid(),
+        Enabled = true,
+        ListenPort = NextPort(51820)
+    });
+
+    private int NextPort(int start)
+    {
+        var used = _request.Protocols.Select(protocol => protocol.ListenPort).ToHashSet();
+        while (used.Contains(start)) start++;
+        return start;
+    }
+
+    private void AddFreeTurn()
+    {
+        if (_request.Protocols.Count == 0) return;
+        var used = _request.Protocols.Select(protocol => protocol.ListenPort)
+            .Concat(_request.Transports.Select(transport => transport.ListenPort)).ToHashSet();
+        var port = 56000;
+        while (used.Contains(port)) port++;
+        _request.Transports.Add(new FreeTurnTransportSettingsDto
+        {
+            Id = Guid.NewGuid(),
+            ProtocolId = _request.Protocols[0].Id,
+            ListenPort = port,
+            ObfuscationKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
+        });
+    }
+
+    private void RemoveProtocol(ProtocolSettingsDto protocol)
+    {
+        _request.Protocols.Remove(protocol);
+        _request.Transports.RemoveAll(transport => transport.ProtocolId == protocol.Id);
+    }
+
+    private static string ProtocolName(ProtocolSettingsDto protocol) => protocol switch
+    {
+        Hysteria2ProtocolSettingsDto => "Hysteria2",
+        AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
+        _ => "Unknown"
+    };
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await AdminApi.SaveProtocolsAsync(_request);
+            _domainRoutes = await LoadDomainRoutesAsync();
+            _message = "Protocol settings saved. Nodes will update automatically.";
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to change settings."
+                : "Could not save protocol settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RegenerateCertificateAsync(Guid protocolId)
+    {
+        _saving = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await AdminApi.RegenerateProtocolCertificateAsync(protocolId);
+            var settings = await AdminApi.GetProtocolsAsync();
+            _request.Protocols = settings.Protocols;
+            _message = "TLS certificate regenerated.";
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to change settings."
+                : "Could not regenerate the TLS certificate.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    [Inject] private INodeApplicationService NodesApi { get; set; } = default!;
+}

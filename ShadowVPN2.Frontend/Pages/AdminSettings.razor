@@ -1,0 +1,12 @@
+@page "/admin/settings"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+
+<PageTitle>Settings - ShadowVPN2</PageTitle>
+
+<header><strong>ShadowVPN2 settings</strong></header>
+<main>
+    <AdminSettingsNav/>
+    <h1>General settings</h1>
+    <p class="muted">Select a category to manage global settings.</p>
+</main>

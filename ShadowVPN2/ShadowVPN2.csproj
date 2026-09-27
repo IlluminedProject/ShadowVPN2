@@ -9,7 +9,12 @@
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
 
-    <ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
+    <ProjectReference Include="..\ShadowVPN2.Frontend\ShadowVPN2.Frontend.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
         <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" Aliases="BCNew" />
         <PackageReference Include="Certes" Version="3.0.4" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.7" />

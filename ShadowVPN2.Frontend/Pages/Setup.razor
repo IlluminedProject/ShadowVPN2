@@ -1,0 +1,193 @@
+@page "/setup"
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+@layout SetupLayout
+@inject ISetupApplicationService SetupApi
+@inject NavigationManager Navigation
+
+<PageTitle>Initial setup - ShadowVPN2</PageTitle>
+
+<header><strong>ShadowVPN2 setup</strong></header>
+<main>
+    <div class="progress mb-3" role="progressbar" aria-label="Setup progress">
+        <div class="progress-bar" style="width: @(_step * 33)%">Step @_step of 3</div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="error" role="alert">@_error</div>
+    }
+
+    @if (_step == 1)
+    {
+        <h1>Network information</h1>
+        <p>Configure this node's name and optional public domain.</p>
+        <label for="node-name">Node name</label>
+        <InputText id="node-name" @bind-Value="_node.NodeName"/>
+        <label for="node-domain">Node domain (optional)</label>
+        <InputText id="node-domain" @bind-Value="_node.Domain" placeholder="node.example.com"/>
+        <button @onclick="LookupIpAsync" disabled="@_busy">Detect public IP</button>
+        @if (!string.IsNullOrEmpty(_publicIp))
+        {
+            <p>Detected public IP: <code>@_publicIp</code></p>
+        }
+
+        <button @onclick="SaveNodeAsync" disabled="@_busy">Continue</button>
+    }
+    else if (_step == 2)
+    {
+        <h1>Authentication</h1>
+        <p>Choose local administrator login or an OpenID Connect provider.</p>
+        <div class="actions">
+            <button @onclick="() => _useOidc = false">Local login</button>
+            <button @onclick="() => _useOidc = true">OpenID Connect</button>
+        </div>
+
+        @if (!_useOidc)
+        {
+            <label for="email">Administrator email</label>
+            <InputText id="email" type="email" @bind-Value="_localAuth.Email"/>
+            <label for="password">Password</label>
+            <InputText id="password" type="password" @bind-Value="_localAuth.Password"/>
+            <label for="confirm-password">Confirm password</label>
+            <InputText id="confirm-password" type="password" @bind-Value="_confirmPassword"/>
+        }
+        else
+        {
+            <label for="oidc-name">Provider display name</label>
+            <InputText id="oidc-name" @bind-Value="_oidc.DisplayName"/>
+            <label for="authority">Issuer URL</label>
+            <InputText id="authority" type="url" @bind-Value="_oidc.Authority"/>
+            <label for="client-id">Client ID</label>
+            <InputText id="client-id" @bind-Value="_oidc.ClientId"/>
+            <label for="client-secret">Client secret</label>
+            <InputText id="client-secret" type="password" @bind-Value="_oidc.ClientSecret"/>
+            <p>Redirect URI: <code>@Navigation.ToAbsoluteUri("/signin-OIDC")</code></p>
+            <button @onclick="TestOidcAsync" disabled="@_busy">Test provider</button>
+            @if (_oidcTestResult is not null)
+            {
+                <p class="@(_oidcTestResult.Value ? "success" : "error")">@_oidcTestMessage</p>
+            }
+        }
+
+        <div class="actions">
+            <button @onclick="() => _step = 1" disabled="@_busy">Back</button>
+            <button @onclick="SaveAuthenticationAsync" disabled="@_busy">Continue</button>
+        </div>
+    }
+    else
+    {
+        <h1>Save the root certificate</h1>
+        <p>
+            Download and securely store <code>root-ca.pfx</code> before finishing.
+            The file is deleted from this server when setup completes.
+        </p>
+        <a class="button" href="/api/setup/root-ca" target="_blank" @onclick="() => _downloadedCertificate = true">
+            Download root-ca.pfx
+        </a>
+        <button @onclick="FinishAsync" disabled="@(_busy || !_downloadedCertificate)">
+            Finish setup
+        </button>
+    }
+</main>
+
+@code {
+    private int _step = 1;
+    private bool _busy;
+    private bool _useOidc;
+    private bool _downloadedCertificate;
+    private string? _publicIp;
+    private string? _error;
+    private bool? _oidcTestResult;
+    private string? _oidcTestMessage;
+    private string _confirmPassword = string.Empty;
+    private readonly NodeSetupRequest _node = new() { NodeName = "primary-node" };
+    private readonly LocalAuthSetupRequest _localAuth = new();
+    private readonly OidcAuthSetupRequest _oidc = new() { DisplayName = "Login with OAuth" };
+
+    protected override async Task OnInitializedAsync() => await LookupIpAsync();
+
+    private async Task LookupIpAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _publicIp = await SetupApi.GetPublicIpAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveNodeAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await SetupApi.ConfigureNodeAsync(_node);
+            _step = 2;
+        });
+    }
+
+    private async Task SaveAuthenticationAsync()
+    {
+        if (!_useOidc && _localAuth.Password != _confirmPassword)
+        {
+            _error = "Passwords do not match.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            if (_useOidc)
+                await SetupApi.ConfigureOidcAsync(_oidc);
+            else
+                await SetupApi.ConfigureLocalAuthAsync(_localAuth);
+            _step = 3;
+        });
+    }
+
+    private async Task TestOidcAsync()
+    {
+        await RunAsync(async () =>
+        {
+            _oidcTestResult = await SetupApi.TestOidcConnectionAsync(_oidc.Authority);
+            _oidcTestMessage = _oidcTestResult.Value
+                    ? "Connected to the OIDC discovery endpoint."
+                    : "Could not connect to the OIDC discovery endpoint.";
+        });
+    }
+
+    private async Task FinishAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await SetupApi.FinishSetupAsync();
+            Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+}
