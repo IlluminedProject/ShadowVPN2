@@ -37,6 +37,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<RavenMigrationLock>();
         builder.Services.AddSingleton<RavenMigrationRunner>();
         builder.Services.AddRavenMigration<UnifyAwgSettingsMigration>();
+        builder.Services.AddRavenMigration<RenameWireGuardAmneziaSettingsMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();

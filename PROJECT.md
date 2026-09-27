@@ -26,6 +26,9 @@ ShadowVPN2 is a distributed control panel for VPN and proxy services, designed t
 - **Framework:** .NET 10 (interactive server-side Blazor UI in a separate Razor Class Library hosted by the ASP.NET Core
   backend)
 -   **Database:** RavenDB (Embedded + Clustering)
+- **Database migrations:** Versioned RavenDB migrations run during startup. Persisted polymorphic `$type` values are
+  schema, so CLR type or namespace changes require a migration that rewrites the stored type name before the old
+  type is removed.
 -   **Security:** ASP.NET Core Identity + OpenIDDict
 -   **Core Engine:** sing-box
 -   **Networking:** Dynamic Overlay (Wireguard-based)
