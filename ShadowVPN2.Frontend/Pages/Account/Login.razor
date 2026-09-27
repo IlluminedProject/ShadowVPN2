@@ -1,0 +1,70 @@
+@page "/Account/Login"
+@using System.ComponentModel.DataAnnotations
+@layout AccountLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Log in</PageTitle>
+
+<h1 class="text-center mb-4">Log in</h1>
+
+@if (Error is not null)
+{
+    <div class="alert alert-danger" role="alert">@Error</div>
+}
+
+<section>
+    <form method="post" action="/api/auth/login">
+        <AntiforgeryToken/>
+        <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+        <div class="form-floating mb-3">
+            <input name="Email" id="Email" class="form-control" autocomplete="username" placeholder="name@example.com"
+                   required type="email" @bind="_model.Email"/>
+            <label for="Email">Email</label>
+        </div>
+        <div class="form-floating mb-3">
+            <input name="Password" id="Password" type="password" class="form-control"
+                   autocomplete="current-password" placeholder="password" required @bind="_model.Password"/>
+            <label for="Password">Password</label>
+        </div>
+        <div class="checkbox mb-3">
+            <label>
+                <input type="checkbox" @bind="_model.RememberMe" name="RememberMe" class="form-check-input"/>
+                Remember me
+            </label>
+        </div>
+        <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+    </form>
+</section>
+
+<div class="text-center mt-3">
+    <a href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
+        Login with OAuth
+    </a>
+</div>
+
+@code {
+    private readonly LoginInput _model = new();
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? ErrorCode { get; set; }
+
+    private string? Error => ErrorCode switch
+    {
+        "invalid" => "Invalid login attempt.",
+        "expired" => "The login session has expired. Please try again.",
+        _ => null
+    };
+
+    private sealed class LoginInput
+    {
+        [Required] [EmailAddress] public string Email { get; set; } = string.Empty;
+
+        [Required] public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+
+}

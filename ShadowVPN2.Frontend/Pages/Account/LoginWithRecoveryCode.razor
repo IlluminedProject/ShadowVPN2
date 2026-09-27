@@ -1,0 +1,38 @@
+@page "/Account/LoginWithRecoveryCode"
+@using System.ComponentModel.DataAnnotations
+@layout AccountLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Recovery code verification</PageTitle>
+
+<h1 class="text-center mb-4 h3">Recovery code verification</h1>
+<p class="text-center mb-4 small">Enter one of your recovery codes to finish signing in.</p>
+
+@if (ErrorCode == "invalid")
+{
+    <div class="alert alert-danger" role="alert">Invalid recovery code.</div>
+}
+
+<form method="post" action="/api/auth/recovery-code">
+    <AntiforgeryToken/>
+    <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+    <div class="form-floating mb-3">
+        <input name="RecoveryCode" id="RecoveryCode" class="form-control" autocomplete="off"
+               placeholder="Recovery code" required @bind="_model.RecoveryCode"/>
+        <label for="RecoveryCode">Recovery code</label>
+    </div>
+    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+</form>
+
+@code {
+    private readonly RecoveryInput _model = new();
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] private string? ErrorCode { get; set; }
+
+    private sealed class RecoveryInput
+    {
+        [Required] public string RecoveryCode { get; set; } = string.Empty;
+    }
+
+}

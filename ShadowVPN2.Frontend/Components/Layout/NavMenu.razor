@@ -1,4 +1,3 @@
-@using Microsoft.AspNetCore.Components.Authorization
 @implements IDisposable
 
 @inject NavigationManager NavigationManager
@@ -42,7 +41,7 @@
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <form action="Account/Logout" method="post">
+                    <form action="/api/auth/logout" method="post">
                         <AntiforgeryToken/>
                         <input type="hidden" name="ReturnUrl" value="@_currentUrl"/>
                         <button type="submit" class="nav-link">

@@ -1,0 +1,56 @@
+@page "/Account/LoginWith2fa"
+@using System.ComponentModel.DataAnnotations
+@layout AccountLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>Two-factor authentication</PageTitle>
+
+<h1 class="text-center mb-4 h3">Two-factor authentication</h1>
+<p class="text-center mb-4">Enter your authenticator code below.</p>
+
+@if (ErrorCode == "invalid")
+{
+    <div class="alert alert-danger" role="alert">Invalid authenticator code.</div>
+}
+
+<form method="post" action="/api/auth/2fa">
+    <AntiforgeryToken/>
+    <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+    <input type="hidden" name="RememberMe" value="@RememberMe"/>
+    <div class="form-floating mb-3">
+        <input name="TwoFactorCode" id="TwoFactorCode" class="form-control" autocomplete="one-time-code"
+               required minlength="6" maxlength="7" @bind="_model.TwoFactorCode"/>
+        <label for="TwoFactorCode">Authenticator code</label>
+    </div>
+    <div class="checkbox mb-3">
+        <label>
+            <input type="checkbox" @bind="_model.RememberMachine" name="RememberMachine" class="form-check-input"/>
+            Remember this machine
+        </label>
+    </div>
+    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+</form>
+
+<p class="text-center mt-4 mb-0">
+    <a href="/Account/LoginWithRecoveryCode?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
+        Use a recovery code
+    </a>
+</p>
+
+@code {
+    private readonly TwoFactorInput _model = new();
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromQuery] private bool RememberMe { get; set; }
+    [SupplyParameterFromQuery] private string? ErrorCode { get; set; }
+
+    private sealed class TwoFactorInput
+    {
+        [Required]
+        [StringLength(7, MinimumLength = 6)]
+        public string? TwoFactorCode { get; set; }
+
+        public bool RememberMachine { get; set; }
+    }
+
+}
