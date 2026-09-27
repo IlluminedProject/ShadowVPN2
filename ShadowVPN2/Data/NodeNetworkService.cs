@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Entities;
@@ -11,6 +13,7 @@ namespace ShadowVPN2.Data;
 public sealed class NodeNetworkService(
     IDocumentStore documentStore,
     IHttpClientFactory httpClientFactory,
+    IServer server,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<NodeNetworkService> logger) : BackgroundService {
     public static string GetStatusId(Guid nodeId) => $"NodeNetworkStatuses/{nodeId:D}";
@@ -43,6 +46,17 @@ public sealed class NodeNetworkService(
         var status = await GetStatusAsync(node.NodeId, cancellationToken);
         var address = status?.PublicIpv4 ?? status?.PublicIpv6;
         return string.IsNullOrWhiteSpace(address) ? null : HostAddress.Parse(address);
+    }
+
+    public async Task<HostAddress?> GetManagementHostAsync(EntityClusterNode node,
+        CancellationToken cancellationToken = default) {
+        var host = await GetPublicHostAsync(node, cancellationToken);
+        if (!host.HasValue || host.Value.Port.HasValue)
+            return host;
+
+        var status = await GetStatusAsync(node.NodeId, cancellationToken);
+        var port = status?.ManagementPort;
+        return port.HasValue ? HostAddress.Parse($"{host.Value.FormatForUri()}:{port.Value}") : host;
     }
 
     public async Task RecordObservedPublicIpAsync(Guid nodeId, string? value,
@@ -79,6 +93,7 @@ public sealed class NodeNetworkService(
 
         try {
             status.InternalAddresses = GetInternalAddresses();
+            status.ManagementPort = GetManagementPort();
             status.PublicIpv4 = await GetPublicIpAsync("https://api4.ipify.org", AddressFamily.InterNetwork,
                 cancellationToken) ?? status.PublicIpv4;
             status.PublicIpv6 = await GetPublicIpAsync("https://api6.ipify.org", AddressFamily.InterNetworkV6,
@@ -94,6 +109,19 @@ public sealed class NodeNetworkService(
         await session.StoreAsync(status, id, cancellationToken);
         await session.SaveChangesAsync(cancellationToken);
         return status;
+    }
+
+    private int? GetManagementPort() {
+        var addresses = server.Features.Get<IServerAddressesFeature>()?.Addresses;
+        if (addresses is null)
+            return null;
+
+        foreach (var address in addresses) {
+            if (Uri.TryCreate(address, UriKind.Absolute, out var uri) && uri.Port is > 0 and <= 65535)
+                return uri.Port;
+        }
+
+        return null;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {

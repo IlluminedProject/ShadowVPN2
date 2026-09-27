@@ -54,7 +54,7 @@ public class SubscriptionService(
             }
 
             foreach (var node in nodes.Where(n => !n.JoinSecret.HasValue)) {
-                var publicHost = await nodeNetworkService.GetPublicHostAsync(node);
+                var publicHost = await nodeNetworkService.GetManagementHostAsync(node);
                 if (!publicHost.HasValue) continue;
                 var host = publicHost.Value;
                 var certificate = managedCertificateService.GetForNode(node.NodeId);

@@ -1,5 +1,6 @@
 using Serilog;
 using ShadowVPN2.Components;
+using ShadowVPN2.Data;
 using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
@@ -57,7 +58,10 @@ try {
         .AddInteractiveServerRenderMode();
     app.MapAdditionalIdentityEndpoints();
 
-    await app.RunAsync();
+    await app.StartAsync();
+    await app.Services.GetRequiredService<NodeNetworkService>()
+        .RefreshLocalAsync(app.Lifetime.ApplicationStopping);
+    await app.WaitForShutdownAsync();
 }
 catch (Exception ex) {
     Log.Fatal(ex, "Application terminated unexpectedly");
