@@ -169,7 +169,7 @@
 
     private void HandleApiError(ApplicationServiceException exception, string message)
     {
-        if (exception.StatusCodeNet.HttpStatusCode.Unauthorized)
+        if (exception.StatusCode == HttpStatusCode.Unauthorized)
             _authenticated = false;
         else
         {

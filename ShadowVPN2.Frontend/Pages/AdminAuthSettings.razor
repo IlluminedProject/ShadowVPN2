@@ -83,7 +83,7 @@
         catch (ApplicationServiceException ex)
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
-                ?   ? "You do not have permission to view settings."
+                ? "You do not have permission to view settings."
                     : "Could not load authorization settings.";
         }
         catch (Exception)
@@ -125,8 +125,8 @@
         }
         catch (ApplicationServiceException ex)
         {
-    _error = ex.StatusCode == HttpStatusCode.Forbidden
-                ?           ? "You do not have permission to change settings."
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to change settings."
                     : "The operation failed.";
         }
         catch (Exception)

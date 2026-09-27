@@ -85,7 +85,7 @@
         catch (ApplicationServiceException ex)
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
-                ?   ? "You do not have permission to view settings."
+                ? "You do not have permission to view settings."
                     : "Could not load certificate settings.";
         }
         catch (Exception)
@@ -135,8 +135,9 @@
         {
             await action();
         }
-        catch (Applic_error = ex.StatusCode == HttpStatusCode.Forbidden
-                ? .Net.HttpStatusCode.Forbidden
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to change settings."
                     : "The operation failed.";
         }

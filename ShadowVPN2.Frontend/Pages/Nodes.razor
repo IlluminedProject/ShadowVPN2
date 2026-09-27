@@ -182,10 +182,10 @@
         }
         catch (ApplicationServiceException exception)
         {
-            _authenticationRxception.StatusCode == System.Net.HttpStatusCode.Unauthorized;
+            _authenticationRequired = exception.StatusCode == HttpStatusCode.Unauthorized;
             _error = _authenticationRequired
                     ? "Sign in to access nodes."
-         : exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+                    : exception.StatusCode == HttpStatusCode.Forbidden
                             ? "You do not have permission to view nodes."
                             : "Could not load nodes.";
         }
@@ -222,8 +222,9 @@
             _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNodeName.Trim(),
                     string.IsNullOrWhiteSpace(_newNodeDomain) ? null : _newNodeDomain.Trim());
         }
-        catch (ApplicationServiceException exce    {
-            _error = exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+        catch (ApplicationServiceException exception)
+        {
+            _error = exception.StatusCode == HttpStatusCode.Forbidden
                     ? "Only administrators can add nodes."
                     : "Could not generate a node join token.";
         }
@@ -263,9 +264,9 @@
             await ReloadAsync();
             _editingNode = null;
         }
-        catch (ApplicationServiceExcepton)
+        catch (ApplicationServiceException exception)
         {
-            _error = exception.StatusCode == System.Net.HttpStatusCode.Forbidden
+            _error = exception.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to edit nodes."
                     : "Could not update the node domain.";
         }

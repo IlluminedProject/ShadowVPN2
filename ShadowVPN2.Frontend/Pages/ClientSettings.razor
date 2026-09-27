@@ -106,9 +106,9 @@
         }
         catch (ApplicationServiceException exception)
         {
-            if (exception.St System.Net.HttpStatusCode.Unauthorized)
+            if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
-            else if (exception.St System.Net.HttpStatusCode.NotFound)
+            else if (exception.StatusCode == HttpStatusCode.NotFound)
                 _error = "Could not load client settings.";
         }
         catch (Exception)
@@ -144,7 +144,7 @@
         }
         catch (ApplicationServiceException exception)
         {
- if (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
             else
                 _error = "Could not save client settings.";
@@ -159,10 +159,14 @@
         }
     }
 
-    privat [System.ComponentM [System.ComponentModel.DataAnnotations.StringLength(100, MinimumLength = 1)]
+    private sealed class FormModel
+    {
+        [StringLength(100, MinimumLength = 1)]
         public string Name { get; set; } = string.Empty;
 
-        public bool Is [System.ComponentModel.DataAnnotations.Range(576, 9000)]
+        public bool IsEnabled { get; set; }
+
+        [Range(576, 9000)]
         public int? WireGuardMtu { get; set; }
     }
 

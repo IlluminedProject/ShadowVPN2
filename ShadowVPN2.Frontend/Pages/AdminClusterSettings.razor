@@ -131,7 +131,7 @@
         }
         catch (ApplicationServiceException ex)
         {
-            _error = ex.Statustem.Net.HttpStatusCode.Forbidden
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to change settings."
                     : "Could not save cluster settings.";
         }
