@@ -18,7 +18,7 @@ RUN curl -fLo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/rel
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
-ARG FREETURN_VERSION=v3.4.0
+ARG FREETURN_VERSION=v4.0.1
 RUN curl -fLo /usr/local/bin/free-turn-proxy \
         https://github.com/samosvalishe/free-turn-proxy/releases/download/${FREETURN_VERSION}/server-linux-amd64 \
     && chmod +x /usr/local/bin/free-turn-proxy
