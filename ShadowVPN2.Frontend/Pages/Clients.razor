@@ -39,9 +39,13 @@
             <ValidationMessage For="() => _newClient.Name"/>
         </EditForm>
 
-        @if (_clients.Count == 0)
+        <div class="actions">
+            <InputText @bind-Value="_search" @bind-Value:after="ApplySearch" placeholder="Search clients"/>
+        </div>
+
+        @if (_filteredClients.Count == 0)
         {
-            <p class="muted">No VPN clients configured yet.</p>
+            <p class="muted">@(_clients.Count == 0 ? "No VPN clients configured yet." : "No clients match the search.")</p>
         }
         else
         {
@@ -49,6 +53,10 @@
                 <thead>
                 <tr>
                     <th>Name</th>
+                    @if (_isAdministrator)
+                    {
+                        <th>User</th>
+                    }
                     <th>IP address</th>
                     <th>Status</th>
                     <th>Created</th>
@@ -56,10 +64,14 @@
                 </tr>
                 </thead>
                 <tbody>
-                @foreach (var client in _clients)
+                @foreach (var client in _filteredClients)
                 {
                     <tr>
                         <td>@client.Name</td>
+                        @if (_isAdministrator)
+                        {
+                            <td>@(client.IsOwnedByCurrentUser ? "You" : client.OwnerDisplayName)</td>
+                        }
                         <td><code>@client.AssignedIp</code></td>
                         <td>@(client.IsEnabled ? "Enabled" : "Disabled")</td>
                         <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
@@ -78,11 +90,14 @@
 
 @code {
     private IReadOnlyList<ClientResponse> _clients = [];
+    private IReadOnlyList<ClientResponse> _filteredClients = [];
     private readonly CreateClientRequest _newClient = new() { Name = string.Empty };
     private bool _loading = true;
     private bool _authenticated;
     private bool _saving;
     private string? _error;
+    private string _search = string.Empty;
+    private bool _isAdministrator;
     private IAsyncDisposable? _realtimeSubscription;
 
     private string LoginUrl => $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
@@ -94,11 +109,13 @@
     {
         try
         {
+            _isAdministrator = await ClientsApi.IsAdministratorAsync();
             await LoadClientsAsync();
             _authenticated = true;
             _realtimeSubscription = await ClientRealtime.SubscribeAsync(clients => InvokeAsync(() =>
             {
                 _clients = clients;
+                ApplySearch();
                 StateHasChanged();
             }));
         }
@@ -119,6 +136,19 @@
     private async Task LoadClientsAsync()
     {
         _clients = await ClientsApi.GetClientsAsync();
+        ApplySearch();
+    }
+
+    private void ApplySearch()
+    {
+        var search = _search.Trim();
+        _filteredClients = string.IsNullOrEmpty(search)
+            ? _clients
+            : _clients.Where(client =>
+                    client.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    client.AssignedIp.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    client.UserNumber.ToString().Contains(search, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
     }
 
     private async Task CreateClientAsync()

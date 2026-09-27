@@ -22,11 +22,16 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         }
     }
 
-    public async Task<IReadOnlyList<EntityClient>> GetClientsAsync(ApplicationUser user,
+    public async Task<IReadOnlyList<EntityClient>> GetClientsAsync(ApplicationUser user, bool includeAllUsers = false,
         CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
-        return await session.Query<EntityClient>()
-            .Where(c => c.UserId == user.Id)
+        IQueryable<EntityClient> query = session.Query<EntityClient>();
+        if (!includeAllUsers)
+            query = query.Where(c => c.UserId == user.Id);
+
+        return await query
+            .OrderByDescending(c => c.UserId == user.Id)
+            .ThenBy(c => c.Id)
             .ToListAsync(ct);
     }
 
@@ -40,11 +45,11 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return results.ToList().AsReadOnly();
     }
 
-    public async Task<EntityClient?> GetClientAsync(string clientId, string userId,
+    public async Task<EntityClient?> GetClientAsync(string clientId, string userId, bool allowAllUsers = false,
         CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
-        return client?.UserId == userId ? client : null;
+        return client is not null && (allowAllUsers || client.UserId == userId) ? client : null;
     }
 
     public async Task<EntityClient> AddClientAsync(ApplicationUser user, string name,
@@ -93,11 +98,12 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return client;
     }
 
-    public async Task<EntityClient?> UpdateClientAsync(string clientId, string userId, string name, bool isEnabled,
+    public async Task<EntityClient?> UpdateClientAsync(string clientId, string userId, bool allowAllUsers, string name,
+        bool isEnabled,
         WireGuardClientSettings? wireGuard, CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
-        if (client is null || client.UserId != userId)
+        if (client is null || (!allowAllUsers && client.UserId != userId))
             return null;
 
         client.Name = name;
@@ -121,10 +127,11 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return client;
     }
 
-    public async Task<bool> DeleteClientAsync(string clientId, string userId, CancellationToken ct = default) {
+    public async Task<bool> DeleteClientAsync(string clientId, string userId, bool allowAllUsers = false,
+        CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
         var client = await session.LoadAsync<EntityClient>(clientId, ct);
-        if (client is null || client.UserId != userId)
+        if (client is null || (!allowAllUsers && client.UserId != userId))
             return false;
 
         session.Delete(client);
@@ -139,9 +146,9 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return true;
     }
 
-    public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user,
+    public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user, bool includeAllUsers = false,
         Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null) {
-        var subscription = new ClientSubscription(this, user.Id!, user.UserNumber);
+        var subscription = new ClientSubscription(this, user.Id!, user.UserNumber, includeAllUsers);
         if (onUpdate != null) {
             subscription.ClientsUpdated += onUpdate;
         }
@@ -214,7 +221,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
                 List<ClientSubscription> targets;
                 lock (_lock) {
-                    targets = _subscriptions.Where(s => s.UserNumber == userNumber).ToList();
+                    targets = _subscriptions.Where(s => s.IncludeAllUsers || s.UserNumber == userNumber).ToList();
                 }
 
                 if (targets.Count > 0) {
@@ -227,10 +234,12 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         });
     }
 
-    public class ClientSubscription(ClientService service, string userId, int userNumber) : IDisposable {
+    public class ClientSubscription(ClientService service, string userId, int userNumber, bool includeAllUsers)
+        : IDisposable {
         private bool _disposed;
         public string UserId { get; } = userId;
         public int UserNumber { get; } = userNumber;
+        public bool IncludeAllUsers { get; } = includeAllUsers;
 
         public void Dispose() {
             if (!_disposed) {
@@ -242,7 +251,9 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         public event Func<IReadOnlyList<EntityClient>, Task>? ClientsUpdated;
 
         public async Task<IReadOnlyList<EntityClient>> GetCurrentClientsAsync() {
-            return await service.GetClientsByUserNumberAsync(UserNumber);
+            return IncludeAllUsers
+                ? await service.GetClientsAsync(new ApplicationUser { Id = UserId, UserNumber = UserNumber }, true)
+                : await service.GetClientsByUserNumberAsync(UserNumber);
         }
 
         public async Task NotifyAsync(IReadOnlyList<EntityClient> clients) {

@@ -213,7 +213,7 @@ else
             ? new WireGuardClientSettings { Mtu = Input.WireGuardMtu.Value }
             : null;
 
-        var updated = await ClientService.UpdateClientAsync(_client.Id, _user.Id!, Input.Name, Input.IsEnabled, wg);
+        var updated = await ClientService.UpdateClientAsync(_client.Id, _user.Id!, false, Input.Name, Input.IsEnabled, wg);
 
         if (updated is not null)
         {

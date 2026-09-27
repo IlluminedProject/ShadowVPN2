@@ -190,7 +190,7 @@ else
             return;
         }
 
-        _subscription = await ClientService.SubscribeAsync(_user, async updatedClients =>
+        _subscription = await ClientService.SubscribeAsync(_user, false, async updatedClients =>
         {
             _clients = updatedClients;
             await InvokeAsync(StateHasChanged);

@@ -7,6 +7,9 @@ public sealed class ClientResponse {
     public required string AssignedIp { get; set; }
     public required bool IsEnabled { get; set; }
     public required DateTimeOffset CreatedAt { get; set; }
+    public required int UserNumber { get; set; }
+    public required bool IsOwnedByCurrentUser { get; set; }
+    public string? OwnerDisplayName { get; set; }
     public WireGuardClientSettingsResponse? WireGuard { get; set; }
     public Hysteria2ClientSettingsResponse? Hysteria2 { get; set; }
 }

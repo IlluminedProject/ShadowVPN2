@@ -39,6 +39,10 @@ public sealed class FrontendUserContext(
             throw new ApplicationServiceException(HttpStatusCode.Forbidden);
     }
 
+    public async Task<bool> IsInRoleAsync(string role) {
+        return (await GetPrincipalAsync()).IsInRole(role);
+    }
+
     private async Task<ClaimsPrincipal> GetPrincipalAsync() =>
         (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
 }

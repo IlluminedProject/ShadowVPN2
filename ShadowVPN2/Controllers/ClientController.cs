@@ -18,9 +18,10 @@ public class ClientController(
     [HttpGet]
     public async Task<IReadOnlyList<ClientResponse>> GetClients() {
         var user = await userManager.GetRequiredUserAsync(User);
+        var isAdministrator = User.IsInRole(AppRoles.Administrator);
 
-        var clients = await clientService.GetClientsAsync(user);
-        return clients.Select(ClientMapper.MapToResponse).ToList();
+        var clients = await clientService.GetClientsAsync(user, isAdministrator);
+        return clients.Select(client => ClientMapper.MapToResponse(client, user.Id)).ToList();
     }
 
     [HttpPost]
@@ -40,26 +41,30 @@ public class ClientController(
     [HttpGet("{*id}")]
     public async Task<ClientResponse> GetClient(string id) {
         var user = await userManager.GetRequiredUserAsync(User);
+        var isAdministrator = User.IsInRole(AppRoles.Administrator);
 
-        var client = await clientService.GetClientAsync(id, user.Id!);
-        return ClientMapper.MapToResponse(client.OrThrowNotFound("Client not found"));
+        var client = await clientService.GetClientAsync(id, user.Id!, isAdministrator);
+        return ClientMapper.MapToResponse(client.OrThrowNotFound("Client not found"), user.Id);
     }
 
     [HttpPut("{*id}")]
     public async Task<ClientResponse> UpdateClient(string id, [FromBody] UpdateClientRequest request) {
         var user = await userManager.GetRequiredUserAsync(User);
+        var isAdministrator = User.IsInRole(AppRoles.Administrator);
 
-        var client = await clientService.UpdateClientAsync(id, user.Id!, request.Name, request.IsEnabled,
+        var client = await clientService.UpdateClientAsync(id, user.Id!, isAdministrator, request.Name,
+            request.IsEnabled,
             request.WireGuard is not null ? new WireGuardClientSettings { Mtu = request.WireGuard.Mtu } : null);
 
-        return ClientMapper.MapToResponse(client.OrThrowNotFound("Client not found"));
+        return ClientMapper.MapToResponse(client.OrThrowNotFound("Client not found"), user.Id);
     }
 
     [HttpDelete("{*id}")]
     public async Task DeleteClient(string id) {
         var user = await userManager.GetRequiredUserAsync(User);
+        var isAdministrator = User.IsInRole(AppRoles.Administrator);
 
-        var deleted = await clientService.DeleteClientAsync(id, user.Id!);
+        var deleted = await clientService.DeleteClientAsync(id, user.Id!, isAdministrator);
         if (!deleted) throw new KeyNotFoundException("Client not found");
 
         Response.StatusCode = StatusCodes.Status204NoContent;
