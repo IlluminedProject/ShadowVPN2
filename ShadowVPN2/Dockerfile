@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS runtime
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -13,8 +13,9 @@ COPY docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 RUN chmod 755 /usr/local/bin/shadowvpn2-entrypoint
 
 # Download and install amnezia-box (sing-box fork)
-ARG AMNEZIA_BOX_VERSION=1.14.1-awgm.17
-RUN curl -fLo /usr/local/bin/sing-box https://github.com/hoaxisr/amnezia-box/releases/download/${AMNEZIA_BOX_VERSION}/singbox-${AMNEZIA_BOX_VERSION}-linux-amd64 \
+RUN version=$(curl -fsSL https://api.github.com/repos/hoaxisr/amnezia-box/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p') \
+    && test -n "$version" \
+    && curl -fLo /usr/local/bin/sing-box "https://github.com/hoaxisr/amnezia-box/releases/download/${version}/singbox-${version}-linux-amd64" \
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
@@ -33,19 +34,21 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY ["ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj", "ShadowVPN2.Contracts/"]
+COPY ["ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj", "ShadowVPN2.Frontend/"]
 COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
-COPY . .
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
+COPY . .
 WORKDIR "/src/ShadowVPN2"
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS dev
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS development
 USER root
-COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
-COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
-COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
+COPY --from=runtime /usr/local/bin/sing-box /usr/local/bin/sing-box
+COPY --from=runtime /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
+COPY --from=runtime /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
     gosu \
@@ -54,7 +57,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /data
 WORKDIR /src/ShadowVPN2
 ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
-CMD ["dotnet", "watch", "run", "--no-launch-profile"]
+
+FROM development AS debug
+CMD ["dotnet", "run", "--no-launch-profile", "--project", "/src/ShadowVPN2/ShadowVPN2.csproj"]
+
+FROM development AS hotreload
+CMD ["dotnet", "watch", "run", "--no-launch-profile", "--project", "/src/ShadowVPN2/ShadowVPN2.csproj"]
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
@@ -62,7 +70,7 @@ RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish \
     --no-restore --no-build /p:UseAppHost=false
 
-FROM base AS final
+FROM runtime AS final
 WORKDIR /app
 COPY --chown=1654:1654 --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data

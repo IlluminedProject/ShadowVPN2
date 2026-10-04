@@ -33,7 +33,7 @@ cleanup() {
 
     if [ -f "$FORWARDING_STATE" ]; then
         previous=$(cat "$FORWARDING_STATE")
-        sysctl -q -w "net.ipv4.ip_forward=$previous" >/dev/null
+        sysctl -q -w "net.ipv4.ip_forward=$previous" >/dev/null 2>&1 || true
         rm -f "$FORWARDING_STATE"
     fi
 }
@@ -51,9 +51,12 @@ configure() {
     fi
 
     current_forwarding=$(sysctl -n net.ipv4.ip_forward)
-    printf '%s\n' "$current_forwarding" > "$FORWARDING_STATE"
     if [ "$current_forwarding" != 1 ]; then
-        sysctl -q -w net.ipv4.ip_forward=1 >/dev/null
+        if sysctl -q -w net.ipv4.ip_forward=1 >/dev/null 2>&1; then
+            printf '%s\n' "$current_forwarding" > "$FORWARDING_STATE"
+        else
+            echo "Cannot enable IPv4 forwarding from this container; configure net.ipv4.ip_forward=1 on the Docker host" >&2
+        fi
     fi
 
     iptables -w 5 -N "$FORWARD_CHAIN" 2>/dev/null || true
@@ -70,9 +73,19 @@ configure() {
     echo "Configured WireGuard forwarding and NAT via $wan_interface"
 }
 
+prepare_dotnet_directories() {
+    app_uid="${APP_UID:-1654}"
+    for project in ShadowVPN2 ShadowVPN2.Contracts ShadowVPN2.Frontend; do
+        mkdir -p "/src/$project/obj" "/src/$project/bin"
+        chown -R "$app_uid:$app_uid" "/src/$project/obj" "/src/$project/bin"
+    done
+    chown -R "$app_uid:$app_uid" /data
+}
+
 child=''
 trap cleanup EXIT
 
+prepare_dotnet_directories
 configure
 
 forward_term() {

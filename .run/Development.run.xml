@@ -3,13 +3,14 @@
                  server-name="Local">
     <deployment type="docker-compose.yml">
       <settings>
-        <option name="commandLineOptions" value="--build"/>
         <option name="sourceFilePath" value="docker-compose.dev.yml"/>
-        <option name="upDetach" value="false"/>
+        <option name="upDetach" value="true"/>
         <option name="upRemoveOrphans" value="true"/>
       </settings>
     </deployment>
     <EXTENSION ID="com.jetbrains.rider.docker.debug" isFastModeEnabled="true" isSslEnabled="false"/>
-    <method v="2"/>
+    <method v="2">
+      <option name="LaunchBrowser.Before.Run" url="https://localhost:5172"/>
+    </method>
   </configuration>
 </component>

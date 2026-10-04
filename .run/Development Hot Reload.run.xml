@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Development Hot Reload" type="docker-deploy" factoryName="docker-compose.yml"
+                 server-name="Local">
+    <deployment type="docker-compose.yml">
+      <settings>
+        <option name="sourceFilePath" value="docker-compose.dev-hotreload.yml"/>
+        <option name="upDetach" value="false"/>
+        <option name="upRemoveOrphans" value="true"/>
+      </settings>
+    </deployment>
+    <method v="2">
+      <option name="LaunchBrowser.Before.Run" url="https://localhost:5172"/>
+    </method>
+  </configuration>
+</component>

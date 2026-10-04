@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: ShadowVPN2/Dockerfile
-      target: dev
+      target: hotreload
     container_name: shadowvpn2
     stop_grace_period: 30s
     network_mode: host
@@ -15,17 +15,19 @@ services:
     volumes:
       - shadowvpn2-data:/data
       - .:/src:rw
-      - ${USERPROFILE}/.nuget/packages:/root/.nuget/packages:rw
-      - /src/ShadowVPN2/obj
-      - /src/ShadowVPN2/bin
+      - shadowvpn2-nuget:/root/.nuget/packages
+      - shadowvpn2-contracts-obj:/src/ShadowVPN2.Contracts/obj
+      - shadowvpn2-contracts-bin:/src/ShadowVPN2.Contracts/bin
+      - shadowvpn2-frontend-obj:/src/ShadowVPN2.Frontend/obj
+      - shadowvpn2-frontend-bin:/src/ShadowVPN2.Frontend/bin
+      - shadowvpn2-obj:/src/ShadowVPN2/obj
+      - shadowvpn2-bin:/src/ShadowVPN2/bin
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=https://+:${SHADOWVPN_WEB_PORT:-5172}
       - DOTNET_USE_POLLING_FILE_WATCHER=true
       - SHADOWVPN_DATA_DIR=/data
       - DOTNET_WATCH_SUPPRESS_BROWSER_REFRESH=1
-    stdin_open: true
-    tty: true
     healthcheck:
       test: ["CMD", "curl", "-fk", "https://localhost:${SHADOWVPN_WEB_PORT:-5172}/api/node/status"]
       interval: 5s
@@ -36,3 +38,17 @@ services:
 volumes:
   shadowvpn2-data:
     driver: local
+  shadowvpn2-nuget:
+      driver: local
+  shadowvpn2-contracts-obj:
+      driver: local
+  shadowvpn2-contracts-bin:
+      driver: local
+  shadowvpn2-frontend-obj:
+      driver: local
+  shadowvpn2-frontend-bin:
+      driver: local
+  shadowvpn2-obj:
+      driver: local
+  shadowvpn2-bin:
+      driver: local
