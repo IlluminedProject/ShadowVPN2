@@ -1,0 +1,15 @@
+@page "/Account/Manage/Email"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Manage email</PageTitle>
+<h3>Manage email</h3>
+<form method="post" action="/api/account/email">
+    <AntiforgeryToken/>
+    <label>New email</label>
+    <InputText class="form-control mb-3" name="Email" type="email" required @bind-Value="_email"/>
+    <button class="btn btn-primary">Change email</button>
+</form>
+
+@code {
+    private string? _email;
+}

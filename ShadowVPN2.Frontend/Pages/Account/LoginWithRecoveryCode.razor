@@ -17,8 +17,8 @@
     <AntiforgeryToken/>
     <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
     <div class="form-floating mb-3">
-        <input name="RecoveryCode" id="RecoveryCode" class="form-control" autocomplete="off"
-               placeholder="Recovery code" required @bind="_model.RecoveryCode"/>
+        <InputText name="RecoveryCode" id="RecoveryCode" class="form-control" autocomplete="off"
+                   placeholder="Recovery code" required @bind-Value="_model.RecoveryCode"/>
         <label for="RecoveryCode">Recovery code</label>
     </div>
     <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>

@@ -1,0 +1,16 @@
+@page "/Account/Manage/RenamePasskey/{Id}"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Rename passkey</PageTitle><h3>Rename passkey</h3>
+<form method="post" action="/api/account/passkeys/rename">
+    <AntiforgeryToken/>
+    <input type="hidden" name="Id" value="@Id"/>
+    <InputText class="form-control mb-2" name="Name" required maxlength="200" @bind-Value="_name"/>
+    <button class="btn btn-primary">Save</button>
+</form>
+
+@code {
+    private string? _name;
+}
+
+@code { [Parameter] public string Id { get; set; } = string.Empty; }

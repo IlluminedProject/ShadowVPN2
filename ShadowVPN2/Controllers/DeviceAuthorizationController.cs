@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
-using ShadowVPN2.Data;
 using ShadowVPN2.Infrastructure.Authentication;
+using ContractDeviceAuthorizationStartResponse = ShadowVPN2.Contracts.Auth.DeviceAuthorizationStartResponse;
+using DataDeviceAuthorizationStartResponse = ShadowVPN2.Data.DeviceAuthorizationStartResponse;
+using DataDeviceAuthorizationPollResponse = ShadowVPN2.Data.DeviceAuthorizationPollResponse;
 
 namespace ShadowVPN2.Controllers;
 
@@ -11,7 +13,7 @@ namespace ShadowVPN2.Controllers;
 [Route("api/auth/device")]
 public sealed class DeviceAuthorizationController(DeviceAuthorizationService deviceService) : ControllerBase {
     [HttpPost("start")]
-    public async Task<DeviceAuthorizationStartResponse> Start(CancellationToken cancellationToken) {
+    public async Task<DataDeviceAuthorizationStartResponse> Start(CancellationToken cancellationToken) {
         var result = await deviceService.StartAsync(cancellationToken);
         SetCorrelationCookie(result.CorrelationSecret);
         return result.Response;
@@ -31,10 +33,27 @@ public sealed class DeviceAuthorizationController(DeviceAuthorizationService dev
     }
 
     [HttpPost("poll/{transactionId}")]
-    public async Task<DeviceAuthorizationPollResponse> Poll(string transactionId, CancellationToken cancellationToken) {
+    public async Task<DataDeviceAuthorizationPollResponse> Poll(string transactionId,
+        CancellationToken cancellationToken) {
         var secret = Request.Cookies[DeviceAuthorizationService.CorrelationCookie]
                      ?? throw new UnauthorizedAccessException("Device authorization session is missing.");
         return await deviceService.PollAsync(transactionId, secret, cancellationToken);
+    }
+
+    [HttpGet("details/{transactionId}")]
+    public async Task<ContractDeviceAuthorizationStartResponse> Details(string transactionId,
+        CancellationToken cancellationToken) {
+        var secret = Request.Cookies[DeviceAuthorizationService.CorrelationCookie]
+                     ?? throw new UnauthorizedAccessException("Device authorization session is missing.");
+        var result = await deviceService.GetStartResponseAsync(transactionId, secret, cancellationToken);
+        return new ContractDeviceAuthorizationStartResponse {
+            TransactionId = result.TransactionId,
+            VerificationUri = result.VerificationUri,
+            VerificationUriComplete = result.VerificationUriComplete,
+            UserCode = result.UserCode,
+            ExpiresIn = result.ExpiresIn,
+            Interval = result.Interval
+        };
     }
 
     [HttpGet("complete/{transactionId}")]

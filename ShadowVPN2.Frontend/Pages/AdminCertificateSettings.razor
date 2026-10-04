@@ -6,8 +6,7 @@
 
 <PageTitle>Certificate settings - ShadowVPN2</PageTitle>
 
-<header><strong>ShadowVPN2 settings</strong></header>
-<main>
+<div>
     <AdminSettingsNav/>
     <h1>Certificates</h1>
     @if (_loading)
@@ -16,22 +15,25 @@
     }
     else if (!string.IsNullOrEmpty(_error))
     {
-        <p class="error" role="alert">@_error</p>
+        <div class="alert alert-danger" role="alert">@_error</div>
     }
     else
     {
-        <label>
-            <InputCheckbox @bind-Value="_settings.Enabled"/>
-            Enable automatic Let's Encrypt certificates</label>
+        <div class="settings-frame">
+            <div class="form-check form-switch mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="_settings.Enabled"/>
+                <label class="form-check-label">Enable automatic Let's Encrypt certificates</label>
+            </div>
         <label for="acme-email">Account email</label>
-        <InputText id="acme-email" type="email" @bind-Value="_settings.Email"/>
+            <InputText id="acme-email" type="email" class="form-control" @bind-Value="_settings.Email"/>
         <label for="http-port">HTTP-01 port</label>
-        <InputNumber id="http-port" @bind-Value="_settings.HttpPort"/>
+            <InputNumber id="http-port" class="form-control" @bind-Value="_settings.HttpPort"/>
         <label for="renewal-days">Renewal threshold (days)</label>
-        <InputNumber id="renewal-days" @bind-Value="_settings.RenewalThresholdDays"/>
-        <label>
-            <InputCheckbox @bind-Value="_settings.UseStaging"/>
-            Use staging CA</label>
+            <InputNumber id="renewal-days" class="form-control" @bind-Value="_settings.RenewalThresholdDays"/>
+            <div class="form-check form-switch mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="_settings.UseStaging"/>
+                <label class="form-check-label">Use staging CA</label>
+            </div>
 
         <section>
             <h2>Local node certificate</h2>
@@ -49,20 +51,21 @@
 
                 @if (!string.IsNullOrWhiteSpace(_certificate.LastError))
                 {
-                    <p class="error">@_certificate.LastError</p>
+                    <div class="alert alert-danger">@_certificate.LastError</div>
                 }
             }
         </section>
-        <div class="actions">
-            <button @onclick="SaveAsync" disabled="@_busy">Save</button>
-            <button @onclick="RenewAsync" disabled="@_busy">Issue / renew now</button>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-outline-primary" @onclick="RenewAsync" disabled="@_busy">Issue / renew now</button>
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">Save settings</button>
         </div>
     }
     @if (!string.IsNullOrEmpty(_message))
     {
         <p role="status">@_message</p>
     }
-</main>
+</div>
 
 @code {
     private AcmeSettingsResponse _settings = new();

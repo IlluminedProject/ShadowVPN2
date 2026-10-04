@@ -1,0 +1,189 @@
+@page "/admin/settings/transports"
+@using System.Net
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+@inject IAdminSettingsService AdminApi
+
+<PageTitle>Transport settings - ShadowVPN2</PageTitle>
+
+<div>
+    <AdminSettingsNav/>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <h1>Transport settings</h1>
+            <p class="muted">Configure FreeTurn transport overlays for the enabled protocols.</p>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="AddFreeTurn" disabled="@(_request.Protocols.Count == 0)">
+            Add FreeTurn
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="muted">Loading transport settings…</p>
+    }
+    else if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+    else
+    {
+        <div class="settings-frame">
+            @if (_request.Transports.Count == 0)
+            {
+                <div class="alert alert-secondary mb-0">No transport overlays configured.</div>
+            }
+            @foreach (var transport in _request.Transports.OfType<FreeTurnTransportSettingsDto>().ToArray())
+            {
+                <div class="settings-item">
+                    <SettingsItemHeader Title="FreeTurn"
+                                         @bind-ListenPort="transport.ListenPort"
+                                         @bind-Enabled="transport.Enabled"
+                                         OnRemove="() => _request.Transports.Remove(transport)"/>
+                    <div class="settings-item-body border border-top-0 rounded-bottom p-3">
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label">Protocol
+                                <InputSelect class="form-select" @bind-Value="transport.ProtocolId">
+                                    @foreach (var protocol in _request.Protocols)
+                                    {
+                                        <option value="@protocol.Id">@ProtocolOptionName(protocol)</option>
+                                    }
+                                </InputSelect>
+                            </label>
+                        </div>
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label">Obfuscation
+                                <InputSelect class="form-select" @bind-Value="transport.ObfuscationProfile">
+                                    <option value="">Disabled</option>
+                                    <option value="RtpOpus">RTP/Opus</option>
+                                    <option value="RtpOpus2">RTP/Opus 2</option>
+                                    <option value="RtpOpus3">RTP/Opus 3</option>
+                                </InputSelect>
+                            </label>
+                        </div>
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label">TURN transport
+                                <InputSelect class="form-select" @bind-Value="transport.TurnTransport">
+                                    <option value="Tcp">TCP/TLS</option>
+                                    <option value="Udp">UDP</option>
+                                </InputSelect>
+                            </label>
+                        </div>
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label">Streams
+                                <InputNumber class="form-control" @bind-Value="transport.Streams"/>
+                            </label>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Obfuscation key
+                                <InputText class="form-control font-monospace" @bind-Value="transport.ObfuscationKey"/>
+                            </label>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Save settings</button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <div class="alert alert-success mt-3" role="status">@_message</div>
+    }
+</div>
+
+@code {
+    private UpdateProtocolsSettingsRequest _request = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await AdminApi.GetProtocolsAsync();
+            _request = new UpdateProtocolsSettingsRequest
+            {
+                MainDomain = settings.MainDomain,
+                Protocols = settings.Protocols,
+                Transports = settings.Transports
+            };
+        }
+        catch (ApplicationServiceException exception)
+        {
+            _error = exception.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view settings."
+                : "Could not load transport settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AddFreeTurn()
+    {
+        if (_request.Protocols.Count == 0)
+            return;
+
+        var used = _request.Protocols.Select(protocol => protocol.ListenPort)
+            .Concat(_request.Transports.Select(transport => transport.ListenPort)).ToHashSet();
+        var port = 56000;
+        while (used.Contains(port))
+            port++;
+
+        _request.Transports.Add(new FreeTurnTransportSettingsDto
+        {
+            Id = Guid.NewGuid(),
+            ProtocolId = _request.Protocols[0].Id,
+            ListenPort = port,
+            ObfuscationKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
+        });
+    }
+
+    private static string ProtocolOptionName(ProtocolSettingsDto protocol)
+    {
+        return $"{protocol switch
+        {
+            Hysteria2ProtocolSettingsDto => "Hysteria2",
+            AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
+            _ => "Unknown"
+        }} : {protocol.ListenPort}";
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await AdminApi.SaveProtocolsAsync(_request);
+            _message = "Transport settings saved. Nodes will update automatically.";
+        }
+        catch (ApplicationServiceException exception)
+        {
+            _error = exception.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to change settings."
+                : "Could not save transport settings.";
+        }
+        catch (Exception)
+        {
+            _error = "Could not complete the operation.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,4 +1,7 @@
 @page "/setup"
+@using System.Net
+@using System.Net.Sockets
+@using RandomFriendlyNameGenerator
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout SetupLayout
@@ -7,7 +10,6 @@
 
 <PageTitle>Initial setup - ShadowVPN2</PageTitle>
 
-<header><strong>ShadowVPN2 setup</strong></header>
 <main>
     <div class="progress mb-3" role="progressbar" aria-label="Setup progress">
         <div class="progress-bar" style="width: @(_step * 33)%">Step @_step of 3</div>
@@ -15,64 +17,152 @@
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div class="error" role="alert">@_error</div>
+        <div class="alert alert-danger" role="alert">@_error</div>
     }
 
     @if (_step == 1)
     {
         <h1>Network information</h1>
         <p>Configure this node's name and optional public domain.</p>
-        <label for="node-name">Node name</label>
-        <InputText id="node-name" @bind-Value="_node.NodeName"/>
-        <label for="node-domain">Node domain (optional)</label>
-        <InputText id="node-domain" @bind-Value="_node.Domain" placeholder="node.example.com"/>
-        <button @onclick="LookupIpAsync" disabled="@_busy">Detect public IP</button>
-        @if (!string.IsNullOrEmpty(_publicIp))
-        {
-            <p>Detected public IP: <code>@_publicIp</code></p>
-        }
+        <div class="mb-3">
+            <label class="form-label" for="node-domain">Node address</label>
+            <div class="input-group">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" @onclick="ToggleDropdown">
+                    Select
+                </button>
+                @if (_isDropdownOpen)
+                {
+                    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;"
+                         @onclick="() => _isDropdownOpen = false"></div>
+                }
+                <ul class="dropdown-menu @(_isDropdownOpen ? "show" : "")"
+                    style="@(_isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
+                    <li>
+                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(BrowserAddress)">
+                            Browser Hostname (@BrowserAddress)
+                        </button>
+                    </li>
+                    @if (!string.IsNullOrEmpty(_publicIp))
+                    {
+                        <li>
+                            <button class="dropdown-item" type="button" @onclick="() => SelectAddress(PublicAddress)">
+                                Public IP (@PublicAddress)
+                            </button>
+                        </li>
+                    }
+                    else
+                    {
+                        <li>
+                            <button class="dropdown-item disabled" type="button">Public IP (Loading...)</button>
+                        </li>
+                    }
+                </ul>
+                <InputText id="node-domain" class="form-control" @bind-Value="_node.Domain"
+                           @oninput="OnNodeAddressInput"
+                           placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
+                <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupIpAsync()"
+                        disabled="@_busy">
+                    @if (_busy)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    }
+                    else
+                    {
+                        <span>Refresh IP</span>
+                    }
+                </button>
+            </div>
+            <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
+                enter a custom address.
+            </div>
+            @if (!string.IsNullOrEmpty(_publicIp))
+            {
+                <div class="form-text">Detected public IP: <code>@_publicIp</code></div>
+            }
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="node-name">Node name</label>
+            <div class="input-group">
+                <InputText id="node-name" class="form-control" @bind-Value="_node.NodeName"
+                           placeholder="@_nodeNamePlaceholder"/>
+                <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName">Random Name
+                </button>
+            </div>
+            <div class="form-text">A friendly name for this server in your cluster.</div>
+        </div>
 
-        <button @onclick="SaveNodeAsync" disabled="@_busy">Continue</button>
+        <button class="btn btn-primary w-100" @onclick="SaveNodeAsync" disabled="@_busy">Continue</button>
     }
     else if (_step == 2)
     {
         <h1>Authentication</h1>
         <p>Choose local administrator login or an OpenID Connect provider.</p>
-        <div class="actions">
-            <button @onclick="() => _useOidc = false">Local login</button>
-            <button @onclick="() => _useOidc = true">OpenID Connect</button>
-        </div>
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(!_useOidc ? "active" : "")" type="button"
+                        @onclick="() => _useOidc = false">
+                    Local login
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(_useOidc ? "active" : "")" type="button"
+                        @onclick="() => _useOidc = true">
+                    OpenID Connect
+                </button>
+            </li>
+        </ul>
 
         @if (!_useOidc)
         {
-            <label for="email">Administrator email</label>
-            <InputText id="email" type="email" @bind-Value="_localAuth.Email"/>
-            <label for="password">Password</label>
-            <InputText id="password" type="password" @bind-Value="_localAuth.Password"/>
-            <label for="confirm-password">Confirm password</label>
-            <InputText id="confirm-password" type="password" @bind-Value="_confirmPassword"/>
+            <div class="mb-3">
+                <label class="form-label" for="email">Administrator email</label>
+                <InputText id="email" type="email" class="form-control" @bind-Value="_localAuth.Email"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password">Password</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="_localAuth.Password"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="confirm-password">Confirm password</label>
+                <InputText id="confirm-password" type="password" class="form-control" @bind-Value="_confirmPassword"/>
+            </div>
         }
         else
         {
-            <label for="oidc-name">Provider display name</label>
-            <InputText id="oidc-name" @bind-Value="_oidc.DisplayName"/>
-            <label for="authority">Issuer URL</label>
-            <InputText id="authority" type="url" @bind-Value="_oidc.Authority"/>
-            <label for="client-id">Client ID</label>
-            <InputText id="client-id" @bind-Value="_oidc.ClientId"/>
-            <label for="client-secret">Client secret</label>
-            <InputText id="client-secret" type="password" @bind-Value="_oidc.ClientSecret"/>
-            <p>Redirect URI: <code>@Navigation.ToAbsoluteUri("/signin-OIDC")</code></p>
-            <button @onclick="TestOidcAsync" disabled="@_busy">Test provider</button>
+            <div class="mb-3">
+                <label class="form-label" for="oidc-name">Provider display name</label>
+                <InputText id="oidc-name" class="form-control" @bind-Value="_oidc.DisplayName"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="authority">Issuer URL</label>
+                <InputText id="authority" type="url" class="form-control" @bind-Value="_oidc.Authority"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="client-id">Client ID</label>
+                <InputText id="client-id" class="form-control" @bind-Value="_oidc.ClientId"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="client-secret">Client secret</label>
+                <InputText id="client-secret" type="password" class="form-control" @bind-Value="_oidc.ClientSecret"/>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Redirect URI</label>
+                <p class="form-control-plaintext"><code>@Navigation.ToAbsoluteUri("/signin-OIDC")</code></p>
+            </div>
+            <div class="mb-3">
+                <button class="btn btn-outline-info" type="button" @onclick="TestOidcAsync" disabled="@_busy">Test
+                    provider
+                </button>
+            </div>
             @if (_oidcTestResult is not null)
             {
                 <p class="@(_oidcTestResult.Value ? "success" : "error")">@_oidcTestMessage</p>
             }
         }
 
-        <div class="actions">
-            <button @onclick="() => _step = 1" disabled="@_busy">Back</button>
-            <button @onclick="SaveAuthenticationAsync" disabled="@_busy">Continue</button>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-secondary" @onclick="() => _step = 1" disabled="@_busy">Back</button>
+            <button class="btn btn-primary" @onclick="SaveAuthenticationAsync" disabled="@_busy">Continue</button>
         </div>
     }
     else
@@ -82,10 +172,11 @@
             Download and securely store <code>root-ca.pfx</code> before finishing.
             The file is deleted from this server when setup completes.
         </p>
-        <a class="button" href="/api/setup/root-ca" target="_blank" @onclick="() => _downloadedCertificate = true">
+        <a class="btn btn-outline-success btn-lg" href="/api/setup/root-ca" target="_blank"
+           @onclick="() => _downloadedCertificate = true">
             Download root-ca.pfx
         </a>
-        <button @onclick="FinishAsync" disabled="@(_busy || !_downloadedCertificate)">
+        <button class="btn btn-danger btn-lg" @onclick="FinishAsync" disabled="@(_busy || !_downloadedCertificate)">
             Finish setup
         </button>
     }
@@ -97,23 +188,89 @@
     private bool _useOidc;
     private bool _downloadedCertificate;
     private string? _publicIp;
+    private string _hostname = string.Empty;
+    private string _portSuffix = string.Empty;
+    private string _nodeNamePlaceholder = "primary-node";
+    private bool _isDropdownOpen;
     private string? _error;
     private bool? _oidcTestResult;
     private string? _oidcTestMessage;
     private string _confirmPassword = string.Empty;
-    private readonly NodeSetupRequest _node = new() { NodeName = "primary-node" };
+    private readonly NodeSetupRequest _node = new();
     private readonly LocalAuthSetupRequest _localAuth = new();
     private readonly OidcAuthSetupRequest _oidc = new() { DisplayName = "Login with OAuth" };
 
-    protected override async Task OnInitializedAsync() => await LookupIpAsync();
+    private string BrowserAddress => _hostname + _portSuffix;
+    private string PublicAddress => (_publicIp ?? string.Empty) + _portSuffix;
 
-    private async Task LookupIpAsync()
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Navigation.BaseUri);
+        _hostname = uri.Host;
+        _portSuffix = uri.Port is 443 ? string.Empty : $":{uri.Port}";
+        SetNodeAddress(BrowserAddress);
+        await LookupIpAsync(false);
+    }
+
+    private void ToggleDropdown()
+    {
+        _isDropdownOpen = !_isDropdownOpen;
+    }
+
+    private void OnNodeAddressInput(ChangeEventArgs args)
+    {
+        SetNodeAddress(args.Value?.ToString() ?? string.Empty);
+    }
+
+    private void SelectAddress(string address)
+    {
+        SetNodeAddress(address);
+        _isDropdownOpen = false;
+    }
+
+    private void SetNodeAddress(string address)
+    {
+        _node.Domain = address;
+        if (string.IsNullOrEmpty(address))
+            return;
+
+        var host = address;
+        if (Uri.TryCreate($"https://{address}", UriKind.Absolute, out var parsedAddress))
+            host = parsedAddress.Host;
+
+        if (!IPAddress.TryParse(host, out _)
+            && !string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            _nodeNamePlaceholder = host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+                                   ?? CreateRandomNodeName();
+        }
+        else if (string.IsNullOrEmpty(_nodeNamePlaceholder) || _nodeNamePlaceholder == _hostname)
+        {
+            _nodeNamePlaceholder = CreateRandomNodeName();
+        }
+    }
+
+    private void GenerateRandomNodeName()
+    {
+        _node.NodeName = CreateRandomNodeName();
+    }
+
+    private static string CreateRandomNodeName()
+    {
+        return NameGenerator.Identifiers.Get(1, separator: "-").FirstOrDefault()?.ToLowerInvariant()
+               ?? "primary-node";
+    }
+
+    private async Task LookupIpAsync(bool manualRefresh = true)
     {
         _busy = true;
         _error = null;
         try
         {
             _publicIp = await SetupApi.GetPublicIpAsync();
+            if (!manualRefresh && _node.Domain == BrowserAddress && IsPrivateIpOrLocalhost(_hostname)
+                && !string.IsNullOrEmpty(_publicIp))
+                _node.Domain = PublicAddress;
         }
         catch (Exception ex)
         {
@@ -125,11 +282,38 @@
         }
     }
 
+    private static bool IsPrivateIpOrLocalhost(string host)
+    {
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!IPAddress.TryParse(host, out var address))
+            return false;
+
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 10
+                   || bytes[0] == 127
+                   || (bytes[0] == 192 && bytes[1] == 168)
+                   || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+                   || (bytes[0] == 169 && bytes[1] == 254);
+        }
+
+        return address.AddressFamily == AddressFamily.InterNetworkV6
+               && (address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.Equals(IPAddress.IPv6Loopback));
+    }
+
     private async Task SaveNodeAsync()
     {
         await RunAsync(async () =>
         {
-            await SetupApi.ConfigureNodeAsync(_node);
+            var request = new NodeSetupRequest
+            {
+                    Domain = string.IsNullOrWhiteSpace(_node.Domain) ? null : _node.Domain.Trim(),
+                    NodeName = string.IsNullOrWhiteSpace(_node.NodeName) ? _nodeNamePlaceholder : _node.NodeName.Trim()
+            };
+            await SetupApi.ConfigureNodeAsync(request);
             _step = 2;
         });
     }

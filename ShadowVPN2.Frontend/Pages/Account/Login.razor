@@ -17,23 +17,47 @@
         <AntiforgeryToken/>
         <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
         <div class="form-floating mb-3">
-            <input name="Email" id="Email" class="form-control" autocomplete="username" placeholder="name@example.com"
-                   required type="email" @bind="_model.Email"/>
+            <InputText name="Email" id="Email" class="form-control" autocomplete="username"
+                       placeholder="name@example.com"
+                       required type="email" @bind-Value="_model.Email"/>
             <label for="Email">Email</label>
         </div>
         <div class="form-floating mb-3">
-            <input name="Password" id="Password" type="password" class="form-control"
-                   autocomplete="current-password" placeholder="password" required @bind="_model.Password"/>
+            <InputText name="Password" id="Password" type="password" class="form-control"
+                       autocomplete="current-password" placeholder="password" required @bind-Value="_model.Password"/>
             <label for="Password">Password</label>
         </div>
         <div class="checkbox mb-3">
             <label>
-                <input type="checkbox" @bind="_model.RememberMe" name="RememberMe" class="form-check-input"/>
+                <InputCheckbox @bind-Value="_model.RememberMe" name="RememberMe" class="form-check-input"/>
                 Remember me
             </label>
         </div>
         <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
     </form>
+    <form method="post" action="/api/auth/passkey/sign-in" class="mt-3">
+        <AntiforgeryToken/>
+        <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+        <input type="hidden" name="Email" value="@_model.Email"/>
+        <button type="submit" data-passkey-login class="w-100 btn btn-link">Log in with a passkey</button>
+    </form>
+
+    @if (_providers.Count > 0)
+    {
+        <hr/>
+        <div class="d-flex flex-column gap-2">
+            @foreach (var provider in _providers)
+            {
+                <form method="post" action="/api/auth/external/start">
+                    <AntiforgeryToken/>
+                    <input type="hidden" name="provider" value="@provider.Name"/>
+                    <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
+                    <button type="submit" class="btn btn-outline-primary w-100">Continue
+                        with @provider.DisplayName</button>
+                </form>
+            }
+        </div>
+    }
 </section>
 
 <div class="text-center mt-3">
@@ -44,6 +68,9 @@
 
 @code {
     private readonly LoginInput _model = new();
+    private readonly List<ExternalLoginProviderResponse> _providers = [];
+
+    [Inject] private HttpClient Http { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
     private string? ReturnUrl { get; set; }
@@ -57,6 +84,19 @@
         "expired" => "The login session has expired. Please try again.",
         _ => null
     };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var options = await Http.GetFromJsonAsync<AuthOptionsResponse>("/api/auth/options");
+            if (options is not null)
+                _providers.AddRange(options.ExternalProviders);
+        }
+        catch (HttpRequestException)
+        {
+        }
+    }
 
     private sealed class LoginInput
     {

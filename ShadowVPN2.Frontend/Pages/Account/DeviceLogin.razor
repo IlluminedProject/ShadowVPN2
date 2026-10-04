@@ -1,0 +1,112 @@
+@page "/Account/DeviceLogin"
+@layout AccountLayout
+@attribute [AllowAnonymous]
+@implements IAsyncDisposable
+
+<PageTitle>Device login</PageTitle>
+
+<div class="text-center">
+    <h1 class="mb-4">Log in with device code</h1>
+    <div class="alert @(_error is null ? "alert-info" : "alert-danger")">@_message</div>
+    @if (_authorization is not null)
+    {
+        <p>Open this address on another device:</p>
+        <p><a href="@(_authorization.VerificationUriComplete ?? _authorization.VerificationUri)" target="_blank"
+              rel="noopener">
+                @_authorization.VerificationUri</a></p>
+        <p class="mb-1">Enter this code:</p>
+        <strong class="fs-3">@_authorization.UserCode</strong>
+    }
+    <div class="mt-4">
+        <a href="/Account/Login" class="btn btn-link">Back to login</a>
+    </div>
+</div>
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    [SupplyParameterFromQuery] private string? TransactionId { get; set; }
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    private DeviceAuthorizationStartResponse? _authorization;
+    private string _message = "Preparing device authorization...";
+    private string? _error;
+    private CancellationTokenSource? _cancellation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(TransactionId))
+        {
+            _error = "The device authorization transaction is missing.";
+            _message = _error;
+            return;
+        }
+
+        try
+        {
+            _authorization = await Http.GetFromJsonAsync<DeviceAuthorizationStartResponse>(
+                $"/api/auth/device/details/{Uri.EscapeDataString(TransactionId)}");
+            _message = "Waiting for confirmation...";
+            _cancellation = new CancellationTokenSource();
+            _ = PollAsync(_cancellation.Token);
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+            _message = _error;
+        }
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && _authorization is not null)
+        {
+            try
+            {
+                var response = await Http.PostAsync(
+                    $"/api/auth/device/poll/{Uri.EscapeDataString(TransactionId!)}", null, cancellationToken);
+                var status = await response.Content.ReadFromJsonAsync<DeviceAuthorizationPollResponse>(cancellationToken);
+                if (status?.Status == "completed")
+                {
+                    await InvokeAsync(() => Navigation.NavigateTo(
+                        $"/api/auth/device/complete/{Uri.EscapeDataString(TransactionId!)}?returnUrl=" +
+                        Uri.EscapeDataString(ReturnUrl ?? "/"), true));
+                    return;
+                }
+
+                if (status?.Status is "expired" or "denied" or "failed")
+                {
+                    _error = status.Error ?? "Device authorization failed.";
+                    _message = _error;
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+
+                _message = status?.Status == "processing"
+                    ? "Waiting for confirmation from the identity provider..."
+                    : "Waiting for confirmation...";
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, status?.RetryAfter ?? 2)), cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                _error = exception.Message;
+                _message = _error;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cancellation?.Cancel();
+        _cancellation?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+}

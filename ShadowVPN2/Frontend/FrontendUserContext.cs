@@ -11,6 +11,7 @@ namespace ShadowVPN2.Frontend;
 
 public sealed class FrontendUserContext(
     AuthenticationStateProvider authenticationStateProvider,
+    IHttpContextAccessor httpContextAccessor,
     UserManager<ApplicationUser> userManager,
     IAuthorizationService authorizationService) {
     public async Task<ApplicationUser> RequireUserAsync(CancellationToken cancellationToken = default) {
@@ -43,6 +44,12 @@ public sealed class FrontendUserContext(
         return (await GetPrincipalAsync()).IsInRole(role);
     }
 
-    private async Task<ClaimsPrincipal> GetPrincipalAsync() =>
-        (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
+    private async Task<ClaimsPrincipal> GetPrincipalAsync() {
+        var principal = (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (principal.Identity?.IsAuthenticated != true &&
+            httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true)
+            return httpContextAccessor.HttpContext.User;
+
+        return principal;
+    }
 }

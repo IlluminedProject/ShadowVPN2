@@ -18,13 +18,13 @@
     <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
     <input type="hidden" name="RememberMe" value="@RememberMe"/>
     <div class="form-floating mb-3">
-        <input name="TwoFactorCode" id="TwoFactorCode" class="form-control" autocomplete="one-time-code"
-               required minlength="6" maxlength="7" @bind="_model.TwoFactorCode"/>
+        <InputText name="TwoFactorCode" id="TwoFactorCode" class="form-control" autocomplete="one-time-code"
+                   required minlength="6" maxlength="7" @bind-Value="_model.TwoFactorCode"/>
         <label for="TwoFactorCode">Authenticator code</label>
     </div>
     <div class="checkbox mb-3">
         <label>
-            <input type="checkbox" @bind="_model.RememberMachine" name="RememberMachine" class="form-check-input"/>
+            <InputCheckbox @bind-Value="_model.RememberMachine" name="RememberMachine" class="form-check-input"/>
             Remember this machine
         </label>
     </div>

@@ -1,0 +1,19 @@
+@using ShadowVPN2.Frontend.Components.Layout
+@inherits LayoutComponentBase
+@layout MainLayout
+
+<h1>Manage your account</h1>
+<div class="row">
+    <div class="col-lg-3">
+        <nav class="nav flex-column">
+            <NavLink class="nav-link" href="/Account/Manage" Match="NavLinkMatch.All">Profile</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/Email">Email</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/ChangePassword">Password</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/ExternalLogins">External logins</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/TwoFactorAuthentication">Two-factor authentication</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/Passkeys">Passkeys</NavLink>
+            <NavLink class="nav-link" href="/Account/Manage/PersonalData">Personal data</NavLink>
+        </nav>
+    </div>
+    <div class="col-lg-9">@Body</div>
+</div>

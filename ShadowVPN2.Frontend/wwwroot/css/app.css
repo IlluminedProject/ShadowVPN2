@@ -16,12 +16,12 @@ main {
     padding: 0 1rem;
 }
 
-button, input {
+button:not(.btn), input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     font: inherit;
     padding: .5rem .75rem;
 }
 
-button {
+button:not(.btn) {
     cursor: pointer;
 }
 
@@ -71,12 +71,12 @@ th, td {
     color: #146c43;
 }
 
-label {
+label:not(.form-label):not(.form-check-label) {
     display: block;
     margin: 1rem 0 .25rem;
 }
 
-input {
+input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     display: block;
     margin-bottom: .5rem;
     max-width: 32rem;
@@ -109,6 +109,31 @@ a.button {
     padding: 1rem;
 }
 
+.settings-frame {
+    border: 1px solid #dee2e6;
+    border-radius: .375rem;
+    padding: 1.5rem;
+}
+
+.settings-item {
+    margin: 1rem 0;
+}
+
+.settings-item-header {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: .375rem .375rem 0 0;
+    overflow: hidden;
+}
+
+.settings-item-accent {
+    height: .3rem;
+}
+
+.settings-item-body {
+    border-color: #dee2e6 !important;
+}
+
 .modal-backdrop {
     align-items: center;
     background: rgb(0 0 0 / 50%);
@@ -130,7 +155,7 @@ a.button {
     width: 100%;
 }
 
-textarea {
+textarea:not(.form-control) {
     display: block;
     margin: .5rem 0;
     width: 100%;

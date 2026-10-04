@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS runtime
+﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -44,11 +44,13 @@ WORKDIR "/src/ShadowVPN2"
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
 
+FROM base AS runtime
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS development
 USER root
-COPY --from=runtime /usr/local/bin/sing-box /usr/local/bin/sing-box
-COPY --from=runtime /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
-COPY --from=runtime /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
+COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
+COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
+COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
     gosu \
@@ -59,7 +61,18 @@ WORKDIR /src/ShadowVPN2
 ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
 
 FROM development AS debug
-CMD ["dotnet", "run", "--no-launch-profile", "--project", "/src/ShadowVPN2/ShadowVPN2.csproj"]
+ARG BUILD_CONFIGURATION=Debug
+WORKDIR /src
+COPY ["ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj", "ShadowVPN2.Contracts/"]
+COPY ["ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj", "ShadowVPN2.Frontend/"]
+COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
+RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
+    dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
+COPY . .
+RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
+    dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
+WORKDIR /src/ShadowVPN2
+CMD ["dotnet", "/src/ShadowVPN2/bin/Debug/net10.0/ShadowVPN2.dll"]
 
 FROM development AS hotreload
 CMD ["dotnet", "watch", "run", "--no-launch-profile", "--project", "/src/ShadowVPN2/ShadowVPN2.csproj"]
@@ -70,7 +83,7 @@ RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish \
     --no-restore --no-build /p:UseAppHost=false
 
-FROM runtime AS final
+FROM base AS final
 WORKDIR /app
 COPY --chown=1654:1654 --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data

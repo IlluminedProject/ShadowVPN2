@@ -1,0 +1,33 @@
+@page "/Account/Manage/EnableAuthenticator"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Configure authenticator</PageTitle>
+<h3>Configure authenticator app</h3>
+@if (_setup is not null)
+{
+    <p>Enter this key in your authenticator app:</p>
+    <kbd>@_setup.SharedKey</kbd>
+    <p><code>@_setup.Uri</code></p>
+}
+<form method="post" action="/api/account/2fa/enable" class="mt-3">
+    <AntiforgeryToken/>
+    <InputText class="form-control mb-2" name="Code" placeholder="Verification code" required @bind-Value="_code"/>
+    <button class="btn btn-primary">Verify</button>
+</form>
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    private SetupResponse? _setup;
+    private string? _code;
+    protected override async Task OnInitializedAsync()
+    {
+        _setup = await Http.GetFromJsonAsync<SetupResponse>("/api/account/2fa/setup");
+    }
+
+    private sealed class SetupResponse
+    {
+        public string? SharedKey { get; set; }
+        public string? Uri { get; set; }
+    }
+
+}

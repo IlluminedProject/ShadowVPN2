@@ -8,15 +8,18 @@
 <PageTitle>Connection setup - ShadowVPN2</PageTitle>
 
 <FrontendNav/>
-<main>
+<main class="frontend-content">
     @if (_loading)
     {
-        <p class="muted">Loading connection details…</p>
+        <div class="d-flex align-items-center gap-2 text-secondary" role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Loading connection details…
+        </div>
     }
     else if (_subscription is null)
     {
         <h1>Invalid link</h1>
-        <p class="muted">This subscription link is invalid or has been removed.</p>
+        <div class="alert alert-danger">This subscription link is invalid or has been removed.</div>
     }
     else
     {
@@ -34,20 +37,23 @@
             {
                 <section class="endpoint">
                     <div><strong>@endpoint.Name</strong> <span class="muted">@endpoint.Address</span></div>
-                    <div class="actions">
+                    <div class="d-flex flex-wrap gap-2 mt-2">
                         @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
                         {
-                            <a href="@CreateConfigDataUrl(wireGuard)"
+                            <a class="btn btn-outline-primary text-nowrap" href="@CreateConfigDataUrl(wireGuard)"
                                download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
                                 Download VPN config
                             </a>
                         }
-                        <button @onclick="() => CopyConnectionAsync(protocol, endpoint)">
+                        <button class="btn btn-outline-primary text-nowrap"
+                                @onclick="() => CopyConnectionAsync(protocol, endpoint)">
                             @(CopiedKey == ConnectionKey(protocol, endpoint) ? "Copied" : "Copy connection")
                         </button>
                         @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
                         {
-                            <button @onclick="() => CopyFreeTurnAsync(endpoint, transport)">Copy FreeTurn link</button>
+                            <button class="btn btn-outline-primary text-nowrap"
+                                    @onclick="() => CopyFreeTurnAsync(endpoint, transport)">Copy FreeTurn link
+                            </button>
                         }
                     </div>
                 </section>
@@ -59,10 +65,11 @@
             <section>
                 <h2>Server latency</h2>
                 <p class="muted">Measured from your device.</p>
-                <button @onclick="PingServersAsync" disabled="@_pinging">Check again</button>
+                <button class="btn btn-outline-primary" @onclick="PingServersAsync" disabled="@_pinging">Check again
+                </button>
                 @foreach (var server in _servers)
                 {
-                    <p>@server.Name — @server.Address — @PingText(server)</p>
+                    <p class="text-break">@server.Name — @server.Address — @PingText(server)</p>
                 }
             </section>
         }

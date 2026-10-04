@@ -1,12 +1,14 @@
 @page "/admin/settings"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
+@inject NavigationManager Navigation
 
 <PageTitle>Settings - ShadowVPN2</PageTitle>
 
-<header><strong>ShadowVPN2 settings</strong></header>
-<main>
-    <AdminSettingsNav/>
-    <h1>General settings</h1>
-    <p class="muted">Select a category to manage global settings.</p>
-</main>
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/admin/settings/auth", replace: true);
+    }
+
+}

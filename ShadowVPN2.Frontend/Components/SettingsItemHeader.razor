@@ -1,0 +1,23 @@
+<div class="settings-item-header">
+    <div class="settings-item-accent bg-primary"></div>
+    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+        <div class="form-check form-switch mb-0">
+            <InputCheckbox class="form-check-input" aria-label="@($"Enable {Title}")" @bind-Value="Enabled"/>
+        </div>
+        <h2 class="h5 mb-0">@Title</h2>
+        <InputNumber class="form-control w-auto" aria-label="Listen port" @bind-Value="ListenPort"/>
+        <button class="btn btn-sm btn-outline-danger ms-auto" type="button"
+                aria-label="Remove @Title" title="Remove @Title" @onclick="OnRemove">
+            <span class="bi bi-trash" aria-hidden="true"></span>
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter][EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public int ListenPort { get; set; }
+    [Parameter] public EventCallback<int> ListenPortChanged { get; set; }
+    [Parameter] public bool Enabled { get; set; }
+    [Parameter] public EventCallback<bool> EnabledChanged { get; set; }
+    [Parameter] public EventCallback OnRemove { get; set; }
+}

@@ -1,0 +1,6 @@
+@page "/Account/Manage/PersonalData"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Personal data</PageTitle><h3>Personal data</h3><p>Download or delete your account data.</p>
+<a class="btn btn-primary" href="/api/account/personal-data">Download</a> <a class="btn btn-danger"
+                                                                             href="/Account/Manage/DeletePersonalData">Delete</a>

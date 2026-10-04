@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
@@ -16,6 +17,7 @@ namespace ShadowVPN2.Infrastructure;
 
 public static class ApplicationServices {
     public static void AddApplicationServices(this WebApplicationBuilder builder) {
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
@@ -44,6 +46,9 @@ public static class ApplicationServices {
         builder.SetupContainerValidation();
 
         builder.Services.AddHttpClient();
+        builder.Services.AddScoped<HttpClient>(services => new HttpClient {
+            BaseAddress = new Uri(services.GetRequiredService<NavigationManager>().BaseUri)
+        });
         builder.Services.AddScoped<FrontendUserContext>();
         builder.Services.AddScoped<IClientApplicationService, ClientApplicationService>();
         builder.Services.AddScoped<IClientUpdatesService, ClientUpdatesService>();
@@ -83,7 +88,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FreeTurnService>());
-        builder.Services.AddControllers();
+        builder.Services.AddControllersWithViews();
         builder.Services.AddSignalR();
     }
 }

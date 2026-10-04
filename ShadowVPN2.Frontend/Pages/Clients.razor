@@ -10,37 +10,40 @@
 
 <PageTitle>VPN clients - ShadowVPN2</PageTitle>
 
-<FrontendNav/>
-<main>
+<div>
     <h1>VPN clients</h1>
 
     @if (_loading)
     {
-        <p class="muted">Loading clients…</p>
+        <div class="d-flex align-items-center gap-2 text-secondary" role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Loading clients…
+        </div>
     }
     else if (!_authenticated)
     {
-        <p>You need to sign in to manage VPN clients.</p>
-        <a href="@LoginUrl">Sign in</a>
+        <p class="text-secondary">You need to sign in to manage VPN clients.</p>
+        <a class="btn btn-primary" href="@LoginUrl">Sign in</a>
     }
     else
     {
         @if (!string.IsNullOrEmpty(_error))
         {
-            <p class="error" role="alert">@_error</p>
+            <div class="alert alert-danger" role="alert">@_error</div>
         }
 
         <EditForm Model="_newClient" OnValidSubmit="CreateClientAsync">
             <DataAnnotationsValidator/>
-            <div class="actions">
-                <InputText @bind-Value="_newClient.Name" placeholder="Device name"/>
-                <button type="submit" disabled="@_saving">Add client</button>
+            <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
+                <InputText class="form-control" @bind-Value="_newClient.Name" placeholder="Device name"/>
+                <button class="btn btn-primary" type="submit" disabled="@_saving">Add client</button>
             </div>
             <ValidationMessage For="() => _newClient.Name"/>
         </EditForm>
 
-        <div class="actions">
-            <InputText @bind-Value="_search" @bind-Value:after="ApplySearch" placeholder="Search clients"/>
+        <div class="mb-3">
+            <InputText class="form-control" @bind-Value="_search" @bind-Value:after="ApplySearch"
+                       placeholder="Search clients"/>
         </div>
 
         @if (_filteredClients.Count == 0)
@@ -49,7 +52,8 @@
         }
         else
         {
-            <table>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
                 <thead>
                 <tr>
                     <th>Name</th>
@@ -76,17 +80,22 @@
                         <td>@(client.IsEnabled ? "Enabled" : "Disabled")</td>
                         <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
                         <td class="actions">
-                            <a href="@($"/clients/settings/{EscapeDocumentId(client.Id)}")">Settings</a>
-                            <a href="@($"/s/{client.SubscriptionId}")" target="_blank">Subscription</a>
-                            <button @onclick="() => DeleteClientAsync(client)">Delete</button>
+                            <a class="btn btn-outline-primary btn-sm"
+                               href="@($"/clients/settings/{EscapeDocumentId(client.Id)}")">Settings</a>
+                            <a class="btn btn-outline-info btn-sm" href="@($"/s/{client.SubscriptionId}")"
+                               target="_blank">Subscription</a>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteClientAsync(client)">
+                                Delete
+                            </button>
                         </td>
                     </tr>
                 }
                 </tbody>
             </table>
+            </div>
         }
     }
-</main>
+</div>
 
 @code {
     private IReadOnlyList<ClientResponse> _clients = [];
@@ -95,6 +104,7 @@
     private bool _loading = true;
     private bool _authenticated;
     private bool _saving;
+    private bool _retryAfterInteractiveRender;
     private string? _error;
     private string _search = string.Empty;
     private bool _isAdministrator;
@@ -130,6 +140,24 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_retryAfterInteractiveRender)
+            return;
+
+        _retryAfterInteractiveRender = false;
+        try
+        {
+            await LoadClientsAsync();
+            _authenticated = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ApplicationServiceException exception)
+        {
+            HandleApiError(exception, "Could not load VPN clients.");
         }
     }
 
@@ -200,7 +228,10 @@
     private void HandleApiError(ApplicationServiceException exception, string message)
     {
         if (exception.StatusCode == HttpStatusCode.Unauthorized)
+        {
             _authenticated = false;
+            _retryAfterInteractiveRender = true;
+        }
         else
         {
             _authenticated = true;

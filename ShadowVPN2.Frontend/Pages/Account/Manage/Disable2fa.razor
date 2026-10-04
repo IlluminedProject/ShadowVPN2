@@ -1,0 +1,8 @@
+@page "/Account/Manage/Disable2fa"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Disable two-factor authentication</PageTitle><h3>Disable two-factor authentication</h3>
+<form method="post" action="/api/account/2fa/disable">
+    <AntiforgeryToken/>
+    <button class="btn btn-danger">Disable 2FA</button>
+</form>

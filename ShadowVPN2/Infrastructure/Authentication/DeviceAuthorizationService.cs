@@ -13,6 +13,8 @@ using ShadowVPN2.Entities.Auth;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 using static OpenIddict.Client.OpenIddictClientModels;
 using ProtocolException = OpenIddict.Abstractions.OpenIddictExceptions.ProtocolException;
+using DeviceAuthorizationStartResponse = ShadowVPN2.Data.DeviceAuthorizationStartResponse;
+using DeviceAuthorizationPollResponse = ShadowVPN2.Data.DeviceAuthorizationPollResponse;
 
 namespace ShadowVPN2.Infrastructure.Authentication;
 

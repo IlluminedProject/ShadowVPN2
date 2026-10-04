@@ -1,0 +1,8 @@
+@page "/Account/Manage/ResetAuthenticator"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Reset authenticator</PageTitle><h3>Reset authenticator key</h3>
+<form method="post" action="/api/account/2fa/reset">
+    <AntiforgeryToken/>
+    <button class="btn btn-danger">Reset authenticator key</button>
+</form>

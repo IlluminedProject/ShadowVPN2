@@ -9,5 +9,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
+    <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9"/>
   </ItemGroup>
 </Project>

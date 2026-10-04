@@ -1,0 +1,33 @@
+@page "/Account/Manage/TwoFactorAuthentication"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Two-factor authentication</PageTitle>
+<h3>Two-factor authentication</h3>
+@if (_profile is not null)
+{
+    <p>Status: @(_profile.TwoFactorEnabled ? "Enabled" : "Disabled")</p>
+    <p>Recovery codes left: @_profile.RecoveryCodesLeft</p>
+    @if (_profile.TwoFactorEnabled)
+    {
+        <form method="post" action="/api/account/2fa/disable">
+            <AntiforgeryToken/>
+            <button class="btn btn-danger">Disable 2FA</button>
+        </form>
+    }
+    else
+    {
+        <a class="btn btn-primary" href="/Account/Manage/EnableAuthenticator">Configure authenticator</a>
+    }
+
+    <a class="btn btn-link" href="/Account/Manage/GenerateRecoveryCodes">Generate recovery codes</a>
+}
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    private AccountProfileResponse? _profile;
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await Http.GetFromJsonAsync<AccountProfileResponse>("/api/account/profile");
+    }
+
+}

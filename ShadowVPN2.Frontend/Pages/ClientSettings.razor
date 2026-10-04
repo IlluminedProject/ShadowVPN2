@@ -8,9 +8,8 @@
 
 <PageTitle>Client settings - ShadowVPN2</PageTitle>
 
-<FrontendNav/>
-<main>
-    <p><a href="/clients">← VPN clients</a></p>
+<div>
+    <p><a class="btn btn-link ps-0" href="/clients">← VPN clients</a></p>
     <h1>Client settings</h1>
 
     @if (_loading)
@@ -20,17 +19,17 @@
     else if (!_authenticated)
     {
         <p>You need to sign in to manage VPN clients.</p>
-        <a href="@LoginUrl">Sign in</a>
+        <a class="btn btn-primary" href="@LoginUrl">Sign in</a>
     }
     else if (_client is null)
     {
-        <p class="error">Client not found or access denied.</p>
+        <div class="alert alert-danger">Client not found or access denied.</div>
     }
     else
     {
         @if (!string.IsNullOrEmpty(_error))
         {
-            <p class="error" role="alert">@_error</p>
+            <div class="alert alert-danger" role="alert">@_error</div>
         }
 
         @if (!string.IsNullOrEmpty(_message))
@@ -40,21 +39,21 @@
 
         <EditForm Model="_form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator/>
-            <div>
+            <div class="mb-3">
                 <label for="client-name">Device name</label>
-                <InputText id="client-name" @bind-Value="_form.Name"/>
+                <InputText id="client-name" class="form-control" @bind-Value="_form.Name"/>
                 <ValidationMessage For="() => _form.Name"/>
             </div>
-            <div>
-                <InputCheckbox id="client-enabled" @bind-Value="_form.IsEnabled"/>
-                <label for="client-enabled">Enabled</label>
+            <div class="form-check form-switch mb-3">
+                <InputCheckbox id="client-enabled" class="form-check-input" @bind-Value="_form.IsEnabled"/>
+                <label class="form-check-label" for="client-enabled">Enabled</label>
             </div>
-            <div>
+            <div class="mb-3">
                 <label for="client-mtu">WireGuard MTU</label>
-                <InputNumber id="client-mtu" @bind-Value="_form.WireGuardMtu"/>
+                <InputNumber id="client-mtu" class="form-control" @bind-Value="_form.WireGuardMtu"/>
                 <ValidationMessage For="() => _form.WireGuardMtu"/>
             </div>
-            <button type="submit" disabled="@_saving">Save</button>
+            <button class="btn btn-primary" type="submit" disabled="@_saving">Save</button>
         </EditForm>
 
         <section>
@@ -63,7 +62,8 @@
                 <dt>Assigned IP</dt>
                 <dd>@_client.AssignedIp</dd>
                 <dt>Subscription</dt>
-                <dd><a href="/s/@_client.SubscriptionId" target="_blank">Open subscription</a></dd>
+                <dd><a class="btn btn-outline-info" href="/s/@_client.SubscriptionId" target="_blank">Open
+                        subscription</a></dd>
                 @if (_client.Hysteria2 is not null)
                 {
                     <dt>Hysteria2 password</dt>
@@ -72,7 +72,7 @@
             </dl>
         </section>
     }
-</main>
+</div>
 
 @code {
     [Parameter] public string? ClientId { get; set; }

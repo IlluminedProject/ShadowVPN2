@@ -1,0 +1,27 @@
+@page "/Account/Manage"
+@layout ManageLayout
+@attribute [Authorize]
+
+<PageTitle>Profile</PageTitle>
+<h3>Profile</h3>
+<p class="text-success">@Message</p>
+<form method="post" action="/api/account/profile">
+    <AntiforgeryToken/>
+    <label>Phone number</label>
+    <InputText class="form-control mb-3" name="PhoneNumber" @bind-Value="_phoneNumber"/>
+    <button class="btn btn-primary">Save</button>
+</form>
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? Message { get; set; }
+    private AccountProfileResponse? _profile;
+    private string? _phoneNumber;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await Http.GetFromJsonAsync<AccountProfileResponse>("/api/account/profile");
+        _phoneNumber = _profile?.PhoneNumber;
+    }
+
+}

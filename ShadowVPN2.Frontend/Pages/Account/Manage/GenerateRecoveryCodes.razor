@@ -1,0 +1,8 @@
+@page "/Account/Manage/GenerateRecoveryCodes"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Recovery codes</PageTitle><h3>Recovery codes</h3>
+<form method="post" action="/api/account/2fa/recovery-codes">
+    <AntiforgeryToken/>
+    <button class="btn btn-danger">Generate recovery codes</button>
+</form>

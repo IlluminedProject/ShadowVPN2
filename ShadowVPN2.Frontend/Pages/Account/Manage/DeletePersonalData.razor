@@ -1,0 +1,14 @@
+@page "/Account/Manage/DeletePersonalData"
+@layout ManageLayout
+@attribute [Authorize]
+<PageTitle>Delete personal data</PageTitle><h3>Delete personal data</h3><p>This permanently removes your account.</p>
+<form method="post" action="/api/account/delete">
+    <AntiforgeryToken/>
+    <InputText class="form-control mb-2" name="Password" type="password" placeholder="Password (if required)"
+               @bind-Value="_password"/>
+    <button class="btn btn-danger">Delete account</button>
+</form>
+
+@code {
+    private string? _password;
+}
