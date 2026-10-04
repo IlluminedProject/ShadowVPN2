@@ -1,10 +1,12 @@
 ﻿@using ShadowVPN2.Components.Account.Shared
+@using ShadowVPN2.Components.Pages
+@using ShadowVPN2.Frontend.Pages
 <Router AppAssembly="typeof(Program).Assembly"
-        AdditionalAssemblies="new[] { typeof(ShadowVPN2.Frontend.Pages.Nodes).Assembly }"
-        NotFoundPage="typeof(Pages.NotFound)">
+        AdditionalAssemblies="new[] { typeof(Nodes).Assembly }"
+        NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData"
-                            DefaultLayout="typeof(ShadowVPN2.Frontend.Components.Layout.MainLayout)">
+                            DefaultLayout="typeof(MainLayout)">
             <NotAuthorized>
                 <RedirectToLogin/>
             </NotAuthorized>

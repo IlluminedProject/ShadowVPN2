@@ -111,10 +111,6 @@
             else if (exception.StatusCode == HttpStatusCode.NotFound)
                 _error = "Could not load client settings.";
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _loading = false;
@@ -148,10 +144,6 @@
                 _authenticated = false;
             else
                 _error = "Could not save client settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {

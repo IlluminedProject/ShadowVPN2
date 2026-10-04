@@ -11,7 +11,9 @@
 
     <main>
         <article class="content px-4">
-            @Body
+            <GlobalErrorBoundary>
+                @Body
+            </GlobalErrorBoundary>
         </article>
     </main>
 </div>

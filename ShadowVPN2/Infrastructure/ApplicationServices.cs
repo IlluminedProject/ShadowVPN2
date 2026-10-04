@@ -19,7 +19,8 @@ public static class ApplicationServices {
     public static void AddApplicationServices(this WebApplicationBuilder builder) {
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddRazorComponents()
-            .AddInteractiveServerComponents();
+            .AddInteractiveServerComponents(options =>
+                options.DetailedErrors = builder.Environment.IsDevelopment());
 
         builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
         builder.Services.AddSingleton<IPostConfigureOptions<SingBoxOptions>, SingBoxOptionsPostConfigure>();

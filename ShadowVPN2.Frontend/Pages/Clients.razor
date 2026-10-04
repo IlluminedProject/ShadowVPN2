@@ -1,5 +1,4 @@
 @page "/clients"
-@rendermode InteractiveServer
 @attribute [Authorize]
 @inject IClientApplicationService ClientsApi
 @inject IClientUpdatesService ClientRealtime
@@ -104,7 +103,6 @@
     private bool _loading = true;
     private bool _authenticated;
     private bool _saving;
-    private bool _retryAfterInteractiveRender;
     private string? _error;
     private string _search = string.Empty;
     private bool _isAdministrator;
@@ -115,8 +113,16 @@
     private static string EscapeDocumentId(string id) =>
             string.Join('/', id.Split('/').Select(Uri.EscapeDataString));
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
         try
         {
             _isAdministrator = await ClientsApi.IsAdministratorAsync();
@@ -128,36 +134,16 @@
                 ApplySearch();
                 StateHasChanged();
             }));
-        }
-        catch (ApplicationServiceException exception)
-        {
-            HandleApiError(exception, "Could not load VPN clients.");
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender || !_retryAfterInteractiveRender)
-            return;
-
-        _retryAfterInteractiveRender = false;
-        try
-        {
-            await LoadClientsAsync();
-            _authenticated = true;
             await InvokeAsync(StateHasChanged);
         }
         catch (ApplicationServiceException exception)
         {
             HandleApiError(exception, "Could not load VPN clients.");
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -193,10 +179,6 @@
         {
             HandleApiError(exception, "Could not create the client.");
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _saving = false;
@@ -219,10 +201,6 @@
         {
             HandleApiError(exception, "Could not delete the client.");
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
     }
 
     private void HandleApiError(ApplicationServiceException exception, string message)
@@ -230,7 +208,6 @@
         if (exception.StatusCode == HttpStatusCode.Unauthorized)
         {
             _authenticated = false;
-            _retryAfterInteractiveRender = true;
         }
         else
         {
