@@ -25,14 +25,20 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
     public async Task<IReadOnlyList<EntityClient>> GetClientsAsync(ApplicationUser user, bool includeAllUsers = false,
         CancellationToken ct = default) {
         using var session = documentStore.OpenAsyncSession();
+        var userId = user.Id!;
         IQueryable<EntityClient> query = session.Query<EntityClient>();
         if (!includeAllUsers)
-            query = query.Where(c => c.UserId == user.Id);
+            query = query.Where(c => c.UserId == userId);
 
-        return await query
-            .OrderByDescending(c => c.UserId == user.Id)
-            .ThenBy(c => c.Id)
+        var clients = await query
+            .OrderBy(c => c.Id)
             .ToListAsync(ct);
+
+        // RavenDB cannot translate a computed boolean expression used as an order key.
+        // Apply this presentation-only ordering after the query has executed.
+        return includeAllUsers
+            ? clients.OrderByDescending(c => c.UserId == userId).ThenBy(c => c.Id).ToList()
+            : clients;
     }
 
     public async Task<IReadOnlyList<EntityClient>> GetClientsByUserNumberAsync(int userNumber,
