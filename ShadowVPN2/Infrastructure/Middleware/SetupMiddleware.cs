@@ -13,6 +13,7 @@ public class SetupMiddleware(RequestDelegate next) {
                 path.StartsWith("/css") ||
                 path.StartsWith("/js") ||
                 path.StartsWith("/images") ||
+                path.StartsWith("/not-found") ||
                 path.StartsWith("/favicon.ico") ||
                 path.StartsWith("/lib"))) {
             await next(context);
