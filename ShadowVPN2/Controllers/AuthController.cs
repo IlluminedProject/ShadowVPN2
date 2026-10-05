@@ -31,16 +31,19 @@ public class AuthController(
             "GlobalConfiguration", cancellationToken);
         var oidc = configuration?.Providers.OfType<OidcAuthProvider>().FirstOrDefault();
         var local = configuration?.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
+        var deviceFlowProvider = oidc is { IsEnabled: true, DeviceFlowEnabled: true }
+            ? oidc.SchemeName
+            : null;
         var externalProviders = (await signInManager.GetExternalAuthenticationSchemesAsync())
             .Select(provider => new ExternalLoginProviderResponse {
                 Name = provider.Name,
-                DisplayName = provider.DisplayName ?? provider.Name
+                DisplayName = provider.DisplayName ?? provider.Name,
+                UseDeviceFlow = provider.Name == deviceFlowProvider
             })
             .ToArray();
 
         return new AuthOptionsResponse {
             LocalLoginEnabled = local?.IsEnabled == true,
-            DeviceFlowEnabled = oidc?.IsEnabled == true && oidc.DeviceFlowEnabled,
             ExternalProviders = externalProviders
         };
     }

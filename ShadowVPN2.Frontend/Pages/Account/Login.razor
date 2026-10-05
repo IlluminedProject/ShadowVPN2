@@ -46,23 +46,27 @@
         <div class="d-flex flex-column gap-2">
             @foreach (var provider in _providers)
             {
-                <form method="post" action="/api/auth/external/start">
-                    <AntiforgeryToken/>
-                    <input type="hidden" name="provider" value="@provider.Name"/>
-                    <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
-                    <button type="submit" class="btn btn-outline-primary w-100">Continue
-                        with @provider.DisplayName</button>
-                </form>
+                @if (provider.UseDeviceFlow)
+                {
+                    <a class="btn btn-outline-primary w-100"
+                       href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
+                        Continue with @provider.DisplayName
+                    </a>
+                }
+                else
+                {
+                    <form method="post" action="/api/auth/external/start">
+                        <AntiforgeryToken/>
+                        <input type="hidden" name="provider" value="@provider.Name"/>
+                        <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
+                        <button type="submit" class="btn btn-outline-primary w-100">Continue
+                            with @provider.DisplayName</button>
+                    </form>
+                }
             }
         </div>
     }
 </section>
-
-<div class="text-center mt-3">
-    <a href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
-        Login with OAuth
-    </a>
-</div>
 
 @code {
     private readonly LoginInput _model = new();
@@ -89,7 +93,9 @@
         {
             var options = await Http.GetFromJsonAsync<AuthOptionsResponse>("/api/auth/options");
             if (options is not null)
+            {
                 _providers.AddRange(options.ExternalProviders);
+            }
         }
         catch (HttpRequestException)
         {
