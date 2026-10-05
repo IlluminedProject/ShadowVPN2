@@ -1,5 +1,4 @@
-async function passkeyRequest(event) {
-    const button = event.currentTarget;
+async function passkeyRequest(event, button) {
     const form = button.form;
     event.preventDefault();
     try {
@@ -19,21 +18,16 @@ async function passkeyRequest(event) {
         form.appendChild(input);
         form.submit();
     } catch (error) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'error';
-        input.value = error.message;
-        form.appendChild(input);
-        form.submit();
+        if (error.name !== 'NotAllowedError') console.error(error);
     }
 }
 
 document.addEventListener('click', event => {
-    if (event.target.closest('[data-passkey-login]')) passkeyRequest(event);
+    const button = event.target.closest('[data-passkey-login]');
+    if (button) passkeyRequest(event, button);
 });
 
-async function registerPasskey(event) {
-    const button = event.currentTarget;
+async function registerPasskey(event, button) {
     const form = button.form;
     event.preventDefault();
     try {
@@ -59,5 +53,6 @@ async function registerPasskey(event) {
 }
 
 document.addEventListener('click', event => {
-    if (event.target.closest('[data-passkey-register]')) registerPasskey(event);
+    const button = event.target.closest('[data-passkey-register]');
+    if (button) registerPasskey(event, button);
 });

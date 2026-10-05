@@ -13,59 +13,62 @@
 }
 
 <section>
-    <form method="post" action="/api/auth/login">
-        <AntiforgeryToken/>
-        <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
-        <div class="form-floating mb-3">
-            <InputText name="Email" id="Email" class="form-control" autocomplete="username"
-                       placeholder="name@example.com"
-                       required type="email" @bind-Value="_model.Email"/>
-            <label for="Email">Email</label>
-        </div>
-        <div class="form-floating mb-3">
-            <InputText name="Password" id="Password" type="password" class="form-control"
-                       autocomplete="current-password" placeholder="password" required @bind-Value="_model.Password"/>
-            <label for="Password">Password</label>
-        </div>
-        <div class="form-check mb-3">
-            <InputCheckbox id="RememberMe" @bind-Value="_model.RememberMe" name="RememberMe" class="form-check-input"/>
-            <label class="form-check-label" for="RememberMe">Remember me</label>
-        </div>
-        <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-    </form>
-    <form method="post" action="/api/auth/passkey/sign-in" class="mt-3">
-        <AntiforgeryToken/>
-        <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
-        <input type="hidden" name="Email" value="@_model.Email"/>
-        <button type="submit" data-passkey-login class="w-100 btn btn-link">Log in with a passkey</button>
-    </form>
+    <div class="d-flex flex-column gap-3">
+        <form method="post" action="/api/auth/login" class="d-flex flex-column gap-3">
+            <AntiforgeryToken/>
+            <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+            <div class="form-floating mb-3">
+                <InputText name="Email" id="Email" class="form-control" autocomplete="username"
+                           placeholder="name@example.com"
+                           required type="email" @bind-Value="_model.Email"/>
+                <label for="Email">Email</label>
+            </div>
+            <div class="form-floating mb-3">
+                <InputText name="Password" id="Password" type="password" class="form-control"
+                           autocomplete="current-password" placeholder="password" required
+                           @bind-Value="_model.Password"/>
+                <label for="Password">Password</label>
+            </div>
+            <div class="form-check mb-3">
+                <InputCheckbox id="RememberMe" @bind-Value="_model.RememberMe" name="RememberMe"
+                               class="form-check-input"/>
+                <label class="form-check-label" for="RememberMe">Remember me</label>
+            </div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+        </form>
+        <form method="post" action="/api/auth/passkey/sign-in">
+            <AntiforgeryToken/>
+            <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
+            <input type="hidden" name="Email" value="@_model.Email"/>
+            <button type="submit" data-passkey-login class="w-100 btn btn-lg btn-primary">Log in with a passkey</button>
+        </form>
 
-    @if (_providers.Count > 0)
-    {
-        <hr/>
-        <div class="d-flex flex-column gap-2">
-            @foreach (var provider in _providers)
-            {
-                @if (provider.UseDeviceFlow)
+        @if (_providers.Count > 0)
+        {
+            <div class="d-flex flex-column gap-3">
+                @foreach (var provider in _providers)
                 {
-                    <a class="btn btn-outline-primary w-100"
-                       href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
-                        Continue with @provider.DisplayName
-                    </a>
+                    @if (provider.UseDeviceFlow)
+                    {
+                        <a class="btn btn-lg btn-primary w-100"
+                           href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">
+                            Continue with @provider.DisplayName
+                        </a>
+                    }
+                    else
+                    {
+                        <form method="post" action="/api/auth/external/start">
+                            <AntiforgeryToken/>
+                            <input type="hidden" name="provider" value="@provider.Name"/>
+                            <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
+                            <button type="submit" class="btn btn-lg btn-primary w-100">Continue
+                                with @provider.DisplayName</button>
+                        </form>
+                    }
                 }
-                else
-                {
-                    <form method="post" action="/api/auth/external/start">
-                        <AntiforgeryToken/>
-                        <input type="hidden" name="provider" value="@provider.Name"/>
-                        <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
-                        <button type="submit" class="btn btn-outline-primary w-100">Continue
-                            with @provider.DisplayName</button>
-                    </form>
-                }
-            }
-        </div>
-    }
+            </div>
+        }
+    </div>
 </section>
 
 @code {
