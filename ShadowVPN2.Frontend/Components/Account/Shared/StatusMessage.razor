@@ -17,11 +17,11 @@
 
     protected override void OnInitialized()
     {
-        _messageFromCookie = HttpContext.Request.Cookies[IdentityRedirectManager.StatusCookieName];
+        _messageFromCookie = HttpContext.Request.Cookies[IdentityStatusCookie.Name];
 
         if (_messageFromCookie is not null)
         {
-            HttpContext.Response.Cookies.Delete(IdentityRedirectManager.StatusCookieName);
+            HttpContext.Response.Cookies.Delete(IdentityStatusCookie.Name);
         }
     }
 

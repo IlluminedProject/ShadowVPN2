@@ -9,7 +9,6 @@ using OpenIddict.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Identity;
-using ShadowVPN2.Components.Account;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Infrastructure.Authentication;

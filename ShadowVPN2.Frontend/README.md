@@ -16,8 +16,10 @@ dotnet publish ShadowVPN2/ShadowVPN2.csproj -c Release
 The host owns backend dependency injection, Identity, RavenDB, REST endpoints,
 and SignalR. Frontend service interfaces are defined in this project and their
 implementations are registered by the host over the existing backend services.
-Identity's login/passkey/external-provider and account-management pages remain
-host-owned because they issue and manage the Identity cookie and provider callbacks.
+The Razor application shell, routeable pages, layouts, account UI and frontend
+static assets are owned by this project. The host remains responsible for the
+Identity runtime, login/passkey/external-provider endpoints and provider callbacks.
 
-Application routes are served at the application root. The frontend does not
-call its own REST API for internal UI operations.
+Application routes are served at the application root from this assembly. The
+frontend does not call its own REST API for internal UI operations and cannot be
+started independently; the executable host is the only runnable project.

@@ -1,8 +1,6 @@
-﻿@using ShadowVPN2.Components.Account.Shared
-@using ShadowVPN2.Components.Pages
+﻿@using ShadowVPN2.Frontend.Components.Account.Shared
 @using ShadowVPN2.Frontend.Pages
-<Router AppAssembly="typeof(Program).Assembly"
-        AdditionalAssemblies="new[] { typeof(Nodes).Assembly }"
+<Router AppAssembly="typeof(App).Assembly"
         NotFoundPage="typeof(NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData"

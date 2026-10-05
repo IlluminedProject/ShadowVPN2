@@ -1,7 +1,6 @@
 using Serilog;
-using ShadowVPN2.Components;
 using ShadowVPN2.Data.Migrations;
-using ShadowVPN2.Frontend.Pages;
+using ShadowVPN2.Frontend.Components;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Middleware;
@@ -56,7 +55,6 @@ try {
     app.MapHub<NodeHub>("/api/node/hub");
     app.MapHub<ClientHub>("/api/client/hub");
     app.MapRazorComponents<App>()
-        .AddAdditionalAssemblies(typeof(Nodes).Assembly)
         .AddInteractiveServerRenderMode();
 
     await app.RunAsync();

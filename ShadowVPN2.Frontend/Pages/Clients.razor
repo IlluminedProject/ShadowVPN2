@@ -1,10 +1,9 @@
 @page "/clients"
+@rendermode InteractiveServer
 @attribute [Authorize]
 @inject IClientApplicationService ClientsApi
 @inject IClientUpdatesService ClientRealtime
-@inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
-@using System.Net
 @implements IAsyncDisposable
 
 <PageTitle>VPN clients - ShadowVPN2</PageTitle>
@@ -18,11 +17,6 @@
             <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
             Loading clients…
         </div>
-    }
-    else if (!_authenticated)
-    {
-        <p class="text-secondary">You need to sign in to manage VPN clients.</p>
-        <a class="btn btn-primary" href="@LoginUrl">Sign in</a>
     }
     else
     {
@@ -101,33 +95,21 @@
     private IReadOnlyList<ClientResponse> _filteredClients = [];
     private readonly CreateClientRequest _newClient = new() { Name = string.Empty };
     private bool _loading = true;
-    private bool _authenticated;
     private bool _saving;
     private string? _error;
     private string _search = string.Empty;
     private bool _isAdministrator;
     private IAsyncDisposable? _realtimeSubscription;
 
-    private string LoginUrl => $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
-
     private static string EscapeDocumentId(string id) =>
             string.Join('/', id.Split('/').Select(Uri.EscapeDataString));
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        return Task.CompletedTask;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-            return;
-
         try
         {
             _isAdministrator = await ClientsApi.IsAdministratorAsync();
             await LoadClientsAsync();
-            _authenticated = true;
             _realtimeSubscription = await ClientRealtime.SubscribeAsync(clients => InvokeAsync(() =>
             {
                 _clients = clients;
@@ -136,14 +118,13 @@
             }));
             await InvokeAsync(StateHasChanged);
         }
-        catch (ApplicationServiceException exception)
+        catch (ApplicationServiceException)
         {
-            HandleApiError(exception, "Could not load VPN clients.");
+            _error = "Could not load VPN clients.";
         }
         finally
         {
             _loading = false;
-            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -175,9 +156,9 @@
             _newClient.Name = string.Empty;
             await LoadClientsAsync();
         }
-        catch (ApplicationServiceException exception)
+        catch (ApplicationServiceException)
         {
-            HandleApiError(exception, "Could not create the client.");
+            _error = "Could not create the client.";
         }
         finally
         {
@@ -197,22 +178,9 @@
             await ClientsApi.DeleteClientAsync(client.Id);
             await LoadClientsAsync();
         }
-        catch (ApplicationServiceException exception)
+        catch (ApplicationServiceException)
         {
-            HandleApiError(exception, "Could not delete the client.");
-        }
-    }
-
-    private void HandleApiError(ApplicationServiceException exception, string message)
-    {
-        if (exception.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            _authenticated = false;
-        }
-        else
-        {
-            _authenticated = true;
-            _error = message;
+            _error = "Could not delete the client.";
         }
     }
 
