@@ -50,15 +50,6 @@ h1:focus {
     border-color: #929292;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
-}
-
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
-}
-
 body {
     color: #212529;
     font-family: system-ui, sans-serif;
@@ -77,7 +68,7 @@ body {
     padding: 0 1rem;
 }
 
-button, input {
+button, input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     font: inherit;
     padding: .5rem .75rem;
 }
@@ -132,12 +123,16 @@ th, td {
     color: #146c43;
 }
 
-label {
+label:not(.form-label):not(.form-check-label) {
     display: block;
     margin: 1rem 0 .25rem;
 }
 
-input {
+.form-floating > label:not(.form-label):not(.form-check-label) {
+    margin: 0;
+}
+
+input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     display: block;
     margin-bottom: .5rem;
     max-width: 32rem;

@@ -22,11 +22,10 @@
                    required minlength="6" maxlength="7" @bind-Value="_model.TwoFactorCode"/>
         <label for="TwoFactorCode">Authenticator code</label>
     </div>
-    <div class="checkbox mb-3">
-        <label>
-            <InputCheckbox @bind-Value="_model.RememberMachine" name="RememberMachine" class="form-check-input"/>
-            Remember this machine
-        </label>
+    <div class="form-check mb-3">
+        <InputCheckbox id="RememberMachine" @bind-Value="_model.RememberMachine" name="RememberMachine"
+                       class="form-check-input"/>
+        <label class="form-check-label" for="RememberMachine">Remember this machine</label>
     </div>
     <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
 </form>

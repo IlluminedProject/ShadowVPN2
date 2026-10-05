@@ -76,6 +76,10 @@ label:not(.form-label):not(.form-check-label) {
     margin: 1rem 0 .25rem;
 }
 
+.form-floating > label:not(.form-label):not(.form-check-label) {
+    margin: 0;
+}
+
 input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     display: block;
     margin-bottom: .5rem;
