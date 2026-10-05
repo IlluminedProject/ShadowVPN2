@@ -4,6 +4,7 @@
 @layout PublicLayout
 @inject ISubscriptionApplicationService SubscriptionApi
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
 
 <PageTitle>Connection setup - ShadowVPN2</PageTitle>
 
@@ -24,6 +25,21 @@
     else
     {
         <h1>@_subscription.ClientName</h1>
+        <section class="mb-4">
+            <h2>Subscription URLs</h2>
+            <div class="d-flex flex-column gap-2">
+                @foreach (var format in SubscriptionFormats)
+                {
+                    <div class="d-flex gap-2 align-items-center">
+                        <code class="text-break flex-grow-1">@CreateSubscriptionUrl(format.Key)</code>
+                        <button class="btn btn-outline-primary text-nowrap"
+                                @onclick="() => CopySubscriptionUrlAsync(format.Key)">
+                            @(CopiedKey == $"subscription:{format.Key}" ? "Copied" : format.Value)
+                        </button>
+                    </div>
+                }
+            </div>
+        </section>
         <h2>Available connection hosts</h2>
         @if (!_subscription.Protocols.Any())
         {
@@ -85,6 +101,15 @@
     private string? _copiedKey;
     private readonly List<ServerState> _servers = [];
     private string? CopiedKey => _copiedKey;
+
+    private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
+        new Dictionary<string, string>
+        {
+            ["Base64"] = "Copy Base64 URL",
+            ["Mihomo"] = "Copy Mihomo URL",
+            ["MihomoProvider"] = "Copy Mihomo provider URL",
+            ["FreeTurn"] = "Copy FreeTurn URL"
+        };
 
     protected override async Task OnParametersSetAsync()
     {
@@ -165,6 +190,16 @@
                 _ => string.Empty
         };
         await CopyAsync(shareUrl, ConnectionKey(protocol, endpoint));
+    }
+
+    private string CreateSubscriptionUrl(string format)
+    {
+        return Navigation.ToAbsoluteUri($"s/{SubscriptionId}/subscription?format={Uri.EscapeDataString(format)}").ToString();
+    }
+
+    private Task CopySubscriptionUrlAsync(string format)
+    {
+        return CopyAsync(CreateSubscriptionUrl(format), $"subscription:{format}");
     }
 
     private async Task CopyFreeTurnAsync(SubscriptionEndpoint endpoint, FreeTurnConnectionInfo transport)

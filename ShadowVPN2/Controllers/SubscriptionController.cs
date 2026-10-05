@@ -9,7 +9,9 @@ namespace ShadowVPN2.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [AllowAnonymous]
-public class SubscriptionController(SubscriptionService subscriptionService) : ControllerBase {
+public class SubscriptionController(
+    SubscriptionService subscriptionService,
+    SubscriptionFormatService formatService) : ControllerBase {
     [HttpGet("{id:guid}")]
     public async Task<SubscriptionContract.SubscriptionResponse> GetSubscription(Guid id) {
         var response = await subscriptionService.GetSubscriptionAsync(id);
@@ -28,6 +30,37 @@ public class SubscriptionController(SubscriptionService subscriptionService) : C
                 }).ToArray()
             }).ToArray()
         };
+    }
+
+    [HttpGet("~/s/{id:guid}/subscription")]
+    public async Task<ContentResult> GetSubscriptionContent(
+        Guid id,
+        [FromQuery] SubscriptionFormat? format = null) {
+        var response = await subscriptionService.GetSubscriptionAsync(id);
+        response = response.OrThrowNotFound("Subscription not found");
+
+        var selectedFormat = format ?? SelectFormat(Request.Headers.UserAgent.ToString());
+        if (selectedFormat == SubscriptionFormat.Json) {
+            throw new ArgumentException("The json format is available at the API subscription endpoint",
+                nameof(format));
+        }
+
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Vary = "User-Agent";
+        return new ContentResult {
+            Content = formatService.Render(response, selectedFormat),
+            ContentType = selectedFormat switch {
+                SubscriptionFormat.Base64 or SubscriptionFormat.FreeTurn => "text/plain; charset=utf-8",
+                _ => "application/yaml; charset=utf-8"
+            }
+        };
+    }
+
+    private static SubscriptionFormat SelectFormat(string userAgent) {
+        return userAgent.Contains("mihomo", StringComparison.OrdinalIgnoreCase) ||
+               userAgent.Contains("clash", StringComparison.OrdinalIgnoreCase)
+            ? SubscriptionFormat.Mihomo
+            : SubscriptionFormat.Base64;
     }
 
     private static SubscriptionContract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) =>
