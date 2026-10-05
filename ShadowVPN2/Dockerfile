@@ -19,10 +19,8 @@ RUN version=$(curl -fsSL https://api.github.com/repos/hoaxisr/amnezia-box/releas
     && chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
-ARG FREETURN_VERSION=v4.0.1
-RUN curl -fLo /usr/local/bin/free-turn-proxy \
-        https://github.com/samosvalishe/free-turn-proxy/releases/download/${FREETURN_VERSION}/server-linux-amd64 \
-    && chmod +x /usr/local/bin/free-turn-proxy
+COPY tools/free-turn-proxy /usr/local/bin/free-turn-proxy
+RUN chmod +x /usr/local/bin/free-turn-proxy
 
 # Ensure Data directory exists and has correct permissions for volumes
 RUN install -d -o $APP_UID -g $APP_UID /data
