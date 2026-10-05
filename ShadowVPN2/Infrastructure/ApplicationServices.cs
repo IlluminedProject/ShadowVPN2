@@ -41,6 +41,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<RavenMigrationRunner>();
         builder.Services.AddRavenMigration<UnifyAwgSettingsMigration>();
         builder.Services.AddRavenMigration<RenameWireGuardAmneziaSettingsMigration>();
+        builder.Services.AddRavenMigration<InitializeNaiveProxyClientSettingsMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();
@@ -70,6 +71,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<DeviceAuthorizationCleanupLease>();
         builder.Services.AddScoped<SubscriptionService>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, Hysteria2SubscriptionContributor>();
+        builder.Services.AddSingleton<ISubscriptionConnectionContributor, NaiveProxySubscriptionContributor>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, WireGuardSubscriptionContributor>();
         builder.Services.AddSingleton<ProtocolSettingsService>();
         builder.Services.AddSingleton<ProtocolDomainService>();
@@ -84,6 +86,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<FreeTurnService>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
+        builder.Services.AddSingleton<ISingBoxConfigContributor, NaiveProxyConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();

@@ -3,7 +3,8 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace ShadowVPN2.Entities;
 
-public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
+public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefinition,
+    IProtocolSettingsCertificateRegeneratable {
     public override string Protocol => "Hysteria2";
     public override int ListenPort { get; set; } = 4443;
     public string ObfsType { get; set; } = "salamander";
@@ -13,22 +14,6 @@ public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefiniti
 
     public static ProtocolSocketKind SocketKind {
         get => ProtocolSocketKind.Udp;
-    }
-
-    public string? GetCertificateFingerprint() {
-        if (string.IsNullOrEmpty(TlsCertificatePem)) return null;
-        try {
-            using var cert = X509Certificate2.CreateFromPem(TlsCertificatePem);
-            var hash = cert.GetCertHash(HashAlgorithmName.SHA256);
-            return BitConverter.ToString(hash).Replace("-", ":");
-        }
-        catch {
-            return null;
-        }
-    }
-
-    public static string GeneratePassword() {
-        return RandomNumberGenerator.GetString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 32);
     }
 
     public void GenerateSelfSignedCertificate() {
@@ -50,5 +35,21 @@ public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefiniti
         var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
         TlsCertificatePem = cert.ExportCertificatePem();
         TlsKeyPem = ecdsa.ExportPkcs8PrivateKeyPem();
+    }
+
+    public string? GetCertificateFingerprint() {
+        if (string.IsNullOrEmpty(TlsCertificatePem)) return null;
+        try {
+            using var cert = X509Certificate2.CreateFromPem(TlsCertificatePem);
+            var hash = cert.GetCertHash(HashAlgorithmName.SHA256);
+            return BitConverter.ToString(hash).Replace("-", ":");
+        }
+        catch {
+            return null;
+        }
+    }
+
+    public static string GeneratePassword() {
+        return RandomNumberGenerator.GetString("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 32);
     }
 }

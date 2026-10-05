@@ -58,6 +58,22 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         return client is not null && (allowAllUsers || client.UserId == userId) ? client : null;
     }
 
+    public async Task<NaiveProxyClientSettings> EnsureNaiveProxyCredentialsAsync(EntityClient client,
+        CancellationToken ct = default) {
+        if (HasNaiveProxyCredentials(client.NaiveProxy)) return client.NaiveProxy!;
+
+        using var session = documentStore.OpenAsyncSession();
+        var storedClient = await session.LoadAsync<EntityClient>(client.Id, ct)
+                           ?? throw new InvalidOperationException($"Client {client.Id} no longer exists");
+        if (!HasNaiveProxyCredentials(storedClient.NaiveProxy)) {
+            storedClient.NaiveProxy = NaiveProxyClientSettings.Create();
+            await session.SaveChangesAsync(ct);
+        }
+
+        client.NaiveProxy = storedClient.NaiveProxy;
+        return storedClient.NaiveProxy!;
+    }
+
     public async Task<EntityClient> AddClientAsync(ApplicationUser user, string name,
         WireGuardClientSettings? wireGuard = null, CancellationToken ct = default) {
         if (user.UserNumber == 0)
@@ -93,7 +109,8 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             WireGuard = wireGuard,
             Hysteria2 = new Hysteria2ClientSettings {
                 Password = Guid.NewGuid().ToString("N") // Simple secure random password
-            }
+            },
+            NaiveProxy = NaiveProxyClientSettings.Create()
         };
 
         // Pass string.Empty as change vector to assert the document does not exist
@@ -128,6 +145,8 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             client.Hysteria2 = new Hysteria2ClientSettings {
                 Password = Guid.NewGuid().ToString("N")
             };
+
+        client.NaiveProxy ??= NaiveProxyClientSettings.Create();
 
         await session.SaveChangesAsync(ct);
         return client;
@@ -218,6 +237,10 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         catch (Exception ex) {
             logger.LogError(ex, "Failed to initialize RavenDB changes subscription for VPN clients");
         }
+    }
+
+    private static bool HasNaiveProxyCredentials(NaiveProxyClientSettings? settings) {
+        return !string.IsNullOrWhiteSpace(settings?.Username) && !string.IsNullOrWhiteSpace(settings.Password);
     }
 
     private void NotifyClientsChanged(int userNumber) {

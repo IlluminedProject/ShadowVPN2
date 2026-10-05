@@ -28,6 +28,9 @@
                         <button class="dropdown-item" type="button" @onclick="AddWireGuard">WireGuard / AmneziaWG
                         </button>
                     </li>
+                    <li>
+                        <button class="dropdown-item" type="button" @onclick="AddNaiveProxy">NaiveProxy</button>
+                    </li>
                 </ul>
             }
         </div>
@@ -149,6 +152,18 @@
                         </div>
                     </details>
                 }
+                        else if (item is NaiveProxyProtocolSettingsDto naiveProxy)
+                        {
+                            <p class="muted">TCP only. A matching managed certificate is validated normally; otherwise
+                                subscriptions use a pinned self-signed certificate.</p>
+                            <p class="muted">Fallback
+                                certificate: @(naiveProxy.HasTlsCertificate ? "generated" : "will be generated on save")</p>
+                            <button class="btn btn-outline-primary"
+                                    @onclick="() => RegenerateCertificateAsync(naiveProxy.Id)"
+                                    disabled="@(_saving || !naiveProxy.HasTlsCertificate)">
+                                Regenerate fallback certificate
+                            </button>
+                        }
                     </div>
             </section>
         }
@@ -243,6 +258,17 @@
         });
     }
 
+    private void AddNaiveProxy()
+    {
+        _protocolMenuOpen = false;
+        _request.Protocols.Add(new NaiveProxyProtocolSettingsDto
+        {
+                Id = Guid.NewGuid(),
+                Enabled = true,
+                ListenPort = NextPort(443)
+        });
+    }
+
     private int NextPort(int start)
     {
         var used = _request.Protocols.Select(protocol => protocol.ListenPort).ToHashSet();
@@ -260,6 +286,7 @@
     {
         Hysteria2ProtocolSettingsDto => "Hysteria2",
         AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
+        NaiveProxyProtocolSettingsDto => "NaiveProxy",
         _ => "Unknown"
     };
 
@@ -271,6 +298,13 @@
         try
         {
             await AdminApi.SaveProtocolsAsync(_request);
+            var settings = await AdminApi.GetProtocolsAsync();
+            _request = new UpdateProtocolsSettingsRequest
+            {
+                    MainDomain = settings.MainDomain,
+                    Protocols = settings.Protocols,
+                    Transports = settings.Transports
+            };
             _domainRoutes = await LoadDomainRoutesAsync();
             _message = "Protocol settings saved. Nodes will update automatically.";
         }

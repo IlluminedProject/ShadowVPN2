@@ -40,18 +40,8 @@ public class ProtocolsController(
 
     [HttpPost("{protocolId:guid}/regenerate-certificate")]
     [Authorize(Policy = AppPermissions.Settings.Manage)]
-    public async Task RegenerateCertificate(Guid protocolId) {
-        var configuration = await globalConfigurationService.GetAsync();
-        if (configuration.Protocols.FirstOrDefault(protocol => protocol.Id == protocolId) is not
-            Hysteria2GlobalSettings hysteria2)
-            throw new KeyNotFoundException("Hysteria2 protocol not found");
-
-        hysteria2.GenerateSelfSignedCertificate();
-        await protocolSettingsService.UpdateSettingsAsync(new UpdateProtocolsSettingsRequest {
-            MainDomain = configuration.MainDomain,
-            Protocols = configuration.Protocols,
-            Transports = configuration.Transports
-        });
+    public Task RegenerateCertificate(Guid protocolId, CancellationToken cancellationToken) {
+        return protocolSettingsService.RegenerateCertificateAsync(protocolId, cancellationToken);
     }
 
     private static ProtocolSettingsDto MapProtocol(ProtocolGlobalSettings settings) => settings switch {
@@ -86,6 +76,14 @@ public class ProtocolsController(
             I3 = awg.I3,
             I4 = awg.I4,
             I5 = awg.I5
+        },
+        NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
+            Id = naiveProxy.Id,
+            ListenPort = naiveProxy.ListenPort,
+            Enabled = naiveProxy.Enabled,
+            MainDomain = naiveProxy.MainDomain,
+            HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
+                                !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
         },
         _ => throw new ArgumentOutOfRangeException(nameof(settings), settings, null)
     };
@@ -136,6 +134,21 @@ public class ProtocolsController(
                     I4 = awg.I4,
                     I5 = awg.I5
                 };
+            }
+            case NaiveProxyProtocolSettingsDto naiveProxy: {
+                var current = existing as NaiveProxyGlobalSettings;
+                var result = new NaiveProxyGlobalSettings {
+                    Id = naiveProxy.Id,
+                    ListenPort = naiveProxy.ListenPort,
+                    Enabled = naiveProxy.Enabled,
+                    MainDomain = naiveProxy.MainDomain,
+                    TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
+                    TlsKeyPem = current?.TlsKeyPem ?? string.Empty
+                };
+                if (current is null || string.IsNullOrWhiteSpace(result.TlsCertificatePem) ||
+                    string.IsNullOrWhiteSpace(result.TlsKeyPem))
+                    result.GenerateSelfSignedCertificate();
+                return result;
             }
             default:
                 throw new ArgumentOutOfRangeException(nameof(settings), settings, null);

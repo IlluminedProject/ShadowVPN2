@@ -64,6 +64,23 @@ public static class SubscriptionLinkBuilder {
         return builder.ToString();
     }
 
+    public static string CreateNaiveProxyShareUrl(NaiveProxyConnectionInfo connection, string clientName) {
+        var builder = new StringBuilder("naive+https://")
+            .Append(Uri.EscapeDataString(connection.Username))
+            .Append(':')
+            .Append(Uri.EscapeDataString(connection.Password))
+            .Append('@')
+            .Append(FormatHost(connection.ServerAddress))
+            .Append(':')
+            .Append(connection.ServerPort)
+            .Append("/?");
+        AddQuery(builder, "sni", connection.Sni);
+        AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
+        AddQuery(builder, "pinSHA256", connection.PinSha256);
+        AddQuery(builder, "name", clientName);
+        return builder.ToString();
+    }
+
     public static string CreateFreeTurnShareUrl(FreeTurnConnectionInfo transport, string clientName,
         string? wireGuardConfig) {
         var payload = new Dictionary<string, object?> {
@@ -102,6 +119,15 @@ public static class SubscriptionLinkBuilder {
             ObfsPassword = hysteria2.ObfsPassword,
             Sni = hysteria2.Sni,
             PinSha256 = hysteria2.PinSha256
+        },
+        NaiveProxyConnectionInfo naiveProxy => new NaiveProxyConnectionInfo {
+            ServerAddress = "127.0.0.1",
+            ServerPort = 9000,
+            Username = naiveProxy.Username,
+            Password = naiveProxy.Password,
+            Sni = naiveProxy.Sni,
+            Insecure = naiveProxy.Insecure,
+            PinSha256 = naiveProxy.PinSha256
         },
         _ => throw new InvalidOperationException("Unsupported connection type")
     };
@@ -144,7 +170,8 @@ public static class SubscriptionLinkBuilder {
 
     private static void AddQuery(StringBuilder builder, string key, string? value) {
         if (!string.IsNullOrEmpty(value))
-            builder.Append('&').Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
+            builder.Append(builder[^1] == '?' ? string.Empty : "&")
+                .Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
     }
 
     private static string? GetObfuscationName(string? profile) => profile switch {

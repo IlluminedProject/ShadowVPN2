@@ -4,8 +4,8 @@ namespace ShadowVPN2.Data.SingBox.Models;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(Hysteria2InboundConfig), "hysteria2")]
-public abstract class InboundConfig
-{
+[JsonDerivedType(typeof(NaiveProxyInboundConfig), "naive")]
+public abstract class InboundConfig {
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 
     [JsonPropertyName("listen")] public string? Listen { get; set; }
@@ -15,21 +15,18 @@ public abstract class InboundConfig
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(DirectOutboundConfig), "direct")]
-public abstract class OutboundConfig
-{
+public abstract class OutboundConfig {
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(WireGuardEndpointConfig), "wireguard")]
 [JsonDerivedType(typeof(AwgEndpointConfig), "awg")]
-public abstract class EndpointConfig
-{
+public abstract class EndpointConfig {
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 }
 
-public class InboundTlsConfig
-{
+public class InboundTlsConfig {
     [JsonPropertyName("enabled")] public bool Enabled { get; set; }
 
     [JsonPropertyName("server_name")] public string? ServerName { get; set; }

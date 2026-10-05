@@ -159,6 +159,8 @@
         {
                 Hysteria2ConnectionInfo hysteria2 => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria2,
                         _subscription!.ClientName),
+                NaiveProxyConnectionInfo naiveProxy => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naiveProxy,
+                        _subscription!.ClientName),
                 WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
                 _ => string.Empty
         };

@@ -16,6 +16,13 @@ public static class GlobalConfigurationValidator {
                 throw new ArgumentException("Protocol IDs must be unique and non-empty", nameof(configuration));
 
             ValidatePort(protocol.ListenPort, $"protocol {protocol.Protocol}");
+            if (protocol is NaiveProxyGlobalSettings naiveProxy &&
+                (string.IsNullOrWhiteSpace(naiveProxy.TlsCertificatePem) ||
+                 string.IsNullOrWhiteSpace(naiveProxy.TlsKeyPem))) {
+                throw new ArgumentException("NaiveProxy requires a TLS certificate and private key",
+                    nameof(configuration));
+            }
+
             var socketKind = ProtocolDefinitionMetadata.GetSocketKind(protocol);
             if (!protocolPorts.Add((socketKind, protocol.ListenPort))) {
                 throw new ArgumentException($"Protocol listen port {protocol.ListenPort} is used more than once",

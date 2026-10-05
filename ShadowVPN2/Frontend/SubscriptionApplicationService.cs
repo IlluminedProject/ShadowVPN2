@@ -63,6 +63,15 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
                 Sni = hysteria2.Sni,
                 PinSha256 = hysteria2.PinSha256
             },
+            NaiveProxyConnectionInfo naiveProxy => new Contract.NaiveProxyConnectionInfo {
+                ServerAddress = naiveProxy.ServerAddress,
+                ServerPort = naiveProxy.ServerPort,
+                Username = naiveProxy.Username,
+                Password = naiveProxy.Password,
+                Sni = naiveProxy.Sni,
+                Insecure = naiveProxy.Insecure,
+                PinSha256 = naiveProxy.PinSha256
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(connection), connection, null)
         };
 
