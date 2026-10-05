@@ -24,7 +24,7 @@ public class DynamicAuthenticationManager(
             ClientSecret = dbProvider.ClientSecret,
             ResponseType = "code",
             SaveTokens = true,
-            CallbackPath = $"/signin-{schemeName}",
+            CallbackPath = $"/signin-{schemeName}"
         };
 
         options.Scope.Clear();

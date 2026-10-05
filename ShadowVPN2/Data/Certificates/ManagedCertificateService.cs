@@ -9,8 +9,8 @@ namespace ShadowVPN2.Data.Certificates;
 public sealed class ManagedCertificateService(
     IDocumentStore documentStore,
     ILogger<ManagedCertificateService> logger) : IHostedService, IDisposable {
-    private readonly Lock _lock = new();
     private readonly List<X509Certificate2> _certificates = [];
+    private readonly Lock _lock = new();
 
     private IReadOnlyDictionary<string, X509Certificate2> _certificatesByDomain =
         new Dictionary<string, X509Certificate2>(StringComparer.OrdinalIgnoreCase);
@@ -20,7 +20,10 @@ public sealed class ManagedCertificateService(
 
     private IDisposable? _subscription;
 
-    public event Func<Task>? CertificatesChanged;
+    public void Dispose() {
+        _subscription?.Dispose();
+        foreach (var certificate in _certificates) certificate.Dispose();
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken) {
         await ReloadAsync(cancellationToken);
@@ -35,6 +38,8 @@ public sealed class ManagedCertificateService(
         _subscription?.Dispose();
         return Task.CompletedTask;
     }
+
+    public event Func<Task>? CertificatesChanged;
 
     public X509Certificate2? GetCertificate(string? serverName) {
         if (string.IsNullOrWhiteSpace(serverName)) return null;
@@ -85,11 +90,6 @@ public sealed class ManagedCertificateService(
         await session.SaveChangesAsync(cancellationToken);
     }
 
-    public void Dispose() {
-        _subscription?.Dispose();
-        foreach (var certificate in _certificates) certificate.Dispose();
-    }
-
     private async Task ReloadAndNotifyAsync(CancellationToken cancellationToken = default) {
         try {
             await ReloadAsync(cancellationToken);
@@ -128,5 +128,7 @@ public sealed class ManagedCertificateService(
         }
     }
 
-    private static string GetId(Guid nodeId) => $"ManagedCertificates/{nodeId:D}";
+    private static string GetId(Guid nodeId) {
+        return $"ManagedCertificates/{nodeId:D}";
+    }
 }

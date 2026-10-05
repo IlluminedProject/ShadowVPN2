@@ -36,7 +36,7 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
 
         try {
             var resolution = await ResolveAsync(domain, cancellationToken);
-            if (resolution.Error != null)
+            if (resolution.Error != null) {
                 return new DomainCheckResponse {
                     State = DomainValidationState.LookupFailed,
                     Domain = domain,
@@ -44,6 +44,8 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
                     CheckedAt = checkedAt,
                     Error = resolution.Error
                 };
+            }
+
             var resolved = resolution.Addresses.Select(IPAddress.Parse).ToList();
 
             if (resolved.Count == 0)

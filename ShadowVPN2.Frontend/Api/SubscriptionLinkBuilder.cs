@@ -42,8 +42,9 @@ public static class SubscriptionLinkBuilder {
                Optional("I3", connection.I3) + Optional("I4", connection.I4) + Optional("I5", connection.I5);
     }
 
-    public static string CreateWireGuardShareUrl(WireGuardConnectionInfo connection) =>
-        $"wireguard://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateWireGuardConfig(connection)))}";
+    public static string CreateWireGuardShareUrl(WireGuardConnectionInfo connection) {
+        return $"wireguard://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateWireGuardConfig(connection)))}";
+    }
 
     public static string CreateHysteria2ShareUrl(Hysteria2ConnectionInfo connection, string clientName) {
         var builder = new StringBuilder("hysteria2://")
@@ -109,77 +110,87 @@ public static class SubscriptionLinkBuilder {
         return $"freeturn://{encoded}";
     }
 
-    public static ProtocolConnectionInfo CreateLocalConnection(ProtocolConnectionInfo connection) => connection switch {
-        WireGuardConnectionInfo wireGuard => CopyWireGuard(wireGuard, "127.0.0.1", 9000, Math.Min(wireGuard.Mtu, 1280)),
-        Hysteria2ConnectionInfo hysteria2 => new Hysteria2ConnectionInfo {
-            ServerAddress = "127.0.0.1",
-            ServerPort = 9000,
-            Password = hysteria2.Password,
-            ObfsType = hysteria2.ObfsType,
-            ObfsPassword = hysteria2.ObfsPassword,
-            Sni = hysteria2.Sni,
-            PinSha256 = hysteria2.PinSha256
-        },
-        NaiveProxyConnectionInfo naiveProxy => new NaiveProxyConnectionInfo {
-            ServerAddress = "127.0.0.1",
-            ServerPort = 9000,
-            Username = naiveProxy.Username,
-            Password = naiveProxy.Password,
-            Sni = naiveProxy.Sni,
-            Insecure = naiveProxy.Insecure,
-            PinSha256 = naiveProxy.PinSha256
-        },
-        _ => throw new InvalidOperationException("Unsupported connection type")
-    };
-
-    private static WireGuardConnectionInfo CopyWireGuard(WireGuardConnectionInfo source, string address, int port,
-        int mtu) => new() {
-        ServerAddress = address,
-        ServerPort = port,
-        PrivateKey = source.PrivateKey,
-        AssignedIp = source.AssignedIp,
-        ServerPublicKey = source.ServerPublicKey,
-        Mtu = mtu,
-        IsAmneziaWg = source.IsAmneziaWg,
-        Jc = source.Jc,
-        Jmin = source.Jmin,
-        Jmax = source.Jmax,
-        S1 = source.S1,
-        S2 = source.S2,
-        S3 = source.S3,
-        S4 = source.S4,
-        H1 = source.H1,
-        H2 = source.H2,
-        H3 = source.H3,
-        H4 = source.H4,
-        I1 = source.I1,
-        I2 = source.I2,
-        I3 = source.I3,
-        I4 = source.I4,
-        I5 = source.I5
-    };
-
-    private static string FormatHost(string host) =>
-        IPAddress.TryParse(host, out var address) &&
-        address.AddressFamily == AddressFamily.InterNetworkV6
-            ? $"[{host}]"
-            : host;
-
-    private static string Optional(string key, string? value) =>
-        string.IsNullOrWhiteSpace(value) ? string.Empty : $"{key} = {value}\n";
-
-    private static void AddQuery(StringBuilder builder, string key, string? value) {
-        if (!string.IsNullOrEmpty(value))
-            builder.Append(builder[^1] == '?' ? string.Empty : "&")
-                .Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
+    public static ProtocolConnectionInfo CreateLocalConnection(ProtocolConnectionInfo connection) {
+        return connection switch {
+            WireGuardConnectionInfo wireGuard => CopyWireGuard(wireGuard, "127.0.0.1", 9000,
+                Math.Min(wireGuard.Mtu, 1280)),
+            Hysteria2ConnectionInfo hysteria2 => new Hysteria2ConnectionInfo {
+                ServerAddress = "127.0.0.1",
+                ServerPort = 9000,
+                Password = hysteria2.Password,
+                ObfsType = hysteria2.ObfsType,
+                ObfsPassword = hysteria2.ObfsPassword,
+                Sni = hysteria2.Sni,
+                PinSha256 = hysteria2.PinSha256
+            },
+            NaiveProxyConnectionInfo naiveProxy => new NaiveProxyConnectionInfo {
+                ServerAddress = "127.0.0.1",
+                ServerPort = 9000,
+                Username = naiveProxy.Username,
+                Password = naiveProxy.Password,
+                Sni = naiveProxy.Sni,
+                Insecure = naiveProxy.Insecure,
+                PinSha256 = naiveProxy.PinSha256
+            },
+            _ => throw new InvalidOperationException("Unsupported connection type")
+        };
     }
 
-    private static string? GetObfuscationName(string? profile) => profile switch {
-        "RtpOpus" => "rtpopus",
-        "RtpOpus2" => "rtpopus2",
-        "RtpOpus3" => "rtpopus3",
-        _ => null
-    };
+    private static WireGuardConnectionInfo CopyWireGuard(WireGuardConnectionInfo source, string address, int port,
+        int mtu) {
+        return new WireGuardConnectionInfo {
+            ServerAddress = address,
+            ServerPort = port,
+            PrivateKey = source.PrivateKey,
+            AssignedIp = source.AssignedIp,
+            ServerPublicKey = source.ServerPublicKey,
+            Mtu = mtu,
+            IsAmneziaWg = source.IsAmneziaWg,
+            Jc = source.Jc,
+            Jmin = source.Jmin,
+            Jmax = source.Jmax,
+            S1 = source.S1,
+            S2 = source.S2,
+            S3 = source.S3,
+            S4 = source.S4,
+            H1 = source.H1,
+            H2 = source.H2,
+            H3 = source.H3,
+            H4 = source.H4,
+            I1 = source.I1,
+            I2 = source.I2,
+            I3 = source.I3,
+            I4 = source.I4,
+            I5 = source.I5
+        };
+    }
+
+    private static string FormatHost(string host) {
+        return IPAddress.TryParse(host, out var address) &&
+               address.AddressFamily == AddressFamily.InterNetworkV6
+            ? $"[{host}]"
+            : host;
+    }
+
+    private static string Optional(string key, string? value) {
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : $"{key} = {value}\n";
+    }
+
+    private static void AddQuery(StringBuilder builder, string key, string? value) {
+        if (!string.IsNullOrEmpty(value)) {
+            builder.Append(builder[^1] == '?' ? string.Empty : "&")
+                .Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
+        }
+    }
+
+    private static string? GetObfuscationName(string? profile) {
+        return profile switch {
+            "RtpOpus" => "rtpopus",
+            "RtpOpus2" => "rtpopus2",
+            "RtpOpus3" => "rtpopus3",
+            _ => null
+        };
+    }
 
     private static void AddPayloadValue(IDictionary<string, object?> payload, string key, string? value) {
         if (!string.IsNullOrEmpty(value))

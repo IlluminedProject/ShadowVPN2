@@ -1,14 +1,15 @@
-using ShadowVPN2.Data.SingBox.Models;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
+using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Data.SingBox.Contributors;
 
 public class Hysteria2ConfigContributor(
     ManagedCertificateService managedCertificateService,
-    IOptions<Infrastructure.Configurations.LocalConfiguration> localConfiguration) : ISingBoxConfigContributor {
+    IOptions<LocalConfiguration> localConfiguration) : ISingBoxConfigContributor {
     public Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
         var h2Instances = protocols.OfType<Hysteria2GlobalSettings>().Where(h => h.Enabled).ToList();

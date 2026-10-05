@@ -310,8 +310,8 @@
         {
             var request = new NodeSetupRequest
             {
-                    Domain = string.IsNullOrWhiteSpace(_node.Domain) ? null : _node.Domain.Trim(),
-                    NodeName = string.IsNullOrWhiteSpace(_node.NodeName) ? _nodeNamePlaceholder : _node.NodeName.Trim()
+                Domain = string.IsNullOrWhiteSpace(_node.Domain) ? null : _node.Domain.Trim(),
+                NodeName = string.IsNullOrWhiteSpace(_node.NodeName) ? _nodeNamePlaceholder : _node.NodeName.Trim()
             };
             await SetupApi.ConfigureNodeAsync(request);
             _step = 2;
@@ -342,8 +342,8 @@
         {
             _oidcTestResult = await SetupApi.TestOidcConnectionAsync(_oidc.Authority);
             _oidcTestMessage = _oidcTestResult.Value
-                    ? "Connected to the OIDC discovery endpoint."
-                    : "Could not connect to the OIDC discovery endpoint.";
+                ? "Connected to the OIDC discovery endpoint."
+                : "Could not connect to the OIDC discovery endpoint.";
         });
     }
 
@@ -352,7 +352,7 @@
         await RunAsync(async () =>
         {
             await SetupApi.FinishSetupAsync();
-            Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
+            Navigation.NavigateTo(Navigation.BaseUri, true);
         });
     }
 

@@ -63,8 +63,8 @@ public class SubscriptionController(
             : SubscriptionFormat.Base64;
     }
 
-    private static SubscriptionContract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) =>
-        connection switch {
+    private static SubscriptionContract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) {
+        return connection switch {
             WireGuardConnectionInfo wireGuard => new SubscriptionContract.WireGuardConnectionInfo {
                 ServerAddress = wireGuard.ServerAddress,
                 ServerPort = wireGuard.ServerPort,
@@ -110,9 +110,10 @@ public class SubscriptionController(
             },
             _ => throw new ArgumentOutOfRangeException(nameof(connection), connection, null)
         };
+    }
 
-    private static SubscriptionContract.TransportConnectionInfo MapTransport(TransportConnectionInfo transport) =>
-        transport switch {
+    private static SubscriptionContract.TransportConnectionInfo MapTransport(TransportConnectionInfo transport) {
+        return transport switch {
             FreeTurnConnectionInfo freeTurn => new SubscriptionContract.FreeTurnConnectionInfo {
                 Peer = freeTurn.Peer,
                 ObfuscationProfile = freeTurn.ObfuscationProfile?.ToString(),
@@ -124,4 +125,5 @@ public class SubscriptionController(
             },
             _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
         };
+    }
 }

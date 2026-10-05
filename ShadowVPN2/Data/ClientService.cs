@@ -141,10 +141,11 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
             client.WireGuard = wireGuard;
         }
 
-        if (client.Hysteria2 == null)
+        if (client.Hysteria2 == null) {
             client.Hysteria2 = new Hysteria2ClientSettings {
                 Password = Guid.NewGuid().ToString("N")
             };
+        }
 
         client.NaiveProxy ??= NaiveProxyClientSettings.Create();
 

@@ -23,6 +23,7 @@
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
     private IReadOnlyList<PasskeyResponse>? _keys;
+
     protected override async Task OnInitializedAsync()
     {
         _keys = await Http.GetFromJsonAsync<IReadOnlyList<PasskeyResponse>>("/api/account/passkeys");

@@ -24,37 +24,37 @@
                 <InputCheckbox class="form-check-input" @bind-Value="_settings.Enabled"/>
                 <label class="form-check-label">Enable automatic Let's Encrypt certificates</label>
             </div>
-        <label for="acme-email">Account email</label>
+            <label for="acme-email">Account email</label>
             <InputText id="acme-email" type="email" class="form-control" @bind-Value="_settings.Email"/>
-        <label for="http-port">HTTP-01 port</label>
+            <label for="http-port">HTTP-01 port</label>
             <InputNumber id="http-port" class="form-control" @bind-Value="_settings.HttpPort"/>
-        <label for="renewal-days">Renewal threshold (days)</label>
+            <label for="renewal-days">Renewal threshold (days)</label>
             <InputNumber id="renewal-days" class="form-control" @bind-Value="_settings.RenewalThresholdDays"/>
             <div class="form-check form-switch mb-3">
                 <InputCheckbox class="form-check-input" @bind-Value="_settings.UseStaging"/>
                 <label class="form-check-label">Use staging CA</label>
             </div>
 
-        <section>
-            <h2>Local node certificate</h2>
-            @if (_certificate is null)
-            {
-                <p class="muted">Not issued.</p>
-            }
-            else
-            {
-                <p>Expires: @_certificate.NotAfter.ToLocalTime().ToString("g")</p>
-                @foreach (var domain in _certificate.Domains)
+            <section>
+                <h2>Local node certificate</h2>
+                @if (_certificate is null)
                 {
-                    <code>@domain </code>
+                    <p class="muted">Not issued.</p>
                 }
+                else
+                {
+                    <p>Expires: @_certificate.NotAfter.ToLocalTime().ToString("g")</p>
+                    @foreach (var domain in _certificate.Domains)
+                    {
+                        <code>@domain </code>
+                    }
 
-                @if (!string.IsNullOrWhiteSpace(_certificate.LastError))
-                {
-                    <div class="alert alert-danger">@_certificate.LastError</div>
+                    @if (!string.IsNullOrWhiteSpace(_certificate.LastError))
+                    {
+                        <div class="alert alert-danger">@_certificate.LastError</div>
+                    }
                 }
-            }
-        </section>
+            </section>
         </div>
         <div class="d-flex justify-content-end gap-2 mt-3">
             <button class="btn btn-outline-primary" @onclick="RenewAsync" disabled="@_busy">Issue / renew now</button>
@@ -89,7 +89,7 @@
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
-                    : "Could not load certificate settings.";
+                : "Could not load certificate settings.";
         }
         catch (Exception)
         {
@@ -101,33 +101,39 @@
         }
     }
 
-    private Task SaveAsync() => RunAsync(async () =>
+    private Task SaveAsync()
     {
-        await AdminApi.SaveCertificateSettingsAsync(new UpdateAcmeSettingsRequest
+        return RunAsync(async () =>
         {
+            await AdminApi.SaveCertificateSettingsAsync(new UpdateAcmeSettingsRequest
+            {
                 Enabled = _settings.Enabled,
                 Email = _settings.Email,
                 UseStaging = _settings.UseStaging,
                 HttpPort = _settings.HttpPort,
                 RenewalThresholdDays = _settings.RenewalThresholdDays
+            });
+            _message = "Certificate settings saved.";
         });
-        _message = "Certificate settings saved.";
-    });
+    }
 
-    private Task RenewAsync() => RunAsync(async () =>
+    private Task RenewAsync()
     {
-        await AdminApi.SaveCertificateSettingsAsync(new UpdateAcmeSettingsRequest
+        return RunAsync(async () =>
         {
+            await AdminApi.SaveCertificateSettingsAsync(new UpdateAcmeSettingsRequest
+            {
                 Enabled = _settings.Enabled,
                 Email = _settings.Email,
                 UseStaging = _settings.UseStaging,
                 HttpPort = _settings.HttpPort,
                 RenewalThresholdDays = _settings.RenewalThresholdDays
+            });
+            await AdminApi.RenewLocalCertificateAsync();
+            _certificate = await AdminApi.GetLocalCertificateAsync();
+            _message = "Certificate issued.";
         });
-        await AdminApi.RenewLocalCertificateAsync();
-        _certificate = await AdminApi.GetLocalCertificateAsync();
-        _message = "Certificate issued.";
-    });
+    }
 
     private async Task RunAsync(Func<Task> action)
     {

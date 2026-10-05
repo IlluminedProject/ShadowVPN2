@@ -3,8 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
-using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -29,7 +29,9 @@ public class SingBoxService(
         WriteIndented = true
     };
 
-    public bool IsRunning => singBoxProcessManager.IsRunning;
+    public bool IsRunning {
+        get => singBoxProcessManager.IsRunning;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         logger.LogInformation("SingBoxService starting");

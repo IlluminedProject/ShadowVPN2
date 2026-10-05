@@ -44,49 +44,51 @@ public class ProtocolsController(
         return protocolSettingsService.RegenerateCertificateAsync(protocolId, cancellationToken);
     }
 
-    private static ProtocolSettingsDto MapProtocol(ProtocolGlobalSettings settings) => settings switch {
-        Hysteria2GlobalSettings hysteria2 => new Hysteria2ProtocolSettingsDto {
-            Id = hysteria2.Id,
-            ListenPort = hysteria2.ListenPort,
-            Enabled = hysteria2.Enabled,
-            MainDomain = hysteria2.MainDomain,
-            ObfsType = hysteria2.ObfsType,
-            ObfsPassword = hysteria2.ObfsPassword,
-            HasTlsCertificate = !string.IsNullOrEmpty(hysteria2.TlsCertificatePem) &&
-                                !string.IsNullOrEmpty(hysteria2.TlsKeyPem)
-        },
-        AwgGlobalSettings awg => new AwgProtocolSettingsDto {
-            Id = awg.Id,
-            ListenPort = awg.ListenPort,
-            Enabled = awg.Enabled,
-            MainDomain = awg.MainDomain,
-            H1 = awg.H1,
-            H2 = awg.H2,
-            H3 = awg.H3,
-            H4 = awg.H4,
-            Jc = awg.Jc,
-            Jmin = awg.Jmin,
-            Jmax = awg.Jmax,
-            S1 = awg.S1,
-            S2 = awg.S2,
-            S3 = awg.S3,
-            S4 = awg.S4,
-            I1 = awg.I1,
-            I2 = awg.I2,
-            I3 = awg.I3,
-            I4 = awg.I4,
-            I5 = awg.I5
-        },
-        NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
-            Id = naiveProxy.Id,
-            ListenPort = naiveProxy.ListenPort,
-            Enabled = naiveProxy.Enabled,
-            MainDomain = naiveProxy.MainDomain,
-            HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
-                                !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
-        },
-        _ => throw new ArgumentOutOfRangeException(nameof(settings), settings, null)
-    };
+    private static ProtocolSettingsDto MapProtocol(ProtocolGlobalSettings settings) {
+        return settings switch {
+            Hysteria2GlobalSettings hysteria2 => new Hysteria2ProtocolSettingsDto {
+                Id = hysteria2.Id,
+                ListenPort = hysteria2.ListenPort,
+                Enabled = hysteria2.Enabled,
+                MainDomain = hysteria2.MainDomain,
+                ObfsType = hysteria2.ObfsType,
+                ObfsPassword = hysteria2.ObfsPassword,
+                HasTlsCertificate = !string.IsNullOrEmpty(hysteria2.TlsCertificatePem) &&
+                                    !string.IsNullOrEmpty(hysteria2.TlsKeyPem)
+            },
+            AwgGlobalSettings awg => new AwgProtocolSettingsDto {
+                Id = awg.Id,
+                ListenPort = awg.ListenPort,
+                Enabled = awg.Enabled,
+                MainDomain = awg.MainDomain,
+                H1 = awg.H1,
+                H2 = awg.H2,
+                H3 = awg.H3,
+                H4 = awg.H4,
+                Jc = awg.Jc,
+                Jmin = awg.Jmin,
+                Jmax = awg.Jmax,
+                S1 = awg.S1,
+                S2 = awg.S2,
+                S3 = awg.S3,
+                S4 = awg.S4,
+                I1 = awg.I1,
+                I2 = awg.I2,
+                I3 = awg.I3,
+                I4 = awg.I4,
+                I5 = awg.I5
+            },
+            NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
+                Id = naiveProxy.Id,
+                ListenPort = naiveProxy.ListenPort,
+                Enabled = naiveProxy.Enabled,
+                MainDomain = naiveProxy.MainDomain,
+                HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
+                                    !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(settings), settings, null)
+        };
+    }
 
     private static ProtocolGlobalSettings MapProtocol(ProtocolSettingsDto settings,
         ProtocolGlobalSettings? existing) {
@@ -155,35 +157,39 @@ public class ProtocolsController(
         }
     }
 
-    private static TransportSettingsDto MapTransport(TransportSettings transport) => transport switch {
-        FreeTurnTransportSettings freeTurn => new FreeTurnTransportSettingsDto {
-            Id = freeTurn.Id,
-            ProtocolId = freeTurn.ProtocolId,
-            Enabled = freeTurn.Enabled,
-            ListenPort = freeTurn.ListenPort,
-            ObfuscationProfile = freeTurn.ObfuscationProfile is null
-                ? null
-                : Enum.Parse<FreeTurnObfuscationProfileDto>(freeTurn.ObfuscationProfile.Value.ToString()),
-            ObfuscationKey = freeTurn.ObfuscationKey,
-            TurnTransport = Enum.Parse<FreeTurnTurnTransportDto>(freeTurn.TurnTransport.ToString()),
-            Streams = freeTurn.Streams
-        },
-        _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
-    };
+    private static TransportSettingsDto MapTransport(TransportSettings transport) {
+        return transport switch {
+            FreeTurnTransportSettings freeTurn => new FreeTurnTransportSettingsDto {
+                Id = freeTurn.Id,
+                ProtocolId = freeTurn.ProtocolId,
+                Enabled = freeTurn.Enabled,
+                ListenPort = freeTurn.ListenPort,
+                ObfuscationProfile = freeTurn.ObfuscationProfile is null
+                    ? null
+                    : Enum.Parse<FreeTurnObfuscationProfileDto>(freeTurn.ObfuscationProfile.Value.ToString()),
+                ObfuscationKey = freeTurn.ObfuscationKey,
+                TurnTransport = Enum.Parse<FreeTurnTurnTransportDto>(freeTurn.TurnTransport.ToString()),
+                Streams = freeTurn.Streams
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
+        };
+    }
 
-    private static TransportSettings MapTransport(TransportSettingsDto transport) => transport switch {
-        FreeTurnTransportSettingsDto freeTurn => new FreeTurnTransportSettings {
-            Id = freeTurn.Id,
-            ProtocolId = freeTurn.ProtocolId,
-            Enabled = freeTurn.Enabled,
-            ListenPort = freeTurn.ListenPort,
-            ObfuscationProfile = freeTurn.ObfuscationProfile is null
-                ? null
-                : Enum.Parse<FreeTurnObfuscationProfile>(freeTurn.ObfuscationProfile.Value.ToString()),
-            ObfuscationKey = freeTurn.ObfuscationKey,
-            TurnTransport = Enum.Parse<FreeTurnTurnTransport>(freeTurn.TurnTransport.ToString()),
-            Streams = freeTurn.Streams
-        },
-        _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
-    };
+    private static TransportSettings MapTransport(TransportSettingsDto transport) {
+        return transport switch {
+            FreeTurnTransportSettingsDto freeTurn => new FreeTurnTransportSettings {
+                Id = freeTurn.Id,
+                ProtocolId = freeTurn.ProtocolId,
+                Enabled = freeTurn.Enabled,
+                ListenPort = freeTurn.ListenPort,
+                ObfuscationProfile = freeTurn.ObfuscationProfile is null
+                    ? null
+                    : Enum.Parse<FreeTurnObfuscationProfile>(freeTurn.ObfuscationProfile.Value.ToString()),
+                ObfuscationKey = freeTurn.ObfuscationKey,
+                TurnTransport = Enum.Parse<FreeTurnTurnTransport>(freeTurn.TurnTransport.ToString()),
+                Streams = freeTurn.Streams
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
+        };
+    }
 }

@@ -50,10 +50,11 @@ public sealed class ProtocolDomainService(
         if (globalDomainStatus.State == DomainValidationState.Valid && globalDomainStatus.Domain != null)
             domains.Add(globalDomainStatus.Domain);
 
-        foreach (var route in await GetRoutesAsync(cancellationToken))
+        foreach (var route in await GetRoutesAsync(cancellationToken)) {
             if (route.Enabled && route.State == ProtocolDomainRouteState.Valid && route.NodeId == nodeId &&
                 route.Domain != null)
                 domains.Add(route.Domain);
+        }
 
         return new NodeCertificateDomainsResponse {
             NodeId = nodeId,
@@ -81,9 +82,11 @@ public sealed class ProtocolDomainService(
                 error: ex.Message);
         }
 
-        if (resolution.Error != null)
+        if (resolution.Error != null) {
             return Create(protocolIndex, protocol, enabled, domain, [], [], ProtocolDomainRouteState.LookupFailed,
                 error: resolution.Error);
+        }
+
         if (resolution.Addresses.Count == 0)
             return Create(protocolIndex, protocol, enabled, domain, [], [], ProtocolDomainRouteState.NoRecords);
 
@@ -98,12 +101,15 @@ public sealed class ProtocolDomainService(
             .OrderBy(address => address, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (matchingNodes.Count == 0)
+        if (matchingNodes.Count == 0) {
             return Create(protocolIndex, protocol, enabled, domain, resolution.Addresses, unmatched,
                 ProtocolDomainRouteState.UnknownNode);
-        if (matchingNodes.Count > 1)
+        }
+
+        if (matchingNodes.Count > 1) {
             return Create(protocolIndex, protocol, enabled, domain, resolution.Addresses, unmatched,
                 ProtocolDomainRouteState.MultipleNodes);
+        }
 
         var node = matchingNodes[0];
         return Create(protocolIndex, protocol, enabled, domain, resolution.Addresses, unmatched,

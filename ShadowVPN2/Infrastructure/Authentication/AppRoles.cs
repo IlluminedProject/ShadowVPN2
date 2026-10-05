@@ -5,7 +5,7 @@ public static class AppRoles {
     public const string User = "User";
 
     /// <summary>
-    /// Defines the default permissions for each role.
+    ///     Defines the default permissions for each role.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> DefaultRolePermissions =
         new Dictionary<string, IReadOnlyList<string>> {

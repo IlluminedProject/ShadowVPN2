@@ -19,6 +19,7 @@
     [Inject] private HttpClient Http { get; set; } = default!;
     private SetupResponse? _setup;
     private string? _code;
+
     protected override async Task OnInitializedAsync()
     {
         _setup = await Http.GetFromJsonAsync<SetupResponse>("/api/account/2fa/setup");

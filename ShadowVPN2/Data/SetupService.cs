@@ -117,9 +117,10 @@ public class SetupService(
 
         // Assign user to Administrator role
         var roleResult = await userManager.AddToRoleAsync(user, AppRoles.Administrator);
-        if (!roleResult.Succeeded)
+        if (!roleResult.Succeeded) {
             throw new InvalidOperationException(
                 $"Failed to assign Administrator role: {string.Join(", ", roleResult.Errors.Select(e => e.Description))}");
+        }
 
         logger.LogInformation("Local auth configured, admin user {Email} created and assigned to Administrator role",
             request.Email);

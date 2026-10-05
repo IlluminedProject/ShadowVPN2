@@ -19,7 +19,7 @@ public class EntityClient {
     public NaiveProxyClientSettings? NaiveProxy { get; set; }
 
     /// <summary>
-    /// IP is computed from the Id: Clients/{userNumber}/{clientNumber} → 100.64.userNumber.clientNumber
+    ///     IP is computed from the Id: Clients/{userNumber}/{clientNumber} → 100.64.userNumber.clientNumber
     /// </summary>
     public IPAddress GetAssignedIp() {
         var parts = Id.Split('/');

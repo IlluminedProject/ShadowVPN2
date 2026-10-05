@@ -17,7 +17,7 @@ public class LocalConfiguration {
     public static readonly AbsolutePath ConfigPath = Path / "config.json";
 
     /// <summary>
-    /// The unique identifier of the current node.
+    ///     The unique identifier of the current node.
     /// </summary>
     public Guid NodeId { get; set; } = Guid.NewGuid();
 

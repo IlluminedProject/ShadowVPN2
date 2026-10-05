@@ -26,7 +26,9 @@ public sealed class Http01ChallengeServer {
         }
     }
 
-    public void Set(string token, string keyAuthorization) => _challenges[token] = keyAuthorization;
+    public void Set(string token, string keyAuthorization) {
+        _challenges[token] = keyAuthorization;
+    }
 
     public async Task StopAsync(CancellationToken cancellationToken) {
         var application = Interlocked.Exchange(ref _application, null);

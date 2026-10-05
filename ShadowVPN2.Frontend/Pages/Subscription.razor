@@ -98,9 +98,8 @@
     private SubscriptionResponse? _subscription;
     private bool _loading = true;
     private bool _pinging;
-    private string? _copiedKey;
     private readonly List<ServerState> _servers = [];
-    private string? CopiedKey => _copiedKey;
+    private string? CopiedKey { get; set; }
 
     private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
         new Dictionary<string, string>
@@ -216,14 +215,18 @@
     private async Task CopyAsync(string text, string key)
     {
         await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
-        _copiedKey = key;
+        CopiedKey = key;
     }
 
-    private static string ConnectionKey(ProtocolSubscription protocol, SubscriptionEndpoint endpoint) =>
-            $"{protocol.Protocol}:{endpoint.Address}";
+    private static string ConnectionKey(ProtocolSubscription protocol, SubscriptionEndpoint endpoint)
+    {
+        return $"{protocol.Protocol}:{endpoint.Address}";
+    }
 
-    private static string CreateConfigDataUrl(WireGuardConnectionInfo wireGuard) =>
-            $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)))}";
+    private static string CreateConfigDataUrl(WireGuardConnectionInfo wireGuard)
+    {
+        return $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)))}";
+    }
 
     private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
             string serverAddress)
@@ -240,7 +243,9 @@
         return $"{name[..Math.Min(name.Length, 180)]}.conf";
     }
 
-    private static string PingText(ServerState server) => server.Checking
+    private static string PingText(ServerState server)
+    {
+        return server.Checking
             ? "Checking…"
             : server.Latency switch
             {
@@ -248,6 +253,7 @@
                     -1 => "Unavailable",
                     _ => $"{server.Latency} ms"
             };
+    }
 
     private sealed class ServerState(string name, string address)
     {

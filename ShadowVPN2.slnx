@@ -1,6 +1,6 @@
 <Solution>
-  <Project Path="ShadowVPN2/ShadowVPN2.csproj" />
+    <Project Path="ShadowVPN2/ShadowVPN2.csproj"/>
     <Project Path="ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj"/>
     <Project Path="ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj"/>
-  <Project Path="ShadowVPN2.Tests/ShadowVPN2.Tests.csproj"/>
+    <Project Path="ShadowVPN2.Tests/ShadowVPN2.Tests.csproj"/>
 </Solution>

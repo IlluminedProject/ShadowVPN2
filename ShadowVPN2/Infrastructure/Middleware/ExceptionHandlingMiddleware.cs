@@ -3,18 +3,13 @@ using ShadowVPN2.Exceptions;
 
 namespace ShadowVPN2.Infrastructure.Middleware;
 
-public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
-{
-    public async Task InvokeAsync(HttpContext context)
-    {
-        try
-        {
+public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger) {
+    public async Task InvokeAsync(HttpContext context) {
+        try {
             await next(context);
         }
-        catch (Exception ex)
-        {
-            var statusCode = ex switch
-            {
+        catch (Exception ex) {
+            var statusCode = ex switch {
                 UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
                 KeyNotFoundException => StatusCodes.Status404NotFound,
                 ArgumentException => StatusCodes.Status400BadRequest,
@@ -26,8 +21,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
 
             // Let the default developer exception page handle 500s in development,
             // but for API we might want to return JSON. We'll return JSON for mapped and 500s.
-            if (context.Response.HasStarted)
-            {
+            if (context.Response.HasStarted) {
                 logger.LogWarning("The response has already started, the exception middleware will not be executed");
                 throw;
             }

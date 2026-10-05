@@ -19,8 +19,8 @@ public class NodeService(
     private readonly Lock _lock = new();
     private readonly HashSet<NodeSubscription> _subscriptions = new();
     private IDisposable? _changesSubscription;
-    private IDisposable? _networkChangesSubscription;
     private CancellationTokenSource? _disposalCts;
+    private IDisposable? _networkChangesSubscription;
 
     public void Dispose() {
         lock (_lock) {

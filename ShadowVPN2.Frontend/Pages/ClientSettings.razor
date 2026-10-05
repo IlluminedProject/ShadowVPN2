@@ -153,13 +153,11 @@
 
     private sealed class FormModel
     {
-        [StringLength(100, MinimumLength = 1)]
-        public string Name { get; set; } = string.Empty;
+        [StringLength(100, MinimumLength = 1)] public string Name { get; set; } = string.Empty;
 
         public bool IsEnabled { get; set; }
 
-        [Range(576, 9000)]
-        public int? WireGuardMtu { get; set; }
+        [Range(576, 9000)] public int? WireGuardMtu { get; set; }
     }
 
 }

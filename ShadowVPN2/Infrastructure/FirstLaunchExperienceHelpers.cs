@@ -107,7 +107,7 @@ public static class FirstLaunchExperienceHelpers {
 
         // Try each node address
         ClusterSignJoinResponse? response = null;
-        foreach (var nodeAddress in token.NodeAddresses)
+        foreach (var nodeAddress in token.NodeAddresses) {
             try {
                 var url = $"https://{nodeAddress}/api/cluster/exchange-token";
                 _logger.Information("Trying to join cluster via {Url}", url);
@@ -120,6 +120,7 @@ public static class FirstLaunchExperienceHelpers {
             catch (Exception ex) {
                 _logger.Warning(ex, "Failed to join via {NodeAddress}", nodeAddress);
             }
+        }
 
         if (response == null)
             throw new Exception("Failed to join cluster: all seed nodes unreachable");

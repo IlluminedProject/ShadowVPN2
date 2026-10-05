@@ -16,7 +16,9 @@ public sealed class NodeNetworkService(
     IServer server,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<NodeNetworkService> logger) : BackgroundService {
-    public static string GetStatusId(Guid nodeId) => $"NodeNetworkStatuses/{nodeId:D}";
+    public static string GetStatusId(Guid nodeId) {
+        return $"NodeNetworkStatuses/{nodeId:D}";
+    }
 
     public async Task<EntityNodeNetworkStatus?> GetStatusAsync(Guid nodeId,
         CancellationToken cancellationToken = default) {

@@ -6,13 +6,10 @@ using ShadowVPN2.Infrastructure.Authentication;
 namespace ShadowVPN2.Hubs;
 
 [Authorize(Policy = AppPermissions.Nodes.View)]
-public class NodeHub(NodeService nodeService) : Hub
-{
-    public override async Task OnConnectedAsync()
-    {
+public class NodeHub(NodeService nodeService) : Hub {
+    public override async Task OnConnectedAsync() {
         // Create a subscription for this specific connection
-        var subscription = await nodeService.SubscribeAsync(async nodes =>
-        {
+        var subscription = await nodeService.SubscribeAsync(async nodes => {
             // Push updates only to this caller
             await Clients.Caller.SendAsync("NodesUpdated", nodes);
         });
@@ -27,11 +24,9 @@ public class NodeHub(NodeService nodeService) : Hub
         await base.OnConnectedAsync();
     }
 
-    public override async Task OnDisconnectedAsync(Exception? exception)
-    {
+    public override async Task OnDisconnectedAsync(Exception? exception) {
         // Retrieve and dispose the subscription
-        if (Context.Items.TryGetValue("NodeSubscription", out var sub) && sub is IDisposable disposable)
-        {
+        if (Context.Items.TryGetValue("NodeSubscription", out var sub) && sub is IDisposable disposable) {
             disposable.Dispose();
         }
 

@@ -14,7 +14,7 @@
 </div>
 
 @code {
-    [Parameter][EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] [EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter] public int ListenPort { get; set; }
     [Parameter] public EventCallback<int> ListenPortChanged { get; set; }
     [Parameter] public bool Enabled { get; set; }

@@ -5,54 +5,45 @@ using Microsoft.AspNetCore.Connections;
 
 namespace ShadowVPN2.Infrastructure.Middleware;
 
-public class HttpsRedirectConnectionMiddleware(ConnectionDelegate next)
-{
-    public async Task OnConnectionAsync(ConnectionContext context)
-    {
+public class HttpsRedirectConnectionMiddleware(ConnectionDelegate next) {
+    public async Task OnConnectionAsync(ConnectionContext context) {
         var input = context.Transport.Input;
         var result = await input.ReadAsync();
         var buffer = result.Buffer;
 
-        if (buffer.Length > 0)
-        {
+        if (buffer.Length > 0) {
             var firstByte = buffer.First.Span[0];
             input.AdvanceTo(buffer.Start);
 
-            if (firstByte != 0x16)
-            {
+            if (firstByte != 0x16) {
                 await SendHttpsRedirect(context);
                 return;
             }
         }
-        else
-        {
+        else {
             input.AdvanceTo(buffer.Start);
         }
 
         await next(context);
     }
 
-    private static async Task SendHttpsRedirect(ConnectionContext context)
-    {
+    private static async Task SendHttpsRedirect(ConnectionContext context) {
         var input = context.Transport.Input;
 
         // Read the full HTTP request line to extract Host header
         string? host = null;
         var path = "/";
 
-        while (true)
-        {
+        while (true) {
             var result = await input.ReadAsync();
             var buffer = result.Buffer;
 
-            if (TryParseHttpRequest(buffer, out host, out path))
-            {
+            if (TryParseHttpRequest(buffer, out host, out path)) {
                 input.AdvanceTo(buffer.End);
                 break;
             }
 
-            if (result.IsCompleted)
-            {
+            if (result.IsCompleted) {
                 input.AdvanceTo(buffer.End);
                 break;
             }
@@ -72,8 +63,7 @@ public class HttpsRedirectConnectionMiddleware(ConnectionDelegate next)
         await output.CompleteAsync();
     }
 
-    private static bool TryParseHttpRequest(ReadOnlySequence<byte> buffer, out string? host, out string path)
-    {
+    private static bool TryParseHttpRequest(ReadOnlySequence<byte> buffer, out string? host, out string path) {
         host = null;
         path = "/";
 
@@ -83,19 +73,18 @@ public class HttpsRedirectConnectionMiddleware(ConnectionDelegate next)
             return false;
 
         var lines = text[..headerEnd].Split("\r\n");
-        if (lines.Length > 0)
-        {
+        if (lines.Length > 0) {
             var parts = lines[0].Split(' ');
             if (parts.Length >= 2)
                 path = parts[1];
         }
 
-        foreach (var line in lines.Skip(1))
-            if (line.StartsWith("Host:", StringComparison.OrdinalIgnoreCase))
-            {
+        foreach (var line in lines.Skip(1)) {
+            if (line.StartsWith("Host:", StringComparison.OrdinalIgnoreCase)) {
                 host = line[5..].Trim();
                 break;
             }
+        }
 
         return true;
     }

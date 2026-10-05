@@ -27,8 +27,8 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
         };
     }
 
-    private static Contract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) =>
-        connection switch {
+    private static Contract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) {
+        return connection switch {
             WireGuardConnectionInfo wireGuard => new Contract.WireGuardConnectionInfo {
                 ServerAddress = wireGuard.ServerAddress,
                 ServerPort = wireGuard.ServerPort,
@@ -74,9 +74,10 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
             },
             _ => throw new ArgumentOutOfRangeException(nameof(connection), connection, null)
         };
+    }
 
-    private static Contract.TransportConnectionInfo MapTransport(TransportConnectionInfo transport) =>
-        transport switch {
+    private static Contract.TransportConnectionInfo MapTransport(TransportConnectionInfo transport) {
+        return transport switch {
             FreeTurnConnectionInfo freeTurn => new Contract.FreeTurnConnectionInfo {
                 Peer = freeTurn.Peer,
                 ObfuscationProfile = freeTurn.ObfuscationProfile?.ToString(),
@@ -88,4 +89,5 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
             },
             _ => throw new ArgumentOutOfRangeException(nameof(transport), transport, null)
         };
+    }
 }

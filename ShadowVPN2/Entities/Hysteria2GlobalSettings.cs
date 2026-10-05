@@ -5,7 +5,10 @@ namespace ShadowVPN2.Entities;
 
 public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefinition,
     IProtocolSettingsCertificateRegeneratable {
-    public override string Protocol => "Hysteria2";
+    public override string Protocol {
+        get => "Hysteria2";
+    }
+
     public override int ListenPort { get; set; } = 4443;
     public string ObfsType { get; set; } = "salamander";
     public string ObfsPassword { get; set; } = GeneratePassword();

@@ -4,17 +4,17 @@ namespace ShadowVPN2.Entities;
 
 public class EntityClusterNode : IEntityId {
     /// <summary>
-    /// The unique identifier of the physical node (from LocalConfiguration)
+    ///     The unique identifier of the physical node (from LocalConfiguration)
     /// </summary>
     public required Guid NodeId { get; set; }
 
     /// <summary>
-    /// Node label
+    ///     Node label
     /// </summary>
     public required string Name { get; set; }
 
     /// <summary>
-    /// Public DNS name of the node. A node without a domain is addressed by its observed public IP.
+    ///     Public DNS name of the node. A node without a domain is addressed by its observed public IP.
     /// </summary>
     public string? Domain { get; set; }
 
@@ -29,14 +29,18 @@ public class EntityClusterNode : IEntityId {
     public Guid? JoinSecret { get; set; }
 
     /// <summary>
-    /// Sequential number of the node
+    ///     Sequential number of the node
     /// </summary>
-    public int Number => Id.EndsWith('|') ? 0 : int.Parse(Id.Split('/')[1]);
+    public int Number {
+        get => Id.EndsWith('|') ? 0 : int.Parse(Id.Split('/')[1]);
+    }
 
     /// <summary>
     ///     AWG mesh IP derived from node number
     /// </summary>
-    public string AwgMeshIp => $"100.64.0.{Number + 10}";
+    public string AwgMeshIp {
+        get => $"100.64.0.{Number + 10}";
+    }
 
     /// <summary>
     ///     Node ID

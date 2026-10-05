@@ -2,8 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Data.SingBox.Models;
 
-public class SingBoxConfig
-{
+public class SingBoxConfig {
     [JsonPropertyName("log")] public SingBoxLogConfig Log { get; set; } = new();
 
     [JsonPropertyName("dns")] public SingBoxDnsConfig Dns { get; set; } = new();
@@ -17,26 +16,21 @@ public class SingBoxConfig
     [JsonPropertyName("route")] public SingBoxRouteConfig? Route { get; set; }
 }
 
-public class SingBoxDnsConfig
-{
+public class SingBoxDnsConfig {
     [JsonPropertyName("servers")]
-    public List<SingBoxDnsServerConfig> Servers { get; set; } = new()
-    {
+    public List<SingBoxDnsServerConfig> Servers { get; set; } = new() {
         new SingBoxDnsServerConfig { Type = "local" }
     };
 }
 
-public class SingBoxDnsServerConfig
-{
+public class SingBoxDnsServerConfig {
     [JsonPropertyName("type")] public string Type { get; set; } = "local";
 }
 
-public class SingBoxLogConfig
-{
+public class SingBoxLogConfig {
     [JsonPropertyName("level")] public string Level { get; set; } = "info";
 }
 
-public class SingBoxRouteConfig
-{
+public class SingBoxRouteConfig {
     [JsonPropertyName("rules")] public List<object> Rules { get; set; } = new();
 }
