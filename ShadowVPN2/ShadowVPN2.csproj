@@ -7,6 +7,7 @@
     <UserSecretsId>aspnet-ShadowVPN2-fd2afc53-cf08-4b5b-bffb-1d96b27e117b</UserSecretsId>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +19,6 @@
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" Aliases="BCNew"/>
     <PackageReference Include="Certes" Version="3.0.4"/>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.7"/>
-    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" Version="10.0.7" PrivateAssets="all"/>
     <PackageReference Include="OpenIddict.Client" Version="7.7.0"/>
     <PackageReference Include="OpenIddict.Client.SystemNetHttp" Version="7.7.0"/>
     <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9"/>
