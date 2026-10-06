@@ -9,11 +9,25 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
         if (string.IsNullOrWhiteSpace(value))
             return null;
 
-        var domain = value.Trim().TrimEnd('.');
-        if (domain.Contains("://", StringComparison.Ordinal) || domain.Contains('/') || domain.Contains(':'))
-            throw new ArgumentException("Domain must be a hostname without scheme, path, or port.");
+        var domain = value.Trim();
+        if (domain.Contains("://", StringComparison.Ordinal) || domain.Contains('/'))
+            throw new ArgumentException("Domain must be a hostname, optionally with a port.");
+
+        var port = string.Empty;
+        var portSeparator = domain.LastIndexOf(':');
+        if (portSeparator >= 0) {
+            if (portSeparator == 0 || domain.IndexOf(':') != portSeparator
+                                   || !int.TryParse(domain[(portSeparator + 1)..], out var portNumber)
+                                   || portNumber is < 1 or > 65535)
+                throw new ArgumentException("Domain port is not valid.");
+
+            port = domain[portSeparator..];
+            domain = domain[..portSeparator];
+        }
+
+        domain = domain.TrimEnd('.');
         if (IPAddress.TryParse(domain, out _))
-            throw new ArgumentException("Domain cannot be an IP address.");
+            return domain + port;
 
         try {
             domain = new IdnMapping().GetAscii(domain).ToLowerInvariant();
@@ -25,7 +39,7 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
         if (domain.Length > 253 || Uri.CheckHostName(domain) != UriHostNameType.Dns)
             throw new ArgumentException("Domain is not a valid DNS hostname.");
 
-        return domain;
+        return domain + port;
     }
 
     public async Task<DomainCheckResponse> CheckAsync(string? domain, string? publicIpv4, string? publicIpv6,
@@ -35,7 +49,7 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
             return Create(DomainValidationState.NoDomain, null, [], checkedAt);
 
         try {
-            var resolution = await ResolveAsync(domain, cancellationToken);
+            var resolution = await ResolveAsync(GetHost(domain), cancellationToken);
             if (resolution.Error != null) {
                 return new DomainCheckResponse {
                     State = DomainValidationState.LookupFailed,
@@ -81,7 +95,8 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
     public async Task<DomainResolutionResponse> ResolveAsync(string domain,
         CancellationToken cancellationToken = default) {
         try {
-            var addresses = (await Dns.GetHostAddressesAsync(domain, cancellationToken))
+            var hostname = GetHost(domain);
+            var addresses = (await Dns.GetHostAddressesAsync(hostname, cancellationToken))
                 .Select(NormalizeAddress)
                 .Distinct()
                 .OrderBy(address => address.AddressFamily)
@@ -113,6 +128,11 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
     private static void AddAddress(HashSet<IPAddress> addresses, string? value) {
         if (IPAddress.TryParse(value, out var address))
             addresses.Add(NormalizeAddress(address));
+    }
+
+    private static string GetHost(string domain) {
+        var separator = domain.LastIndexOf(':');
+        return separator >= 0 ? domain[..separator] : domain;
     }
 
     private static IPAddress NormalizeAddress(IPAddress address) {

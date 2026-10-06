@@ -19,12 +19,22 @@ public sealed class DomainValidationServiceTests {
 
     [Theory]
     [InlineData("https://example.com")]
-    [InlineData("example.com:443")]
-    [InlineData("203.0.113.10")]
     public void Normalize_should_reject_non_domain_values(string value) {
         var action = () => _service.Normalize(value);
 
         action.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Normalize_should_preserve_valid_port() {
+        _service.Normalize(" Example.COM:443 ").Should().Be("example.com:443");
+    }
+
+    [Theory]
+    [InlineData("203.0.113.10", "203.0.113.10")]
+    [InlineData("203.0.113.10:8443", "203.0.113.10:8443")]
+    public void Normalize_should_allow_ip_addresses(string value, string expected) {
+        _service.Normalize(value).Should().Be(expected);
     }
 
     [Fact]

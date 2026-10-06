@@ -43,17 +43,17 @@ public sealed class ProtocolDomainService(
         var nodeDomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
             status?.PublicIpv6, cancellationToken);
         if (nodeDomainStatus.State == DomainValidationState.Valid && nodeDomainStatus.Domain != null)
-            domains.Add(nodeDomainStatus.Domain);
+            domains.Add(HostAddress.Parse(nodeDomainStatus.Domain).Value);
 
         var globalDomainStatus = await domainValidationService.CheckAsync(globalConfiguration.GlobalDomain,
             status?.PublicIpv4, status?.PublicIpv6, cancellationToken);
         if (globalDomainStatus.State == DomainValidationState.Valid && globalDomainStatus.Domain != null)
-            domains.Add(globalDomainStatus.Domain);
+            domains.Add(HostAddress.Parse(globalDomainStatus.Domain).Value);
 
         foreach (var route in await GetRoutesAsync(cancellationToken)) {
             if (route.Enabled && route.State == ProtocolDomainRouteState.Valid && route.NodeId == nodeId &&
                 route.Domain != null)
-                domains.Add(route.Domain);
+                domains.Add(HostAddress.Parse(route.Domain).Value);
         }
 
         return new NodeCertificateDomainsResponse {

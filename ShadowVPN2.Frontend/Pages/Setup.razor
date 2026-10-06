@@ -75,10 +75,6 @@
             <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
                 enter a custom address.
             </div>
-            @if (!string.IsNullOrEmpty(_publicIp))
-            {
-                <div class="form-text">Detected public IP: <code>@_publicIp</code></div>
-            }
         </div>
         <div class="mb-3">
             <label class="form-label" for="node-name">Node name</label>
