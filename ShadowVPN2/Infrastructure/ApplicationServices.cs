@@ -52,6 +52,7 @@ public static class ApplicationServices {
             BaseAddress = new Uri(services.GetRequiredService<NavigationManager>().BaseUri)
         });
         builder.Services.AddScoped<FrontendUserContext>();
+        builder.Services.AddScoped<IAuthApplicationService, AuthApplicationService>();
         builder.Services.AddScoped<IClientApplicationService, ClientApplicationService>();
         builder.Services.AddScoped<IClientUpdatesService, ClientUpdatesService>();
         builder.Services.AddScoped<ISetupApplicationService, SetupApplicationService>();

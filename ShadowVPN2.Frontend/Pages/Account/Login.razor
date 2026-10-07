@@ -75,7 +75,7 @@
     private readonly LoginInput _model = new();
     private readonly List<ExternalLoginProviderResponse> _providers = [];
 
-    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private IAuthApplicationService AuthApplicationService { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
     private string? ReturnUrl { get; set; }
@@ -92,16 +92,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
+        var options = await AuthApplicationService.GetOptionsAsync();
+        if (options is not null)
         {
-            var options = await Http.GetFromJsonAsync<AuthOptionsResponse>("/api/auth/options");
-            if (options is not null)
-            {
-                _providers.AddRange(options.ExternalProviders);
-            }
-        }
-        catch (HttpRequestException)
-        {
+            _providers.AddRange(options.ExternalProviders);
         }
     }
 

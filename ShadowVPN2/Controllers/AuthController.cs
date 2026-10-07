@@ -5,10 +5,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.Identities;
-using Raven.Client.Documents.Session;
+using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
-using ShadowVPN2.Entities;
-using ShadowVPN2.Entities.Auth;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Extensions;
 
@@ -18,7 +16,7 @@ namespace ShadowVPN2.Controllers;
 [Route("api/[controller]")]
 public class AuthController(
     SetupService setupService,
-    IAsyncDocumentSession documentSession,
+    IAuthApplicationService authApplicationService,
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
     SettingsService settingsService,
@@ -27,25 +25,7 @@ public class AuthController(
     [HttpGet("options")]
     [AllowAnonymous]
     public async Task<AuthOptionsResponse> GetOptions(CancellationToken cancellationToken) {
-        var configuration = await documentSession.LoadAsync<EntityGlobalConfiguration>(
-            "GlobalConfiguration", cancellationToken);
-        var oidc = configuration?.Providers.OfType<OidcAuthProvider>().FirstOrDefault();
-        var local = configuration?.Providers.OfType<LocalAuthProvider>().FirstOrDefault();
-        var deviceFlowProvider = oidc is { IsEnabled: true, DeviceFlowEnabled: true }
-            ? oidc.SchemeName
-            : null;
-        var externalProviders = (await signInManager.GetExternalAuthenticationSchemesAsync())
-            .Select(provider => new ExternalLoginProviderResponse {
-                Name = provider.Name,
-                DisplayName = provider.DisplayName ?? provider.Name,
-                UseDeviceFlow = provider.Name == deviceFlowProvider
-            })
-            .ToArray();
-
-        return new AuthOptionsResponse {
-            LocalLoginEnabled = local?.IsEnabled == true,
-            ExternalProviders = externalProviders
-        };
+        return await authApplicationService.GetOptionsAsync(cancellationToken);
     }
 
     [HttpPost("login")]
