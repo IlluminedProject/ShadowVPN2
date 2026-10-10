@@ -10,11 +10,6 @@ header {
     padding: 1rem max(1rem, calc((100% - 1100px) / 2));
 }
 
-main {
-    margin: 2rem auto;
-    max-width: 1100px;
-    padding: 0 1rem;
-}
 
 button:not(.btn), input:not(.form-control):not(.form-check-input):not(.navbar-toggler) {
     font: inherit;
@@ -46,6 +41,7 @@ th, td {
 
 .actions {
     display: flex;
+    flex-wrap: wrap;
     gap: .5rem;
 }
 
@@ -104,7 +100,7 @@ a.button {
 .settings-grid {
     display: grid;
     gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
 }
 
 .settings-card, .transport-row {
@@ -152,7 +148,7 @@ a.button {
 .dialog {
     background: white;
     border-radius: .5rem;
-    max-height: 90vh;
+    max-height: calc(100dvh - 2rem);
     max-width: 42rem;
     overflow: auto;
     padding: 1.5rem;
@@ -163,4 +159,31 @@ textarea:not(.form-control) {
     display: block;
     margin: .5rem 0;
     width: 100%;
+}
+
+.content {
+    overflow-wrap: anywhere;
+}
+
+.content .table-responsive {
+    max-width: 100%;
+}
+
+.content .table-responsive table {
+    overflow-wrap: normal;
+}
+
+@media (max-width: 575.98px) {
+    .settings-frame {
+        padding: 1rem;
+    }
+
+    .settings-item-header > .d-flex,
+    .settings-item-body {
+        padding: 1rem !important;
+    }
+
+    .dialog {
+        padding: 1rem;
+    }
 }
