@@ -53,8 +53,9 @@ public static class FirstLaunchExperienceHelpers {
         _logger.Information("Certificates generated and saved successfully");
     }
 
-    public static async Task<(JoinToken Token, ClusterSignJoinResponse Response, string AwgPrivateKey)>
-        InitializeFromJoinToken(string joinToken) {
+    public static async Task<(JoinToken Token, ClusterSignJoinResponse Response, string ConnectedTo)>
+        InitializeFromJoinToken(string joinToken,
+            IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager) {
         var tokenJson = Encoding.UTF8.GetString(Convert.FromBase64String(joinToken));
         var token = JsonSerializer.Deserialize<JoinToken>(tokenJson, DataUtils.DefaultSerializerOptions)
                     ?? throw new Exception("Failed to deserialize join token");
@@ -72,9 +73,12 @@ public static class FirstLaunchExperienceHelpers {
 
         using var httpClient = CreateHttpClient();
         var (clusterJoinDetails, nodeRsa) = await ExchangeToken(token, awgPublicKey, httpClient);
-        await SaveJoinedNodeConfiguration(token, clusterJoinDetails, nodeRsa, awgPrivateKey);
-
-        return (token, clusterJoinDetails, awgPrivateKey);
+        using (nodeRsa) {
+            await BootstrapSingBox(token, clusterJoinDetails, awgPrivateKey, singBoxOptions, manager);
+            var connectedTo = await ConnectToAnyPeer(clusterJoinDetails);
+            await SaveJoinedNodeConfiguration(token, clusterJoinDetails, nodeRsa, awgPrivateKey);
+            return (token, clusterJoinDetails, connectedTo);
+        }
     }
 
     private static HttpClient CreateHttpClient() {
@@ -148,11 +152,8 @@ public static class FirstLaunchExperienceHelpers {
     }
 
     public static async Task CompleteJoinAsync(JoinToken token, ClusterSignJoinResponse response,
-        string awgPrivateKey, IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager,
-        IDocumentStore documentStore) {
+        string connectedTo, IDocumentStore documentStore) {
         using var httpClient = CreateHttpClient();
-        await BootstrapSingBox(token, response, awgPrivateKey, singBoxOptions, manager);
-        var connectedTo = await ConnectToAnyPeer(response);
         await FinishJoin(token, connectedTo, httpClient);
 
         var tag = $"{token.Name}-{response.NodeNumber}";

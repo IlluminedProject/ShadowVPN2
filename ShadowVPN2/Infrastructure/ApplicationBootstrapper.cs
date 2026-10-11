@@ -19,12 +19,13 @@ public sealed class ApplicationBootstrapper(
         var firstLaunch = FirstLaunchExperienceHelpers.IsFirstLaunch();
 
         if (firstLaunch && !string.IsNullOrEmpty(joinToken)) {
-            var join = await FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken);
+            var join = await FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken,
+                singBoxOptions, singBoxProcessManager);
             localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
 
             logger.LogInformation("Completing cluster join");
-            await FirstLaunchExperienceHelpers.CompleteJoinAsync(join.Token, join.Response, join.AwgPrivateKey,
-                singBoxOptions, singBoxProcessManager, services.GetRequiredService<IDocumentStore>());
+            await FirstLaunchExperienceHelpers.CompleteJoinAsync(join.Token, join.Response, join.ConnectedTo,
+                services.GetRequiredService<IDocumentStore>());
             return;
         }
 
