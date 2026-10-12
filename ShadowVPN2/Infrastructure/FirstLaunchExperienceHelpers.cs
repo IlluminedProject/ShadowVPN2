@@ -234,14 +234,17 @@ public static class FirstLaunchExperienceHelpers {
         const int port = 8888;
 
         try {
+            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
             while (!cts.IsCancellationRequested) {
                 foreach (var peer in response.AwgPeers) {
                     cts.Token.ThrowIfCancellationRequested();
                     _logger.Information("Trying to connect to {PeerIp}:{Port} ({PublicAddress})",
                         peer.MeshIp, port, peer.PublicAddress);
                     using var tcpClient = new TcpClient();
+                    using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+                    attemptCts.CancelAfter(TimeSpan.FromSeconds(5));
                     try {
-                        await tcpClient.ConnectAsync(peer.MeshIp, port, cts.Token);
+                        await tcpClient.ConnectAsync(peer.MeshIp, port, attemptCts.Token);
                         _logger.Information("Connectivity verified to peer {PeerIp}:{Port} ({PublicAddress})",
                             peer.MeshIp, port, peer.PublicAddress);
                         return peer.PublicAddress.ToString();
@@ -256,6 +259,11 @@ public static class FirstLaunchExperienceHelpers {
                             "Connection to cluster peer {PeerIp}:{Port} ({PublicAddress}) canceled by overall connectivity timeout",
                             peer.MeshIp, port, peer.PublicAddress);
                         throw;
+                    }
+                    catch (OperationCanceledException) when (attemptCts.IsCancellationRequested) {
+                        _logger.Warning(
+                            "Connection to cluster peer {PeerIp}:{Port} ({PublicAddress}) timed out after 5 seconds",
+                            peer.MeshIp, port, peer.PublicAddress);
                     }
                 }
 
