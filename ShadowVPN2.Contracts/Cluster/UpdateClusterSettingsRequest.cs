@@ -1,5 +1,7 @@
+using ShadowVPN2.Contracts.Networking;
+
 namespace ShadowVPN2.Contracts.Cluster;
 
 public sealed class UpdateClusterSettingsRequest {
-    public string? GlobalDomain { get; set; }
+    public HostName? GlobalDomain { get; set; }
 }

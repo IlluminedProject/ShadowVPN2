@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -20,12 +21,11 @@ public sealed class NaiveProxyConfigContributor(
         var managedCertificate = managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
         foreach (var settings in settingsList) {
             var configuredDomain = settings.MainDomain ?? globalConfiguration.MainDomain;
-            var certificateDomain = configuredDomain is not null &&
-                                    managedCertificate?.Domains.Contains(configuredDomain,
-                                        StringComparer.OrdinalIgnoreCase) == true
-                ? configuredDomain
-                : string.IsNullOrWhiteSpace(configuredDomain)
-                    ? managedCertificate?.Domains.FirstOrDefault()
+            HostName? certificateDomain = configuredDomain is { } domain &&
+                                          managedCertificate?.Domains.Contains(domain) == true
+                ? domain
+                : configuredDomain is null && managedCertificate?.Domains.Count > 0
+                    ? managedCertificate.Domains[0]
                     : null;
 
             string certificatePem;
@@ -34,7 +34,7 @@ public sealed class NaiveProxyConfigContributor(
             if (certificateDomain is not null && managedCertificate is not null) {
                 certificatePem = managedCertificate.CertificatePem;
                 privateKeyPem = managedCertificate.PrivateKeyPem;
-                serverName = certificateDomain;
+                serverName = certificateDomain.ToString()!;
             }
             else {
                 certificatePem = settings.TlsCertificatePem;

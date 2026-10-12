@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
@@ -13,8 +14,8 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
     public Task<ProtocolConnectionInfo?> CreateAsync(
         EntityClient client,
         ProtocolGlobalSettings settings,
-        string host,
-        string sni,
+        HostName host,
+        HostName sni,
         CancellationToken cancellationToken = default) {
         if (client.Hysteria2 is null)
             return Task.FromResult<ProtocolConnectionInfo?>(null);

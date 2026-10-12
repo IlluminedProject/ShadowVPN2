@@ -1,9 +1,10 @@
 using System.Text;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Data.Subscription;
 
 public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
-    public required string ServerAddress { get; set; }
+    public required HostName ServerAddress { get; set; }
     public required int ServerPort { get; set; }
     public required string PrivateKey { get; set; }
     public required string AssignedIp { get; set; }
@@ -37,7 +38,7 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
 
              [Peer]
              PublicKey = {ServerPublicKey}
-              Endpoint = {HostAddress.Parse(ServerAddress).FormatWithPort(ServerPort)}
+              Endpoint = {ServerAddress.ToAddress(ServerPort).FormatWithPort()}
              AllowedIPs = 0.0.0.0/0
              PersistentKeepalive = 25
 
@@ -72,7 +73,7 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
         return $"wireguard://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateConfig()))}";
     }
 
-    public WireGuardConnectionInfo WithEndpoint(string serverAddress, int serverPort, int mtu) {
+    public WireGuardConnectionInfo WithEndpoint(HostName serverAddress, int serverPort, int mtu) {
         return new WireGuardConnectionInfo {
             ServerAddress = serverAddress,
             ServerPort = serverPort,

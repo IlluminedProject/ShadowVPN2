@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Configurations;
 
@@ -42,12 +43,12 @@ public sealed class NodeNetworkService(
 
     public async Task<HostAddress?> GetPublicHostAsync(EntityClusterNode node,
         CancellationToken cancellationToken = default) {
-        if (!string.IsNullOrWhiteSpace(node.Domain))
-            return HostAddress.Parse(node.Domain);
+        if (node.Domain is { } domain)
+            return domain.ToAddress();
 
         var status = await GetStatusAsync(node.NodeId, cancellationToken);
         var address = status?.PublicIpv4 ?? status?.PublicIpv6;
-        return string.IsNullOrWhiteSpace(address) ? null : HostAddress.Parse(address);
+        return HostName.ParseOptional(address)?.ToAddress();
     }
 
     public async Task<HostAddress?> GetManagementHostAsync(EntityClusterNode node,
@@ -58,7 +59,7 @@ public sealed class NodeNetworkService(
 
         var status = await GetStatusAsync(node.NodeId, cancellationToken);
         var port = status?.ManagementPort;
-        return port.HasValue ? HostAddress.Parse($"{host.Value.FormatForUri()}:{port.Value}") : host;
+        return port.HasValue ? host.Value.Host.ToAddress(port.Value) : host;
     }
 
     public async Task RecordObservedPublicIpAsync(Guid nodeId, string? value,

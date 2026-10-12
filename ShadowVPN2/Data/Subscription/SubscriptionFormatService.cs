@@ -66,25 +66,25 @@ public sealed class SubscriptionFormatService {
     private static MihomoProxy? CreateProxy(SubscriptionEndpoint endpoint) {
         return endpoint.Connection switch {
             Hysteria2ConnectionInfo hysteria2 => new MihomoProxy(endpoint.Name + " · Hysteria2", "hysteria2") {
-                Server = hysteria2.ServerAddress, Port = hysteria2.ServerPort,
+                Server = hysteria2.ServerAddress.ToString(), Port = hysteria2.ServerPort,
                 Values = new Dictionary<string, string?> {
-                    ["password"] = hysteria2.Password, ["sni"] = hysteria2.Sni,
+                    ["password"] = hysteria2.Password, ["sni"] = hysteria2.Sni?.ToString(),
                     ["skip-cert-verify"] = "false", ["fingerprint"] = hysteria2.PinSha256,
                     ["obfs"] = hysteria2.ObfsType is not null and not "none" ? hysteria2.ObfsType : null,
                     ["obfs-password"] = hysteria2.ObfsType is not null and not "none" ? hysteria2.ObfsPassword : null
                 }
             },
             NaiveProxyConnectionInfo naive => new MihomoProxy(endpoint.Name + " · NaiveProxy", "naive") {
-                Server = naive.ServerAddress, Port = naive.ServerPort,
+                Server = naive.ServerAddress.ToString(), Port = naive.ServerPort,
                 Values = new Dictionary<string, string?> {
                     ["username"] = naive.Username, ["password"] = naive.Password,
-                    ["sni"] = naive.Sni,
+                    ["sni"] = naive.Sni.ToString(),
                     ["skip-cert-verify"] = naive.Insecure && naive.PinSha256 is null ? "true" : "false",
                     ["fingerprint"] = naive.PinSha256
                 }
             },
             WireGuardConnectionInfo wireGuard => new MihomoProxy(endpoint.Name + " · WireGuard", "wireguard") {
-                Server = wireGuard.ServerAddress, Port = wireGuard.ServerPort,
+                Server = wireGuard.ServerAddress.ToString(), Port = wireGuard.ServerPort,
                 Values = new Dictionary<string, string?> {
                     ["ip"] = wireGuard.AssignedIp, ["private-key"] = wireGuard.PrivateKey,
                     ["public-key"] = wireGuard.ServerPublicKey, ["mtu"] = wireGuard.Mtu.ToString(),
@@ -110,8 +110,8 @@ public sealed class SubscriptionFormatService {
         var builder = new StringBuilder("naive+https://")
             .Append(Uri.EscapeDataString(connection.Username)).Append(':')
             .Append(Uri.EscapeDataString(connection.Password)).Append('@')
-            .Append(connection.ServerAddress).Append(':').Append(connection.ServerPort).Append("/?");
-        AddQuery(builder, "sni", connection.Sni);
+            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()).Append("/?");
+        AddQuery(builder, "sni", connection.Sni.ToString());
         AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
         AddQuery(builder, "pinSHA256", connection.PinSha256);
         AddQuery(builder, "name", clientName);

@@ -23,3 +23,10 @@ Identity runtime, login/passkey/external-provider endpoints and provider callbac
 Application routes are served at the application root from this assembly. The
 frontend does not call its own REST API for internal UI operations and cannot be
 started independently; the executable host is the only runnable project.
+
+Domain editing binds directly to nullable `HostName` values from
+`ShadowVPN2.Contracts.Networking`. `InputHostName` parses hostname and IP text at
+the input boundary, rejecting URLs and ports through Blazor field validation.
+Domain forms submit through `EditForm.OnValidSubmit`; button actions that save a
+domain validate the same `EditContext` before calling an application service.
+Setup suggestions use the browser hostname or public IP without a port.

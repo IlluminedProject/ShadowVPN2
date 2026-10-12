@@ -1,6 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Authentication;
 
@@ -12,8 +13,8 @@ public sealed class ManagedCertificateService(
     private readonly List<X509Certificate2> _certificates = [];
     private readonly Lock _lock = new();
 
-    private IReadOnlyDictionary<string, X509Certificate2> _certificatesByDomain =
-        new Dictionary<string, X509Certificate2>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<HostName, X509Certificate2> _certificatesByDomain =
+        new Dictionary<HostName, X509Certificate2>();
 
     private IReadOnlyDictionary<Guid, ManagedCertificateMaterial> _materialsByNode =
         new Dictionary<Guid, ManagedCertificateMaterial>();
@@ -41,10 +42,10 @@ public sealed class ManagedCertificateService(
 
     public event Func<Task>? CertificatesChanged;
 
-    public X509Certificate2? GetCertificate(string? serverName) {
-        if (string.IsNullOrWhiteSpace(serverName)) return null;
+    public X509Certificate2? GetCertificate(HostName? serverName) {
+        if (serverName is not { } host) return null;
         lock (_lock)
-            return _certificatesByDomain.GetValueOrDefault(serverName);
+            return _certificatesByDomain.GetValueOrDefault(host);
     }
 
     public ManagedCertificateMaterial? GetForNode(Guid nodeId) {
@@ -58,11 +59,11 @@ public sealed class ManagedCertificateService(
         return await session.LoadAsync<EntityManagedCertificate>(GetId(nodeId), cancellationToken);
     }
 
-    public async Task SaveAsync(Guid nodeId, IReadOnlyList<string> domains, string certificatePem,
+    public async Task SaveAsync(Guid nodeId, IReadOnlyList<HostName> domains, string certificatePem,
         string privateKeyPem, CancellationToken cancellationToken = default) {
         using var certificate = X509Certificate2.CreateFromPem(certificatePem, privateKeyPem);
-        var normalizedDomains = domains.Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase).ToList();
+        var normalizedDomains = domains.Distinct()
+            .OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList();
         var id = GetId(nodeId);
         using var session = documentStore.OpenAsyncSession();
         var entity = await session.LoadAsync<EntityManagedCertificate>(id, cancellationToken)
@@ -103,7 +104,7 @@ public sealed class ManagedCertificateService(
     private async Task ReloadAsync(CancellationToken cancellationToken) {
         using var session = documentStore.OpenAsyncSession();
         var entities = await session.Query<EntityManagedCertificate>().ToListAsync(cancellationToken);
-        var byDomain = new Dictionary<string, X509Certificate2>(StringComparer.OrdinalIgnoreCase);
+        var byDomain = new Dictionary<HostName, X509Certificate2>();
         var byNode = new Dictionary<Guid, ManagedCertificateMaterial>();
         var loadedCertificates = new List<X509Certificate2>();
 

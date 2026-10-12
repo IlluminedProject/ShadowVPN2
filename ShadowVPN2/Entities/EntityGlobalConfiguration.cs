@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities.Auth;
 using ShadowVPN2.Entities.Base;
 
@@ -6,8 +7,8 @@ namespace ShadowVPN2.Entities;
 public class EntityGlobalConfiguration : IEntityId {
     public const string ConfigurationDocumentId = "GlobalConfiguration";
 
-    public string? GlobalDomain { get; set; }
-    public string? MainDomain { get; set; }
+    public HostName? GlobalDomain { get; set; }
+    public HostName? MainDomain { get; set; }
 
     public bool SelfRegistrationEnabled { get; set; } = true;
     public List<AuthProvider> Providers { get; set; } = new();

@@ -1,8 +1,10 @@
+using ShadowVPN2.Contracts.Networking;
+
 namespace ShadowVPN2.Contracts.Certificates;
 
 public sealed class ManagedCertificateResponse {
     public required Guid NodeId { get; init; }
-    public required IReadOnlyList<string> Domains { get; init; }
+    public required IReadOnlyList<HostName> Domains { get; init; }
     public required DateTimeOffset NotBefore { get; init; }
     public required DateTimeOffset NotAfter { get; init; }
     public DateTimeOffset? LastAttemptAt { get; init; }

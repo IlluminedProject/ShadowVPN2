@@ -18,7 +18,6 @@ public class SetupService(
     IOptions<LocalConfiguration> localConfiguration,
     IDocumentStore documentStore,
     GlobalConfigurationService globalConfigService,
-    DomainValidationService domainValidationService,
     DynamicAuthenticationManager authManager,
     ILogger<SetupService> logger) {
     public Task<bool> NeedsSetupAsync() {
@@ -53,7 +52,7 @@ public class SetupService(
             Id = "EntityClusterNodes|",
             NodeId = localConfiguration.Value.NodeId,
             Name = request.NodeName,
-            Domain = domainValidationService.Normalize(request.Domain),
+            Domain = request.Domain,
             AwgPublicKey = localConfiguration.Value.AwgPrivateKey != null
                 ? AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey)
                 : null

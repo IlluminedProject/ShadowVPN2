@@ -1,13 +1,14 @@
 using System.Text;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Data.Subscription;
 
 public sealed class ProxyUriBuilder {
     private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
 
-    public ProxyUriBuilder(string scheme, string host, int port) {
+    public ProxyUriBuilder(string scheme, HostName host, int port) {
         ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
-        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+        ArgumentException.ThrowIfNullOrWhiteSpace(host.Value, nameof(host));
         ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
 
@@ -17,7 +18,7 @@ public sealed class ProxyUriBuilder {
     }
 
     public string Scheme { get; }
-    public string Host { get; }
+    public HostName Host { get; }
     public int Port { get; }
     public string? UserName { get; private set; }
     public string? Password { get; private set; }
@@ -65,7 +66,7 @@ public sealed class ProxyUriBuilder {
             builder.Append('@');
         }
 
-        builder.Append(HostAddress.Parse(Host).FormatWithPort(Port)).Append('/');
+        builder.Append(Host.ToAddress(Port).FormatWithPort()).Append('/');
 
         if (_queryParams.Count > 0) {
             builder.Append('?');

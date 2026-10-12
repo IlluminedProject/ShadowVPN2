@@ -141,7 +141,7 @@
             return;
 
         _servers.AddRange(_subscription.Protocols.SelectMany(protocol => protocol.Endpoints)
-                .DistinctBy(endpoint => endpoint.Address, StringComparer.OrdinalIgnoreCase)
+                .DistinctBy(endpoint => endpoint.Address)
                 .Select(endpoint => new ServerState(endpoint.Name, endpoint.Address)));
     }
 
@@ -229,10 +229,10 @@
     }
 
     private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
-            string serverAddress)
+            HostName serverAddress)
     {
         var invalidChars = Path.GetInvalidFileNameChars();
-        var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress }
+        var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress.ToString() }
                 .Select(part => new string(part.Trim().Select(character => char.IsControl(character) ||
                                                                            invalidChars.Contains(character) || character is '/' or '\\'
                                 ? '-'
@@ -255,10 +255,10 @@
             };
     }
 
-    private sealed class ServerState(string name, string address)
+    private sealed class ServerState(string name, HostAddress address)
     {
         public string Name { get; } = name;
-        public string Address { get; } = address;
+        public HostAddress Address { get; } = address;
         public bool Checking { get; set; }
         public int? Latency { get; set; }
     }

@@ -19,9 +19,14 @@
     }
     else
     {
+        <EditForm Model="_cluster" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator/>
+            <ValidationSummary/>
         <div class="settings-frame">
             <label class="form-label" for="global-domain">Global node domain</label>
-            <InputText id="global-domain" class="form-control" @bind-Value="_cluster.GlobalDomain"/>
+            <InputHostName id="global-domain" class="form-control" @bind-Value="_cluster.GlobalDomain"
+                           DisplayName="Global node domain"/>
+            <ValidationMessage For="() => _cluster.GlobalDomain"/>
             <label for="awg-port">AmneziaWG mesh listen port</label>
             <InputNumber id="awg-port" class="form-control" @bind-Value="_awg.ListenPort"/>
             <h2>Obfuscation parameters</h2>
@@ -78,8 +83,9 @@
             </div>
         </div>
         <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">Save settings</button>
+            <button class="btn btn-primary" type="submit" disabled="@_busy">Save settings</button>
         </div>
+        </EditForm>
     }
     @if (!string.IsNullOrEmpty(_message))
     {

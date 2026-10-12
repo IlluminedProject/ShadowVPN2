@@ -1,7 +1,9 @@
+using ShadowVPN2.Contracts.Networking;
+
 namespace ShadowVPN2.Contracts.Subscriptions;
 
 public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
-    public required string ServerAddress { get; set; }
+    public required HostName ServerAddress { get; set; }
     public required int ServerPort { get; set; }
     public required string PrivateKey { get; set; }
     public required string AssignedIp { get; set; }

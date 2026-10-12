@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
 using ShadowVPN2.Infrastructure;
@@ -11,7 +12,7 @@ public sealed class WireGuardSubscriptionContributor(
     }
 
     public async Task<ProtocolConnectionInfo?> CreateAsync(EntityClient client, ProtocolGlobalSettings settings,
-        string host, string sni, CancellationToken cancellationToken = default) {
+        HostName host, HostName sni, CancellationToken cancellationToken = default) {
         if (settings is not AwgGlobalSettings wg || !client.IsEnabled)
             return null;
 

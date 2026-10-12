@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 
 namespace ShadowVPN2.Data.Subscription;
@@ -12,7 +13,7 @@ public sealed class FreeTurnConnectionInfo : TransportConnectionInfo {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public required string Peer { get; init; }
+    public required HostAddress Peer { get; init; }
 
     public required FreeTurnObfuscationProfile? ObfuscationProfile { get; init; }
 
@@ -29,7 +30,7 @@ public sealed class FreeTurnConnectionInfo : TransportConnectionInfo {
     public string CreateShareUrl(string clientName, string? vpnConfig = null) {
         var payload = new Payload {
             Provider = "vk",
-            Peer = Peer,
+            Peer = Peer.FormatWithPort(Peer.Port ?? 443),
             Transport = TurnTransport == FreeTurnTurnTransport.Udp ? "udp" : null,
             Mode = Mode == ProtocolSocketKind.Tcp ? "tcp" : null,
             Obf = ObfuscationProfile?.ToCommandLineValue(),

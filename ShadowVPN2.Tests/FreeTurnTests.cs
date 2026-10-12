@@ -1,5 +1,6 @@
 using System.Text;
 using AwesomeAssertions;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Entities;
@@ -70,7 +71,7 @@ public sealed class FreeTurnTests {
     [Fact]
     public void FreeTurn_share_url_should_match_upstream_payload() {
         var connection = new FreeTurnConnectionInfo {
-            Peer = "vpn.example.com:56000",
+            Peer = HostAddress.Parse("vpn.example.com:56000"),
             ObfuscationProfile = FreeTurnObfuscationProfile.RtpOpus3,
             ObfuscationKey = new string('a', 64),
             TurnTransport = FreeTurnTurnTransport.Tcp,
@@ -93,7 +94,7 @@ public sealed class FreeTurnTests {
     [Fact]
     public void FreeTurn_share_url_should_embed_vpn_config() {
         var connection = new FreeTurnConnectionInfo {
-            Peer = "vpn.example.com:56000",
+            Peer = HostAddress.Parse("vpn.example.com:56000"),
             ObfuscationProfile = null,
             ObfuscationKey = null,
             TurnTransport = FreeTurnTurnTransport.Tcp,

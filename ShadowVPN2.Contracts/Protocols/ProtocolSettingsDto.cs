@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Contracts.Protocols;
 
@@ -10,5 +11,5 @@ public abstract class ProtocolSettingsDto {
     public Guid Id { get; set; }
     public int ListenPort { get; set; }
     public bool Enabled { get; set; }
-    public string? MainDomain { get; set; }
+    public HostName? MainDomain { get; set; }
 }

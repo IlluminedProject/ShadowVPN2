@@ -1,0 +1,27 @@
+@using System.Diagnostics.CodeAnalysis
+@inherits InputBase<HostName?>
+
+<input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
+       @bind="CurrentValueAsString" @bind:event="oninput"/>
+
+@code {
+    protected override string? FormatValueAsString(HostName? value) => value?.ToString();
+
+    protected override bool TryParseValueFromString(string? value, out HostName? result,
+        [NotNullWhen(false)] out string? validationErrorMessage)
+    {
+        try
+        {
+            result = HostName.ParseOptional(value);
+            validationErrorMessage = null;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            result = null;
+            validationErrorMessage = $"The {DisplayName ?? FieldIdentifier.FieldName} field must be a hostname or IP address without a port or URL.";
+            return false;
+        }
+    }
+
+}

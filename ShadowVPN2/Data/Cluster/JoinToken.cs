@@ -1,3 +1,5 @@
+using ShadowVPN2.Contracts.Networking;
+
 namespace ShadowVPN2.Data.Cluster;
 
 public class JoinToken {

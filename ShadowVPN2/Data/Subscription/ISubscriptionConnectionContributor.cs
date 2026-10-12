@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
 
@@ -9,7 +10,7 @@ public interface ISubscriptionConnectionContributor {
     Task<ProtocolConnectionInfo?> CreateAsync(
         EntityClient client,
         ProtocolGlobalSettings settings,
-        string host,
-        string sni,
+        HostName host,
+        HostName sni,
         CancellationToken cancellationToken = default);
 }

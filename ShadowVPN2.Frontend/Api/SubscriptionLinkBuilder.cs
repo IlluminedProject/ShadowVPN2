@@ -1,12 +1,13 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Subscriptions;
 
 namespace ShadowVPN2.Frontend.Api;
 
 public static class SubscriptionLinkBuilder {
+    private static readonly HostName Loopback = HostName.Parse("127.0.0.1");
+
     public static string CreateWireGuardConfig(WireGuardConnectionInfo connection) {
         var config = $"""
                       [Interface]
@@ -16,7 +17,7 @@ public static class SubscriptionLinkBuilder {
 
                       [Peer]
                       PublicKey = {connection.ServerPublicKey}
-                      Endpoint = {FormatHost(connection.ServerAddress)}:{connection.ServerPort}
+                      Endpoint = {connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()}
                       AllowedIPs = 0.0.0.0/0
                       PersistentKeepalive = 25
 
@@ -50,9 +51,7 @@ public static class SubscriptionLinkBuilder {
         var builder = new StringBuilder("hysteria2://")
             .Append(Uri.EscapeDataString(connection.Password))
             .Append('@')
-            .Append(FormatHost(connection.ServerAddress))
-            .Append(':')
-            .Append(connection.ServerPort)
+            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort())
             .Append("/?insecure=1");
         AddQuery(builder, "pinSHA256", connection.PinSha256);
         if (connection.ObfsType is not null and not "none") {
@@ -60,7 +59,7 @@ public static class SubscriptionLinkBuilder {
             AddQuery(builder, "obfs-password", connection.ObfsPassword);
         }
 
-        AddQuery(builder, "sni", connection.Sni);
+        AddQuery(builder, "sni", connection.Sni?.ToString());
         AddQuery(builder, "name", clientName);
         return builder.ToString();
     }
@@ -71,11 +70,9 @@ public static class SubscriptionLinkBuilder {
             .Append(':')
             .Append(Uri.EscapeDataString(connection.Password))
             .Append('@')
-            .Append(FormatHost(connection.ServerAddress))
-            .Append(':')
-            .Append(connection.ServerPort)
+            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort())
             .Append("/?");
-        AddQuery(builder, "sni", connection.Sni);
+        AddQuery(builder, "sni", connection.Sni.ToString());
         AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
         AddQuery(builder, "pinSHA256", connection.PinSha256);
         AddQuery(builder, "name", clientName);
@@ -87,7 +84,7 @@ public static class SubscriptionLinkBuilder {
         var payload = new Dictionary<string, object?> {
             ["v"] = 1,
             ["provider"] = "vk",
-            ["peer"] = transport.Peer
+            ["peer"] = transport.Peer.FormatWithPort(transport.Peer.Port ?? 443)
         };
         var turnTransport = string.Equals(transport.TurnTransport, "Udp", StringComparison.OrdinalIgnoreCase)
             ? "udp"
@@ -112,10 +109,10 @@ public static class SubscriptionLinkBuilder {
 
     public static ProtocolConnectionInfo CreateLocalConnection(ProtocolConnectionInfo connection) {
         return connection switch {
-            WireGuardConnectionInfo wireGuard => CopyWireGuard(wireGuard, "127.0.0.1", 9000,
+            WireGuardConnectionInfo wireGuard => CopyWireGuard(wireGuard, Loopback, 9000,
                 Math.Min(wireGuard.Mtu, 1280)),
             Hysteria2ConnectionInfo hysteria2 => new Hysteria2ConnectionInfo {
-                ServerAddress = "127.0.0.1",
+                ServerAddress = Loopback,
                 ServerPort = 9000,
                 Password = hysteria2.Password,
                 ObfsType = hysteria2.ObfsType,
@@ -124,7 +121,7 @@ public static class SubscriptionLinkBuilder {
                 PinSha256 = hysteria2.PinSha256
             },
             NaiveProxyConnectionInfo naiveProxy => new NaiveProxyConnectionInfo {
-                ServerAddress = "127.0.0.1",
+                ServerAddress = Loopback,
                 ServerPort = 9000,
                 Username = naiveProxy.Username,
                 Password = naiveProxy.Password,
@@ -136,7 +133,7 @@ public static class SubscriptionLinkBuilder {
         };
     }
 
-    private static WireGuardConnectionInfo CopyWireGuard(WireGuardConnectionInfo source, string address, int port,
+    private static WireGuardConnectionInfo CopyWireGuard(WireGuardConnectionInfo source, HostName address, int port,
         int mtu) {
         return new WireGuardConnectionInfo {
             ServerAddress = address,
@@ -165,12 +162,6 @@ public static class SubscriptionLinkBuilder {
         };
     }
 
-    private static string FormatHost(string host) {
-        return IPAddress.TryParse(host, out var address) &&
-               address.AddressFamily == AddressFamily.InterNetworkV6
-            ? $"[{host}]"
-            : host;
-    }
 
     private static string Optional(string key, string? value) {
         return string.IsNullOrWhiteSpace(value) ? string.Empty : $"{key} = {value}\n";

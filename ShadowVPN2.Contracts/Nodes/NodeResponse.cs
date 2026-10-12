@@ -1,10 +1,12 @@
+using ShadowVPN2.Contracts.Networking;
+
 namespace ShadowVPN2.Contracts.Nodes;
 
 public sealed class NodeResponse {
     public required string Id { get; set; }
     public required Guid NodeId { get; set; }
     public required string Name { get; set; }
-    public string? Domain { get; set; }
+    public HostName? Domain { get; set; }
     public string? PublicIpv4 { get; set; }
     public string? PublicIpv6 { get; set; }
     public IReadOnlyList<string> InternalAddresses { get; set; } = [];

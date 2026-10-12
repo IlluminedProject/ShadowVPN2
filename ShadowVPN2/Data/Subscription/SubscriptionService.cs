@@ -1,5 +1,6 @@
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
@@ -36,15 +37,15 @@ public class SubscriptionService(
 
             var endpoints = new List<SubscriptionEndpoint>();
             var mainDomain = settings.MainDomain ?? globalConfig.MainDomain;
-            if (!string.IsNullOrWhiteSpace(mainDomain)) {
-                var mainHost = HostAddress.Parse(mainDomain);
+            if (mainDomain is { } mainName) {
+                var mainHost = mainName.ToAddress();
                 var mainEndpoint = await CreateEndpointAsync(
                     contributor,
                     client,
                     settings,
                     mainHost,
                     mainHost,
-                    mainDomain,
+                    mainHost.Host,
                     true,
                     "Main");
                 if (mainEndpoint is not null) {
@@ -58,10 +59,12 @@ public class SubscriptionService(
                 if (!publicHost.HasValue) continue;
                 var host = publicHost.Value;
                 var certificate = managedCertificateService.GetForNode(node.NodeId);
-                var sni = !string.IsNullOrWhiteSpace(node.Domain) &&
-                          certificate?.Domains.Contains(node.Domain, StringComparer.OrdinalIgnoreCase) == true
-                    ? node.Domain
-                    : certificate?.Domains.FirstOrDefault() ?? host.ToString();
+                var nodeHost = node.Domain ?? host.Host;
+                var sni = certificate?.Domains.Contains(nodeHost) == true
+                    ? nodeHost
+                    : certificate?.Domains.Count > 0
+                        ? certificate.Domains[0]
+                        : host.Host;
                 var nodeEndpoint = await CreateEndpointAsync(
                     contributor,
                     client,
@@ -97,10 +100,10 @@ public class SubscriptionService(
         ProtocolGlobalSettings settings,
         HostAddress address,
         HostAddress host,
-        string sni,
+        HostName sni,
         bool isMain,
         string name) {
-        var connection = await contributor.CreateAsync(client, settings, host.Value, sni);
+        var connection = await contributor.CreateAsync(client, settings, host.Host, sni);
         if (connection is null)
             return null;
 
@@ -121,7 +124,7 @@ public class SubscriptionService(
         var transportConnections = directEndpoint.Transports.ToList();
         foreach (var freeTurn in transports.Where(transport => transport.ProtocolId == protocol.Id)) {
             var mode = ProtocolDefinitionMetadata.GetSocketKind(protocol);
-            var relayAddress = publicHost.FormatWithPort(freeTurn.ListenPort);
+            var relayAddress = publicHost.Host.ToAddress(freeTurn.ListenPort);
             var transportInfo = new FreeTurnConnectionInfo {
                 Peer = relayAddress,
                 ObfuscationProfile = freeTurn.ObfuscationProfile,

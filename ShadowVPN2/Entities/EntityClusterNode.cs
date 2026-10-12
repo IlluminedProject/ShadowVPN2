@@ -1,4 +1,5 @@
-﻿using ShadowVPN2.Entities.Base;
+﻿using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Entities.Base;
 
 namespace ShadowVPN2.Entities;
 
@@ -16,7 +17,7 @@ public class EntityClusterNode : IEntityId {
     /// <summary>
     ///     Public DNS name of the node. A node without a domain is addressed by its observed public IP.
     /// </summary>
-    public string? Domain { get; set; }
+    public HostName? Domain { get; set; }
 
     /// <summary>
     ///     AmneziaWG public key for mesh networking (set when node completes join)

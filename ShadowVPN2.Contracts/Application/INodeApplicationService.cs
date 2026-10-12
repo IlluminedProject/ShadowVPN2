@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Nodes;
 using ShadowVPN2.Contracts.Protocols;
 
@@ -9,7 +10,7 @@ public interface INodeApplicationService {
     Task<IReadOnlyList<ProtocolDomainRouteResponse>> GetProtocolDomainRoutesAsync(
         CancellationToken cancellationToken = default);
 
-    Task<NodeResponse> UpdateDomainAsync(Guid nodeId, string? domain,
+    Task<NodeResponse> UpdateDomainAsync(Guid nodeId, HostName? domain,
         CancellationToken cancellationToken = default);
 
     Task<DomainCheckResponse> CheckDomainAsync(Guid nodeId, CancellationToken cancellationToken = default);

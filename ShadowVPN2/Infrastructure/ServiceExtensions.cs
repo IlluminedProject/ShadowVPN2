@@ -9,6 +9,7 @@ using OpenIddict.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Identity;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Infrastructure.Authentication;
@@ -128,7 +129,8 @@ public static class ServiceExtensions {
                     new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
                 listenOptions.UseHttps(httpsOptions => {
                     httpsOptions.ServerCertificateSelector = (_, serverName) =>
-                        services.GetRequiredService<ManagedCertificateService>().GetCertificate(serverName) ??
+                        services.GetRequiredService<ManagedCertificateService>()
+                            .GetCertificate(HostName.ParseOptional(serverName)) ??
                         X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null,
                             X509KeyStorageFlags.Exportable);
                 });

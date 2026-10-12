@@ -46,21 +46,26 @@
     }
     else
     {
+        <EditForm @key="_request" Model="_request" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
         <div class="settings-frame">
             <label class="form-label" for="main-domain">Global main domain</label>
-            <InputText id="main-domain" class="form-control" @bind-Value="_request.MainDomain"
-                       placeholder="vpn.example.com"/>
+            <InputHostName id="main-domain" class="form-control" @bind-Value="_request.MainDomain"
+                           DisplayName="Global main domain" placeholder="vpn.example.com"/>
+            <ValidationMessage For="() => _request.MainDomain"/>
 
             @foreach (var item in _request.Protocols.ToArray())
             {
-                <section class="settings-item">
+                <section @key="item" class="settings-item">
                     <SettingsItemHeader Title="@ProtocolName(item)"
                                         @bind-ListenPort="item.ListenPort"
                                         @bind-Enabled="item.Enabled"
                                         OnRemove="() => RemoveProtocol(item)"/>
                     <div class="settings-item-body border border-top-0 rounded-bottom p-3">
                         <label class="form-label">Main domain override
-                            <InputText class="form-control" @bind-Value="item.MainDomain"/>
+                            <InputHostName class="form-control" @bind-Value="item.MainDomain" DisplayName="Main domain override"/>
+                            <ValidationMessage For="() => item.MainDomain"/>
                         </label>
                         @{ var protocolIndex = _request.Protocols.IndexOf(item); }
                         @if (protocolIndex >= 0 && protocolIndex < _domainRoutes.Count &&
@@ -91,7 +96,7 @@
 
                             <p class="muted">TLS
                                 certificate: @(hysteria2.HasTlsCertificate ? "generated" : "missing")</p>
-                            <button class="btn btn-outline-primary"
+                            <button class="btn btn-outline-primary" type="button"
                                     @onclick="() => RegenerateCertificateAsync(hysteria2.Id)" disabled="@_saving">
                                 Regenerate TLS certificate
                             </button>
@@ -159,7 +164,7 @@
                                 subscriptions use a pinned self-signed certificate.</p>
                             <p class="muted">Fallback
                                 certificate: @(naiveProxy.HasTlsCertificate ? "generated" : "will be generated on save")</p>
-                            <button class="btn btn-outline-primary"
+                            <button class="btn btn-outline-primary" type="button"
                                     @onclick="() => RegenerateCertificateAsync(naiveProxy.Id)"
                                     disabled="@(_saving || !naiveProxy.HasTlsCertificate)">
                                 Regenerate fallback certificate
@@ -171,8 +176,9 @@
 
         </div>
         <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Save settings</button>
+            <button class="btn btn-primary" type="submit" disabled="@_saving">Save settings</button>
         </div>
+        </EditForm>
     }
     @if (!string.IsNullOrEmpty(_message))
     {

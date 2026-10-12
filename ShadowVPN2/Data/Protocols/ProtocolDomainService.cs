@@ -1,5 +1,6 @@
 using System.Net;
 using Raven.Client.Documents;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 
 namespace ShadowVPN2.Data.Protocols;
@@ -38,27 +39,27 @@ public sealed class ProtocolDomainService(
                    ?? throw new KeyNotFoundException("Node not found");
         var status = await nodeNetworkService.GetStatusAsync(nodeId, cancellationToken);
         var globalConfiguration = await globalConfigurationService.GetAsync(cancellationToken);
-        var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var domains = new HashSet<HostName>();
 
         var nodeDomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
             status?.PublicIpv6, cancellationToken);
         if (nodeDomainStatus.State == DomainValidationState.Valid && nodeDomainStatus.Domain != null)
-            domains.Add(HostAddress.Parse(nodeDomainStatus.Domain).Value);
+            domains.Add(nodeDomainStatus.Domain.Value);
 
         var globalDomainStatus = await domainValidationService.CheckAsync(globalConfiguration.GlobalDomain,
             status?.PublicIpv4, status?.PublicIpv6, cancellationToken);
         if (globalDomainStatus.State == DomainValidationState.Valid && globalDomainStatus.Domain != null)
-            domains.Add(HostAddress.Parse(globalDomainStatus.Domain).Value);
+            domains.Add(globalDomainStatus.Domain.Value);
 
         foreach (var route in await GetRoutesAsync(cancellationToken)) {
             if (route.Enabled && route.State == ProtocolDomainRouteState.Valid && route.NodeId == nodeId &&
                 route.Domain != null)
-                domains.Add(HostAddress.Parse(route.Domain).Value);
+                domains.Add(route.Domain.Value);
         }
 
         return new NodeCertificateDomainsResponse {
             NodeId = nodeId,
-            Domains = domains.OrderBy(domain => domain, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly()
+            Domains = domains.OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList().AsReadOnly()
         };
     }
 
@@ -66,16 +67,15 @@ public sealed class ProtocolDomainService(
         int protocolIndex,
         string protocol,
         bool enabled,
-        string? domain,
+        HostName? domain,
         IReadOnlyDictionary<EntityClusterNode, HashSet<IPAddress>> addressesByNode,
         CancellationToken cancellationToken) {
-        if (string.IsNullOrWhiteSpace(domain))
+        if (domain is null)
             return Create(protocolIndex, protocol, enabled, null, [], [], ProtocolDomainRouteState.NoDomain);
 
         DomainResolutionResponse resolution;
         try {
-            domain = domainValidationService.Normalize(domain)!;
-            resolution = await domainValidationService.ResolveAsync(domain, cancellationToken);
+            resolution = await domainValidationService.ResolveAsync(domain.Value, cancellationToken);
         }
         catch (ArgumentException ex) {
             return Create(protocolIndex, protocol, enabled, domain, [], [], ProtocolDomainRouteState.LookupFailed,
@@ -124,7 +124,8 @@ public sealed class ProtocolDomainService(
         return addresses;
     }
 
-    private static ProtocolDomainRouteResponse Create(int protocolIndex, string protocol, bool enabled, string? domain,
+    private static ProtocolDomainRouteResponse Create(int protocolIndex, string protocol, bool enabled,
+        HostName? domain,
         IReadOnlyList<string> resolvedAddresses, IReadOnlyList<string> unmatchedAddresses,
         ProtocolDomainRouteState state, Guid? nodeId = null, string? nodeName = null, string? error = null) {
         return new ProtocolDomainRouteResponse {

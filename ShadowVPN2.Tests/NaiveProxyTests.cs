@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AwesomeAssertions;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Protocols;
 using ShadowVPN2.Contracts.Subscriptions;
 using ShadowVPN2.Data;
@@ -55,11 +56,11 @@ public sealed class NaiveProxyTests {
     [Fact]
     public void Naive_share_url_includes_insecure_and_certificate_pin_when_domain_is_absent() {
         var connection = new NaiveProxyConnectionInfo {
-            ServerAddress = "203.0.113.10",
+            ServerAddress = HostName.Parse("203.0.113.10"),
             ServerPort = 443,
             Username = "user",
             Password = "pass word",
-            Sni = "shadowvpn.local",
+            Sni = HostName.Parse("shadowvpn.local"),
             Insecure = true,
             PinSha256 = "AA:BB"
         };

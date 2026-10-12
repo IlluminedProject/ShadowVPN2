@@ -197,15 +197,15 @@ public static class FirstLaunchExperienceHelpers {
 
         foreach (var peerInfo in response.AwgPeers) {
             var peerAddress = peerInfo.PublicAddress;
-            if (string.IsNullOrEmpty(peerAddress.Value)) {
+            if (string.IsNullOrEmpty(peerAddress.Host.Value)) {
                 peerAddress = token.NodeAddresses
-                    .FirstOrDefault(address => !string.IsNullOrEmpty(address.Value));
+                    .FirstOrDefault(address => !string.IsNullOrEmpty(address.Host.Value));
             }
 
             var peer = new WireGuardPeer {
                 PublicKey = peerInfo.PublicKey,
                 AllowedIps = [$"{peerInfo.MeshIp}/32"],
-                Address = peerAddress.Value,
+                Address = peerAddress.Host.Value,
                 Port = awgSettings.ListenPort,
                 PersistentKeepaliveInterval = 25
             };
@@ -244,7 +244,7 @@ public static class FirstLaunchExperienceHelpers {
                         await tcpClient.ConnectAsync(peer.MeshIp, port, cts.Token);
                         _logger.Information("Connectivity verified to peer {PeerIp}:{Port} ({PublicAddress})",
                             peer.MeshIp, port, peer.PublicAddress);
-                        return peer.PublicAddress;
+                        return peer.PublicAddress.ToString();
                     }
                     catch (SocketException ex) {
                         _logger.Warning(ex,

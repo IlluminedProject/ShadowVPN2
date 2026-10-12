@@ -23,7 +23,7 @@ public class SubscriptionController(
                 Protocol = protocol.Protocol,
                 Endpoints = protocol.Endpoints.Select(endpoint => new SubscriptionContract.SubscriptionEndpoint {
                     Name = endpoint.Name,
-                    Address = endpoint.Address.ToString(),
+                    Address = endpoint.Address,
                     IsMain = endpoint.IsMain,
                     Connection = MapConnection(endpoint.Connection),
                     Transports = endpoint.Transports.Select(MapTransport).ToArray()

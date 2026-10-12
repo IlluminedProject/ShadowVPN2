@@ -1,6 +1,6 @@
 using System.Text;
 using AwesomeAssertions;
-using ShadowVPN2.Data;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Entities;
 using Xunit;
@@ -38,6 +38,34 @@ public sealed class SubscriptionFormatServiceTests {
         content.Should().NotContain("hysteria2://");
     }
 
+    [Fact]
+    public void IPv6_hosts_are_bracketed_in_links_and_unbracketed_in_mihomo_server() {
+        var response = CreateResponse();
+        var endpoint = response.Protocols[0].Endpoints[0];
+        var hysteria2 = (Hysteria2ConnectionInfo)endpoint.Connection;
+        hysteria2.ServerAddress = HostName.Parse("2001:db8::1");
+        var service = new SubscriptionFormatService();
+
+        var hysteriaLinks = Encoding.UTF8.GetString(Convert.FromBase64String(
+            service.Render(response, SubscriptionFormat.Base64)));
+        var yaml = service.Render(response, SubscriptionFormat.MihomoProvider);
+
+        hysteriaLinks.Should().Contain("@[2001:db8::1]:443/");
+        yaml.Should().Contain("server: \"2001:db8::1\"");
+
+        endpoint.Connection = new NaiveProxyConnectionInfo {
+            ServerAddress = HostName.Parse("2001:db8::1"),
+            ServerPort = 443,
+            Username = "user",
+            Password = "password",
+            Sni = HostName.Parse("vpn.example.com")
+        };
+        var naiveLinks = Encoding.UTF8.GetString(Convert.FromBase64String(
+            service.Render(response, SubscriptionFormat.Base64)));
+
+        naiveLinks.Should().Contain("naive+https://user:password@[2001:db8::1]:443/?sni=vpn.example.com");
+    }
+
     private static SubscriptionResponse CreateResponse() {
         return new SubscriptionResponse {
             ClientName = "device",
@@ -50,14 +78,14 @@ public sealed class SubscriptionFormatServiceTests {
                             Address = HostAddress.Parse("vpn.example.com"),
                             IsMain = true,
                             Connection = new Hysteria2ConnectionInfo {
-                                ServerAddress = "vpn.example.com",
+                                ServerAddress = HostName.Parse("vpn.example.com"),
                                 ServerPort = 443,
                                 Password = "password",
-                                Sni = "vpn.example.com"
+                                Sni = HostName.Parse("vpn.example.com")
                             },
                             Transports = [
                                 new FreeTurnConnectionInfo {
-                                    Peer = "vpn.example.com:56000",
+                                    Peer = HostAddress.Parse("vpn.example.com:56000"),
                                     ObfuscationProfile = null,
                                     ObfuscationKey = null,
                                     TurnTransport = FreeTurnTurnTransport.Tcp,

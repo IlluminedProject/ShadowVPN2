@@ -18,7 +18,7 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
                 Protocol = protocol.Protocol,
                 Endpoints = protocol.Endpoints.Select(endpoint => new Contract.SubscriptionEndpoint {
                     Name = endpoint.Name,
-                    Address = endpoint.Address.ToString(),
+                    Address = endpoint.Address,
                     IsMain = endpoint.IsMain,
                     Connection = MapConnection(endpoint.Connection),
                     Transports = endpoint.Transports.Select(MapTransport).ToArray()

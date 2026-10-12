@@ -59,7 +59,7 @@
                         <td>@node.Number</td>
                         <td>@node.Name</td>
                         <td>
-                            <code>@(string.IsNullOrWhiteSpace(node.Domain) ? "—" : node.Domain)</code>
+                            <code>@(node.Domain?.ToString() ?? "—")</code>
                             @if (node.DomainStatus is not null)
                             {
                                 <div class="muted">@DomainStatusText(node.DomainStatus.State)</div>
@@ -100,13 +100,16 @@
             <div class="modal-body">
                 @if (_joinToken is null)
                 {
-                    <label class="form-label" for="node-name">Node name</label>
-                    <InputText id="node-name" class="form-control" @bind-Value="_newNodeName"/>
-                    <label class="form-label" for="node-domain">Domain (optional)</label>
-                    <InputText id="node-domain" class="form-control" @bind-Value="_newNodeDomain"/>
-                    <button class="btn btn-primary" @onclick="GenerateTokenAsync" disabled="@_busy">Generate join
-                        token
-                    </button>
+                    <EditForm Model="_newNode" OnValidSubmit="GenerateTokenAsync">
+                        <DataAnnotationsValidator/>
+                        <ValidationSummary/>
+                        <label class="form-label" for="node-name">Node name</label>
+                        <InputText id="node-name" class="form-control" @bind-Value="_newNode.Name"/>
+                        <label class="form-label" for="node-domain">Domain (optional)</label>
+                        <InputHostName id="node-domain" class="form-control" @bind-Value="_newNode.Domain"/>
+                        <ValidationMessage For="() => _newNode.Domain"/>
+                        <button class="btn btn-primary" type="submit" disabled="@_busy">Generate join token</button>
+                    </EditForm>
                 }
                 else
                 {
@@ -131,9 +134,13 @@
                 <button class="btn-close" type="button" aria-label="Close"
                         @onclick="() => _editingNode = null"></button>
             </div>
+            <EditForm @key="_domainRequest" EditContext="_domainEditContext" OnValidSubmit="SaveDomainAsync">
+            <DataAnnotationsValidator/>
+            <ValidationSummary/>
             <div class="modal-body">
                 <label class="form-label" for="edit-domain">Domain</label>
-                <InputText id="edit-domain" class="form-control" @bind-Value="_editingDomain"/>
+                <InputHostName id="edit-domain" class="form-control" @bind-Value="_domainRequest.Domain"/>
+                <ValidationMessage For="() => _domainRequest.Domain"/>
                 <p class="muted">
                     Public IPv4: @_editingNode.PublicIpv4 — Public IPv6: @_editingNode.PublicIpv6
                 </p>
@@ -162,11 +169,12 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline-secondary" @onclick="CheckDomainAsync" disabled="@_busy">Check DNS
+                <button class="btn btn-outline-secondary" type="button" @onclick="CheckDomainAsync" disabled="@_busy">Check DNS
                 </button>
-                <button class="btn btn-primary" @onclick="SaveDomainAsync" disabled="@_busy">Save</button>
-                <button class="btn btn-secondary" @onclick="() => _editingNode = null">Close</button>
+                <button class="btn btn-primary" type="submit" disabled="@_busy">Save</button>
+                <button class="btn btn-secondary" type="button" @onclick="() => _editingNode = null">Close</button>
             </div>
+            </EditForm>
         </section>
     </div>
 }
@@ -177,9 +185,9 @@
     private NodeCertificateDomainsResponse? _certificateDomains;
     private IAsyncDisposable? _subscription;
     private NodeResponse? _editingNode;
-    private string? _editingDomain;
-    private string _newNodeName = "new-node";
-    private string? _newNodeDomain;
+    private UpdateNodeDomainRequest _domainRequest = new();
+    private EditContext? _domainEditContext;
+    private readonly GenerateNodeJoinTokenRequest _newNode = new() { Name = "new-node" };
     private string? _joinToken;
     private bool _showAddNode;
     private bool _loading = true;
@@ -244,8 +252,7 @@
         _error = null;
         try
         {
-            _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNodeName.Trim(),
-                string.IsNullOrWhiteSpace(_newNodeDomain) ? null : _newNodeDomain.Trim());
+            _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNode.Name.Trim(), _newNode.Domain);
         }
         catch (ApplicationServiceException exception)
         {
@@ -272,7 +279,8 @@
     private async Task EditNodeAsync(NodeResponse node)
     {
         _editingNode = node;
-        _editingDomain = node.Domain;
+        _domainRequest = new UpdateNodeDomainRequest { Domain = node.Domain };
+        _domainEditContext = new EditContext(_domainRequest);
         _certificateDomains = await NodesApi.GetCertificateDomainsAsync(node.NodeId);
         _error = null;
     }
@@ -285,7 +293,7 @@
         _busy = true;
         try
         {
-            await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _domainRequest.Domain);
             await ReloadAsync();
             _editingNode = null;
         }
@@ -303,14 +311,14 @@
 
     private async Task CheckDomainAsync()
     {
-        if (_editingNode is null)
+        if (_editingNode is null || _domainEditContext?.Validate() != true)
             return;
 
         _busy = true;
         try
         {
-            if (!string.Equals(_editingDomain?.Trim(), _editingNode.Domain, StringComparison.OrdinalIgnoreCase))
-                await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _editingDomain);
+            if (_domainRequest.Domain != _editingNode.Domain)
+                await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _domainRequest.Domain);
             else
                 _editingNode.DomainStatus = await NodesApi.CheckDomainAsync(_editingNode.NodeId);
             await ReloadAsync();

@@ -1,55 +1,18 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Data;
 
 public sealed class DomainValidationService(ILogger<DomainValidationService> logger) {
-    public string? Normalize(string? value) {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-
-        var domain = value.Trim();
-        if (domain.Contains("://", StringComparison.Ordinal) || domain.Contains('/'))
-            throw new ArgumentException("Domain must be a hostname, optionally with a port.");
-
-        var port = string.Empty;
-        var portSeparator = domain.LastIndexOf(':');
-        if (portSeparator >= 0) {
-            if (portSeparator == 0 || domain.IndexOf(':') != portSeparator
-                                   || !int.TryParse(domain[(portSeparator + 1)..], out var portNumber)
-                                   || portNumber is < 1 or > 65535)
-                throw new ArgumentException("Domain port is not valid.");
-
-            port = domain[portSeparator..];
-            domain = domain[..portSeparator];
-        }
-
-        domain = domain.TrimEnd('.');
-        if (IPAddress.TryParse(domain, out _))
-            return domain + port;
-
-        try {
-            domain = new IdnMapping().GetAscii(domain).ToLowerInvariant();
-        }
-        catch (ArgumentException) {
-            throw new ArgumentException("Domain is not a valid DNS hostname.");
-        }
-
-        if (domain.Length > 253 || Uri.CheckHostName(domain) != UriHostNameType.Dns)
-            throw new ArgumentException("Domain is not a valid DNS hostname.");
-
-        return domain + port;
-    }
-
-    public async Task<DomainCheckResponse> CheckAsync(string? domain, string? publicIpv4, string? publicIpv6,
+    public async Task<DomainCheckResponse> CheckAsync(HostName? domain, string? publicIpv4, string? publicIpv6,
         CancellationToken cancellationToken = default) {
         var checkedAt = DateTimeOffset.UtcNow;
-        if (string.IsNullOrWhiteSpace(domain))
+        if (domain is null)
             return Create(DomainValidationState.NoDomain, null, [], checkedAt);
 
         try {
-            var resolution = await ResolveAsync(GetHost(domain), cancellationToken);
+            var resolution = await ResolveAsync(domain.Value, cancellationToken);
             if (resolution.Error != null) {
                 return new DomainCheckResponse {
                     State = DomainValidationState.LookupFailed,
@@ -92,10 +55,10 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
         }
     }
 
-    public async Task<DomainResolutionResponse> ResolveAsync(string domain,
+    public async Task<DomainResolutionResponse> ResolveAsync(HostName domain,
         CancellationToken cancellationToken = default) {
         try {
-            var hostname = GetHost(domain);
+            var hostname = domain.Value;
             var addresses = (await Dns.GetHostAddressesAsync(hostname, cancellationToken))
                 .Select(NormalizeAddress)
                 .Distinct()
@@ -115,7 +78,7 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
         }
     }
 
-    private static DomainCheckResponse Create(DomainValidationState state, string? domain,
+    private static DomainCheckResponse Create(DomainValidationState state, HostName? domain,
         IReadOnlyList<string> addresses, DateTimeOffset checkedAt) {
         return new DomainCheckResponse {
             State = state,
@@ -128,11 +91,6 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
     private static void AddAddress(HashSet<IPAddress> addresses, string? value) {
         if (IPAddress.TryParse(value, out var address))
             addresses.Add(NormalizeAddress(address));
-    }
-
-    private static string GetHost(string domain) {
-        var separator = domain.LastIndexOf(':');
-        return separator >= 0 ? domain[..separator] : domain;
     }
 
     private static IPAddress NormalizeAddress(IPAddress address) {

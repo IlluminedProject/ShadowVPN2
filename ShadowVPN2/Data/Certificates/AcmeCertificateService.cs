@@ -3,6 +3,7 @@ using Certes.Acme;
 using Certes.Acme.Resource;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -33,9 +34,7 @@ public sealed class AcmeCertificateService(
             }
 
             var current = await managedCertificateService.GetEntityAsync(nodeId, cancellationToken);
-            var domainsChanged = current == null || !current.Domains.Order(StringComparer.OrdinalIgnoreCase)
-                .SequenceEqual(desired.Domains.Order(StringComparer.OrdinalIgnoreCase),
-                    StringComparer.OrdinalIgnoreCase);
+            var domainsChanged = current == null || !current.Domains.ToHashSet().SetEquals(desired.Domains);
             var expiresSoon = current == null || current.NotAfter <=
                 DateTimeOffset.UtcNow.AddDays(settings.RenewalThresholdDays);
             if (!domainsChanged && !expiresSoon) return;
@@ -73,12 +72,12 @@ public sealed class AcmeCertificateService(
         }
     }
 
-    private async Task IssueAsync(Guid nodeId, IReadOnlyList<string> domains, AcmeSettings settings,
+    private async Task IssueAsync(Guid nodeId, IReadOnlyList<HostName> domains, AcmeSettings settings,
         CancellationToken cancellationToken) {
         await challengeServer.StartAsync(settings.HttpPort, cancellationToken);
         try {
             var acme = await CreateContextAsync(settings, cancellationToken);
-            var order = await acme.NewOrder(domains.ToList());
+            var order = await acme.NewOrder(domains.Select(domain => domain.ToString()).ToList());
             var authorizations = (await order.Authorizations()).ToList();
             var challenges = new List<IChallengeContext>(authorizations.Count);
             foreach (var authorization in authorizations) {

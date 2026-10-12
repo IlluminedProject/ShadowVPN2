@@ -24,6 +24,9 @@
     {
         <h1>Network information</h1>
         <p>Configure this node's name and optional public domain.</p>
+        <EditForm Model="_node" OnValidSubmit="SaveNodeAsync">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
         <div class="mb-3">
             <label class="form-label" for="node-domain">Node address</label>
             <div class="input-group">
@@ -38,15 +41,15 @@
                 <ul class="dropdown-menu @(_isDropdownOpen ? "show" : "")"
                     style="@(_isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
                     <li>
-                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(BrowserAddress)">
-                            Browser Hostname (@BrowserAddress)
+                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(_browserAddress)">
+                            Browser Hostname (@_browserAddress)
                         </button>
                     </li>
-                    @if (!string.IsNullOrEmpty(_publicIp))
+                    @if (_publicAddress is not null)
                     {
                         <li>
-                            <button class="dropdown-item" type="button" @onclick="() => SelectAddress(PublicAddress)">
-                                Public IP (@PublicAddress)
+                            <button class="dropdown-item" type="button" @onclick="() => SelectAddress(_publicAddress)">
+                                Public IP (@_publicAddress)
                             </button>
                         </li>
                     }
@@ -57,9 +60,9 @@
                         </li>
                     }
                 </ul>
-                <InputText id="node-domain" class="form-control" @bind-Value="_node.Domain"
-                           @oninput="OnNodeAddressInput"
-                           placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
+                <InputHostName @key="_addressSelectionVersion" id="node-domain" class="form-control" @bind-Value="_node.Domain"
+                               @bind-Value:after="UpdateNodeNamePlaceholder" DisplayName="Node address"
+                               placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
                 <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupIpAsync()"
                         disabled="@_busy">
                     @if (_busy)
@@ -72,6 +75,7 @@
                     }
                 </button>
             </div>
+            <ValidationMessage For="() => _node.Domain"/>
             <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
                 enter a custom address.
             </div>
@@ -87,7 +91,8 @@
             <div class="form-text">A friendly name for this server in your cluster.</div>
         </div>
 
-        <button class="btn btn-primary w-100" @onclick="SaveNodeAsync" disabled="@_busy">Continue</button>
+        <button class="btn btn-primary w-100" type="submit" disabled="@_busy">Continue</button>
+        </EditForm>
     }
     else if (_step == 2)
     {
@@ -183,9 +188,9 @@
     private bool _busy;
     private bool _useOidc;
     private bool _downloadedCertificate;
-    private string? _publicIp;
-    private string _hostname = string.Empty;
-    private string _portSuffix = string.Empty;
+    private HostName? _publicAddress;
+    private HostName _browserAddress;
+    private int _addressSelectionVersion;
     private string _nodeNamePlaceholder = "primary-node";
     private bool _isDropdownOpen;
     private string? _error;
@@ -196,15 +201,12 @@
     private readonly LocalAuthSetupRequest _localAuth = new();
     private readonly OidcAuthSetupRequest _oidc = new() { DisplayName = "Login with OAuth" };
 
-    private string BrowserAddress => _hostname + _portSuffix;
-    private string PublicAddress => (_publicIp ?? string.Empty) + _portSuffix;
 
     protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(Navigation.BaseUri);
-        _hostname = uri.Host;
-        _portSuffix = uri.Port is 443 ? string.Empty : $":{uri.Port}";
-        SetNodeAddress(BrowserAddress);
+        _browserAddress = HostName.Parse(uri.IdnHost);
+        SetNodeAddress(_browserAddress);
         await LookupIpAsync(false);
     }
 
@@ -213,34 +215,32 @@
         _isDropdownOpen = !_isDropdownOpen;
     }
 
-    private void OnNodeAddressInput(ChangeEventArgs args)
-    {
-        SetNodeAddress(args.Value?.ToString() ?? string.Empty);
-    }
-
-    private void SelectAddress(string address)
+    private void SelectAddress(HostName? address)
     {
         SetNodeAddress(address);
         _isDropdownOpen = false;
     }
 
-    private void SetNodeAddress(string address)
+    private void SetNodeAddress(HostName? address)
     {
         _node.Domain = address;
-        if (string.IsNullOrEmpty(address))
+        _addressSelectionVersion++;
+        UpdateNodeNamePlaceholder();
+    }
+
+    private void UpdateNodeNamePlaceholder()
+    {
+        if (_node.Domain is not { } address)
             return;
 
-        var host = address;
-        if (Uri.TryCreate($"https://{address}", UriKind.Absolute, out var parsedAddress))
-            host = parsedAddress.Host;
-
+        var host = address.ToString();
         if (!IPAddress.TryParse(host, out _)
             && !string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
         {
             _nodeNamePlaceholder = host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
                                    ?? CreateRandomNodeName();
         }
-        else if (string.IsNullOrEmpty(_nodeNamePlaceholder) || _nodeNamePlaceholder == _hostname)
+        else if (string.IsNullOrEmpty(_nodeNamePlaceholder) || _nodeNamePlaceholder == _browserAddress.ToString())
         {
             _nodeNamePlaceholder = CreateRandomNodeName();
         }
@@ -263,10 +263,10 @@
         _error = null;
         try
         {
-            _publicIp = await SetupApi.GetPublicIpAsync();
-            if (!manualRefresh && _node.Domain == BrowserAddress && IsPrivateIpOrLocalhost(_hostname)
-                && !string.IsNullOrEmpty(_publicIp))
-                _node.Domain = PublicAddress;
+            _publicAddress = HostName.ParseOptional(await SetupApi.GetPublicIpAsync());
+            if (!manualRefresh && _node.Domain == _browserAddress && IsPrivateIpOrLocalhost(_browserAddress.ToString())
+                && _publicAddress is not null)
+                SetNodeAddress(_publicAddress);
         }
         catch (Exception ex)
         {
@@ -306,7 +306,7 @@
         {
             var request = new NodeSetupRequest
             {
-                Domain = string.IsNullOrWhiteSpace(_node.Domain) ? null : _node.Domain.Trim(),
+                Domain = _node.Domain,
                 NodeName = string.IsNullOrWhiteSpace(_node.NodeName) ? _nodeNamePlaceholder : _node.NodeName.Trim()
             };
             await SetupApi.ConfigureNodeAsync(request);

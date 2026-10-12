@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -15,14 +16,13 @@ public class ClusterService(
     IDocumentStore documentStore,
     NodeService nodeService,
     NodeNetworkService nodeNetworkService,
-    DomainValidationService domainValidationService,
     GlobalConfigurationService globalConfigurationService,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<ClusterService> logger) {
-    public async Task<string> GenerateJoinTokenAsync(string name, string? domain) {
+    public async Task<string> GenerateJoinTokenAsync(string name, HostName? domain) {
         var nodeId = Guid.NewGuid();
         var secret = Guid.NewGuid();
-        var normalizedDomain = domainValidationService.Normalize(domain);
+        var normalizedDomain = domain;
         var existingNodes = await nodeService.GetNodesAsync();
         if (normalizedDomain != null && existingNodes.Any(node => node.Domain == normalizedDomain))
             throw new ArgumentException("Domain is already assigned to another node.");
