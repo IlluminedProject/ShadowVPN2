@@ -230,28 +230,45 @@ public static class FirstLaunchExperienceHelpers {
         _logger.Information("Waiting for connectivity to cluster nodes...");
 
         // Try to connect to at least one peer's RavenDB port
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        const int port = 8888;
 
-        while (!cts.IsCancellationRequested) {
-            foreach (var peer in response.AwgPeers) {
-                _logger.Information("Trying to connect to {PeerIp} ({PublicAddress})", peer.MeshIp, peer.PublicAddress);
-                using var tcpClient = new TcpClient();
-                try {
-                    await tcpClient.ConnectAsync(peer.MeshIp, 8888, cts.Token);
-                    _logger.Information("Connectivity verified to peer {PeerIp} ({PublicAddress})", peer.MeshIp,
-                        peer.PublicAddress);
-                    return peer.PublicAddress;
+        try {
+            while (!cts.IsCancellationRequested) {
+                foreach (var peer in response.AwgPeers) {
+                    cts.Token.ThrowIfCancellationRequested();
+                    _logger.Information("Trying to connect to {PeerIp}:{Port} ({PublicAddress})",
+                        peer.MeshIp, port, peer.PublicAddress);
+                    using var tcpClient = new TcpClient();
+                    try {
+                        await tcpClient.ConnectAsync(peer.MeshIp, port, cts.Token);
+                        _logger.Information("Connectivity verified to peer {PeerIp}:{Port} ({PublicAddress})",
+                            peer.MeshIp, port, peer.PublicAddress);
+                        return peer.PublicAddress;
+                    }
+                    catch (SocketException ex) {
+                        _logger.Warning(ex,
+                            "Failed to connect to cluster peer {PeerIp}:{Port} ({PublicAddress}): {SocketError}",
+                            peer.MeshIp, port, peer.PublicAddress, ex.SocketErrorCode);
+                    }
+                    catch (OperationCanceledException) when (cts.IsCancellationRequested) {
+                        _logger.Warning(
+                            "Connection to cluster peer {PeerIp}:{Port} ({PublicAddress}) canceled by overall connectivity timeout",
+                            peer.MeshIp, port, peer.PublicAddress);
+                        throw;
+                    }
                 }
-                catch {
-                    // Ignore and try next
-                }
+
+                await Task.Delay(1000, cts.Token);
             }
-
-            await Task.Delay(1000, cts.Token);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested) {
+            // Both connection attempts and retry delays share the overall timeout.
         }
 
-        _logger.Fatal("Failed to verify connectivity to any cluster peer within timeout");
-        throw new Exception("Failed to verify connectivity to any cluster peer within timeout");
+        _logger.Error("Failed to verify connectivity to any cluster peer on TCP port {Port} within 120 seconds", port);
+        throw new TimeoutException(
+            "Failed to verify connectivity to any cluster peer on TCP port 8888 within 120 seconds");
     }
 
     private static async Task FinishJoin(JoinToken token, string nodeAddress, HttpClient httpClient) {
