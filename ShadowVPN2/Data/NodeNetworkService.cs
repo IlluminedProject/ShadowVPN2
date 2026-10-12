@@ -41,25 +41,24 @@ public sealed class NodeNetworkService(
             .ToDictionary(pair => ids[pair.Key], pair => pair.Value!);
     }
 
-    public async Task<HostAddress?> GetPublicHostAsync(EntityClusterNode node,
+    public async Task<HostName?> GetPublicHostAsync(EntityClusterNode node,
         CancellationToken cancellationToken = default) {
         if (node.Domain is { } domain)
-            return domain.ToAddress();
+            return domain;
 
         var status = await GetStatusAsync(node.NodeId, cancellationToken);
         var address = status?.PublicIpv4 ?? status?.PublicIpv6;
-        return HostName.ParseOptional(address)?.ToAddress();
+        return HostName.ParseOptional(address);
     }
 
     public async Task<HostAddress?> GetManagementHostAsync(EntityClusterNode node,
         CancellationToken cancellationToken = default) {
         var host = await GetPublicHostAsync(node, cancellationToken);
-        if (!host.HasValue || host.Value.Port.HasValue)
-            return host;
+        if (!host.HasValue)
+            return null;
 
         var status = await GetStatusAsync(node.NodeId, cancellationToken);
-        var port = status?.ManagementPort;
-        return port.HasValue ? host.Value.Host.ToAddress(port.Value) : host;
+        return host.Value.ToAddress(status?.ManagementPort);
     }
 
     public async Task RecordObservedPublicIpAsync(Guid nodeId, string? value,

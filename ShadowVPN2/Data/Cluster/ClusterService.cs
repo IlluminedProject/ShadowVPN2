@@ -43,7 +43,7 @@ public class ClusterService(
 
         var nodeAddresses = new List<HostAddress>();
         foreach (var existingNode in existingNodes.Where(candidate => !candidate.JoinSecret.HasValue)) {
-            var host = await nodeNetworkService.GetPublicHostAsync(existingNode);
+            var host = await nodeNetworkService.GetManagementHostAsync(existingNode);
             if (host.HasValue)
                 nodeAddresses.Add(host.Value);
         }
@@ -94,7 +94,7 @@ public class ClusterService(
 
         var peers = new List<AwgPeerInfo>();
         foreach (var node in nodes.Where(node => node.NodeId != pendingNode.NodeId && node.AwgPublicKey != null)) {
-            var host = await nodeNetworkService.GetPublicHostAsync(node);
+            var host = await nodeNetworkService.GetManagementHostAsync(node);
             if (host.HasValue)
                 peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, host.Value));
         }
