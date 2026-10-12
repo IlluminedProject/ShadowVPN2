@@ -1,4 +1,5 @@
-﻿using System.Net.Security;
+﻿using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -46,7 +47,8 @@ public static class FirstLaunchExperienceHelpers {
         var rootCaPfxBytes = rootCa.Export(X509ContentType.Pfx);
         await LocalConfiguration.RootCaPfxPath.WriteAllBytesAsync(rootCaPfxBytes);
 
-        var (rsa, request) = RavenDbCertificates.GenerateCertificateRequest();
+        var meshIp = IPAddress.Parse($"100.64.0.{localConfiguration.NodeNumber + 10}");
+        var (rsa, request) = RavenDbCertificates.GenerateCertificateRequest(meshIp);
         var intermediateCertificate = RavenDbCertificates.SignCertificate(request, rootCa);
         var intermediateCertificateBytes = intermediateCertificate.CopyWithPrivateKey(rsa).Export(X509ContentType.Pfx);
         await LocalConfiguration.CertificatePfxPath.WriteAllBytesAsync(intermediateCertificateBytes);

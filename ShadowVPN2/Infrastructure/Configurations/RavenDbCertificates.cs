@@ -27,7 +27,7 @@ public static class RavenDbCertificates {
         return cert;
     }
 
-    public static (RSA Rsa, CertificateRequest Request) GenerateCertificateRequest() {
+    public static (RSA Rsa, CertificateRequest Request) GenerateCertificateRequest(IPAddress? meshIp = null) {
         _logger.Information("Generating node certificate request");
         var rsa = RSA.Create(4096);
         var req = new CertificateRequest(
@@ -55,6 +55,8 @@ public static class RavenDbCertificates {
         sanBuilder.AddIpAddress(IPAddress.IPv6Loopback);
         sanBuilder.AddIpAddress(IPAddress.Any);
         sanBuilder.AddIpAddress(IPAddress.IPv6Any);
+        if (meshIp != null)
+            sanBuilder.AddIpAddress(meshIp);
         req.CertificateExtensions.Add(sanBuilder.Build());
 
         _logger.Debug("Node certificate request generated");
@@ -70,10 +72,24 @@ public static class RavenDbCertificates {
         return signedCert;
     }
 
-    public static X509Certificate2 SignCertificateFromPem(string csrPem, X509Certificate2 signingCert) {
+    public static X509Certificate2 SignCertificateFromPem(string csrPem, X509Certificate2 signingCert,
+        IPAddress meshIp) {
         _logger.Information("Signing CSR with node CA certificate");
         var csr = CertificateRequest.LoadSigningRequestPem(csrPem, HashAlgorithmName.SHA256,
             CertificateRequestLoadOptions.UnsafeLoadCertificateExtensions, RSASignaturePadding.Pkcs1);
+        var sanBuilder = new SubjectAlternativeNameBuilder();
+        var existingSan = csr.CertificateExtensions.FirstOrDefault(extension => extension.Oid?.Value == "2.5.29.17");
+        if (existingSan != null) {
+            var san = new X509SubjectAlternativeNameExtension(existingSan.RawData, existingSan.Critical);
+            foreach (var dnsName in san.EnumerateDnsNames())
+                sanBuilder.AddDnsName(dnsName);
+            foreach (var address in san.EnumerateIPAddresses().Where(address => !address.Equals(meshIp)))
+                sanBuilder.AddIpAddress(address);
+            csr.CertificateExtensions.Remove(existingSan);
+        }
+
+        sanBuilder.AddIpAddress(meshIp);
+        csr.CertificateExtensions.Add(sanBuilder.Build());
 
         var serialNumber = new byte[8];
         RandomNumberGenerator.Fill(serialNumber);

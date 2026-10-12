@@ -1,7 +1,7 @@
 using Raven.Client.Documents;
-using Raven.Embedded;
 using Serilog;
 using ShadowVPN2.Infrastructure;
+using ShadowVPN2.Infrastructure.RavenEmbedded;
 using ILogger = Serilog.ILogger;
 
 namespace ShadowVPN2.Data;
@@ -16,6 +16,7 @@ public class RavenDbInitializer {
         var serverOptions = new ServerOptions {
             ServerUrl = "https://0.0.0.0:8888",
             DataDirectory = (DataUtils.DataFolder / "ravendb").ToString(),
+            ServerDirectory = "/opt/ravendb",
             CommandLineArgs = ["--PublicServerUrl=https://127.0.0.1:8888", $"--ServerUrl.Cluster={meshUrl}"]
         };
 

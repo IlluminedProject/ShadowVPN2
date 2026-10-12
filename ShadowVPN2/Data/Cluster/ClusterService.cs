@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -73,7 +74,8 @@ public class ClusterService(
         // Sign the CSR
         var signingCert = X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null,
             X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
-        var signedCert = RavenDbCertificates.SignCertificateFromPem(request.CsrPem, signingCert);
+        var signedCert = RavenDbCertificates.SignCertificateFromPem(request.CsrPem, signingCert,
+            IPAddress.Parse(pendingNode.AwgMeshIp));
         var signedCertPem = signedCert.ExportCertificatePem();
 
         var rootCaPem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value);

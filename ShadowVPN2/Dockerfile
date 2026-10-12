@@ -1,4 +1,38 @@
-﻿FROM golang:1.26.8-bookworm AS singbox-build
+﻿FROM node:24-bookworm AS ravendb-source
+ARG RAVENDB_REVISION=46371e89d5ae3a6202e0018d1a5671b0fc6f2c79
+WORKDIR /src/ravendb
+RUN test -n "$RAVENDB_REVISION" \
+    && git init . \
+    && git remote add origin https://github.com/IlluminedProject/ravendb.git \
+    && git fetch --depth=1 origin "$RAVENDB_REVISION" \
+    && git checkout --detach FETCH_HEAD
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-typings
+WORKDIR /src/ravendb
+COPY --from=ravendb-source /src/ravendb .
+RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages \
+    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache \
+    dotnet build tools/TypingsGenerator/TypingsGenerator.csproj -c Release
+WORKDIR /src/ravendb/src/Raven.Studio
+RUN dotnet ../../tools/TypingsGenerator/bin/Release/net10.0/TypingsGenerator.dll
+
+FROM node:24-bookworm AS ravendb-studio
+COPY --from=ravendb-typings /src/ravendb /src/ravendb
+WORKDIR /src/ravendb/src/Raven.Studio
+RUN --mount=type=cache,id=shadowvpn2-ravendb-npm,target=/root/.npm \
+    npm ci && npm run fix-packages && npm run generate-icons-font \
+    && npx webpack --config webpack.config.js --mode production
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-build
+WORKDIR /src/ravendb
+COPY --from=ravendb-source /src/ravendb .
+RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages \
+    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache \
+    dotnet publish src/Raven.Server/Raven.Server.csproj -c Release -r linux-x64 \
+    --self-contained true -o /out/ravendb
+COPY --from=ravendb-studio /src/ravendb/src/Raven.Studio/wwwroot/dist/Raven.Studio.zip /out/ravendb/
+
+FROM golang:1.26.8-bookworm AS singbox-build
 ARG AMNEZIA_BOX_REVISION=a63f4dd4a4f44b7fea0a7d2ab630e38d610cbf7d
 WORKDIR /src/amnezia-box
 RUN git init . \
@@ -24,6 +58,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
 COPY docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 RUN chmod 755 /usr/local/bin/shadowvpn2-entrypoint
 
@@ -64,6 +99,7 @@ COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
 COPY --from=base /usr/local/bin/libcronet.so /usr/local/bin/libcronet.so
 COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
 COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
+COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
     gosu \
@@ -102,9 +138,6 @@ COPY --chown=1654:1654 --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data
 VOLUME ["/data"]
 
-# RavenDB Embedded creates its server package directories below the application folder.
-USER root
-RUN install -d -o 1654 -g 1654 /app/RavenDBServer
 USER root
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
