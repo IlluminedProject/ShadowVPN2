@@ -1,4 +1,19 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
+﻿FROM golang:1.26.8-bookworm AS singbox-build
+ARG AMNEZIA_BOX_REVISION=a63f4dd4a4f44b7fea0a7d2ab630e38d610cbf7d
+WORKDIR /src/amnezia-box
+RUN git init . \
+    && git remote add origin https://github.com/IlluminedProject/amnezia-box.git \
+    && git fetch --depth=1 origin "$AMNEZIA_BOX_REVISION" \
+    && git checkout --detach FETCH_HEAD
+RUN --mount=type=cache,id=shadowvpn2-singbox-mod,target=/go/pkg/mod \
+    --mount=type=cache,id=shadowvpn2-singbox-build,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath \
+    -tags "$(cat release/DEFAULT_BUILD_TAGS),with_purego,with_awg,with_low_memory,with_trusttunnel" \
+    -ldflags "-X github.com/sagernet/sing-box/constant.Version=1.15.0-alpha.9-awgm.30-awg-tun-fix $(cat release/LDFLAGS) -s -w -buildid=" \
+    -o /out/sing-box ./cmd/sing-box \
+    && cp "$(go list -m -f '{{.Dir}}' github.com/sagernet/cronet-go/lib/linux_amd64)/libcronet.so" /out/libcronet.so
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -12,11 +27,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 RUN chmod 755 /usr/local/bin/shadowvpn2-entrypoint
 
-# Download and install amnezia-box (sing-box fork)
-RUN version=$(curl -fsSL https://api.github.com/repos/hoaxisr/amnezia-box/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p') \
-    && test -n "$version" \
-    && curl -fLo /usr/local/bin/sing-box "https://github.com/hoaxisr/amnezia-box/releases/download/${version}/singbox-${version}-linux-amd64" \
-    && chmod +x /usr/local/bin/sing-box \
+# Install the pinned amnezia-box build with the AWG system TUN fix.
+COPY --from=singbox-build /out/sing-box /usr/local/bin/sing-box
+COPY --from=singbox-build /out/libcronet.so /usr/local/bin/libcronet.so
+RUN chmod +x /usr/local/bin/sing-box \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
 COPY tools/free-turn-proxy /usr/local/bin/free-turn-proxy
@@ -47,6 +61,7 @@ FROM base AS runtime
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS development
 USER root
 COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
+COPY --from=base /usr/local/bin/libcronet.so /usr/local/bin/libcronet.so
 COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
 COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends \

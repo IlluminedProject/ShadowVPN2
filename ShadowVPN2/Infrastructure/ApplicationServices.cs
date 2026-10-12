@@ -23,9 +23,7 @@ public static class ApplicationServices {
                 options.DetailedErrors = builder.Environment.IsDevelopment());
 
         builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
-        builder.Services.AddSingleton<IPostConfigureOptions<SingBoxOptions>, SingBoxOptionsPostConfigure>();
         builder.Services.AddOptions<FreeTurnOptions>().BindConfiguration("FreeTurn");
-        builder.Services.AddSingleton<AwgTunCapabilityProbe>();
         builder.Services.AddOptions<LocalConfiguration>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
         builder.Services.AddSingleton<ManagedCertificateService>();

@@ -7,5 +7,5 @@ public sealed class SingBoxOptions {
 }
 
 public sealed class AwgOptions {
-    public bool UseIntegratedTun { get; set; }
+    public bool UseIntegratedTun { get; set; } = true;
 }
