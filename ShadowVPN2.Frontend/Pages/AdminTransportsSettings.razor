@@ -98,6 +98,7 @@
 
 @code {
     private UpdateProtocolsSettingsRequest _request = new();
+    private int _meshPort;
     private bool _loading = true;
     private bool _saving;
     private string? _error;
@@ -108,6 +109,7 @@
         try
         {
             var settings = await AdminApi.GetProtocolsAsync();
+            _meshPort = (await AdminApi.GetAwgSettingsAsync()).ListenPort;
             _request = new UpdateProtocolsSettingsRequest
             {
                 MainDomain = settings.MainDomain,
@@ -138,6 +140,7 @@
 
         var used = _request.Protocols.Select(protocol => protocol.ListenPort)
             .Concat(_request.Transports.Select(transport => transport.ListenPort)).ToHashSet();
+        used.Add(_meshPort);
         var port = 56000;
         while (used.Contains(port))
             port++;

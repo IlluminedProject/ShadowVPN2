@@ -183,6 +183,7 @@
 @code {
     private UpdateProtocolsSettingsRequest _request = new();
     private IReadOnlyList<ProtocolDomainRouteResponse> _domainRoutes = [];
+    private int _meshPort;
     private bool _loading = true;
     private bool _saving;
     private bool _protocolMenuOpen;
@@ -199,6 +200,7 @@
         try
         {
             var settings = await AdminApi.GetProtocolsAsync();
+            _meshPort = (await AdminApi.GetAwgSettingsAsync()).ListenPort;
             _request = new UpdateProtocolsSettingsRequest
             {
                 MainDomain = settings.MainDomain,
@@ -266,13 +268,15 @@
         {
                 Id = Guid.NewGuid(),
                 Enabled = true,
-                ListenPort = NextPort(443)
+                ListenPort = NextPort(443, reserveMesh: false)
         });
     }
 
-    private int NextPort(int start)
+    private int NextPort(int start, bool reserveMesh = true)
     {
         var used = _request.Protocols.Select(protocol => protocol.ListenPort).ToHashSet();
+        used.UnionWith(_request.Transports.Select(transport => transport.ListenPort));
+        if (reserveMesh) used.Add(_meshPort);
         while (used.Contains(start)) start++;
         return start;
     }

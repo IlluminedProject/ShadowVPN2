@@ -6,6 +6,7 @@ public static class GlobalConfigurationValidator {
     public static void Validate(EntityGlobalConfiguration configuration) {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        ValidateMeshPort(configuration);
         var protocols = configuration.Protocols ?? [];
         var transports = configuration.Transports ?? [];
 
@@ -56,6 +57,17 @@ public static class GlobalConfigurationValidator {
 
             if (transport is FreeTurnTransportSettings freeTurn)
                 ValidateFreeTurn(freeTurn);
+        }
+    }
+
+    public static void ValidateMeshPort(EntityGlobalConfiguration configuration) {
+        var meshPort = configuration.AwgSettings.ListenPort;
+        ValidatePort(meshPort, "cluster mesh");
+        if ((configuration.Protocols ?? []).Any(protocol => protocol.ListenPort == meshPort &&
+                ProtocolDefinitionMetadata.GetSocketKind(protocol) == ProtocolSocketKind.Udp) ||
+            (configuration.Transports ?? []).OfType<FreeTurnTransportSettings>().Any(transport => transport.ListenPort == meshPort)) {
+            throw new ArgumentException($"UDP listen port {meshPort} is reserved for cluster mesh",
+                nameof(configuration));
         }
     }
 

@@ -43,17 +43,11 @@ public class ProtocolSettingsService(
         foreach (var protocol in request.Protocols)
             protocol.MainDomain = domainValidationService.Normalize(protocol.MainDomain);
 
-        var configuration = new EntityGlobalConfiguration {
-            MainDomain = request.MainDomain,
-            Protocols = request.Protocols,
-            Transports = request.Transports
-        };
-        GlobalConfigurationValidator.Validate(configuration);
-
         await globalConfigService.UpdateAsync(config => {
             config.MainDomain = request.MainDomain;
             config.Protocols = request.Protocols;
             config.Transports = request.Transports;
+            GlobalConfigurationValidator.Validate(config);
         }, cancellationToken);
         logger.LogInformation("Global protocol settings synchronized. Count: {Count}", request.Protocols.Count);
     }

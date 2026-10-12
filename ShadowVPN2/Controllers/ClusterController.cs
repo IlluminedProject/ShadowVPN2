@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -58,6 +59,7 @@ public class ClusterController(
             awg.I3 = request.I3;
             awg.I4 = request.I4;
             awg.I5 = request.I5;
+            GlobalConfigurationValidator.ValidateMeshPort(configuration);
         }, cancellationToken);
     }
 

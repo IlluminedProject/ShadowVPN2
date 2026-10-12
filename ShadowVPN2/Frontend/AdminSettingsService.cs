@@ -137,6 +137,7 @@ public sealed class AdminSettingsService(
             awg.I3 = request.I3;
             awg.I4 = request.I4;
             awg.I5 = request.I5;
+            GlobalConfigurationValidator.ValidateMeshPort(configuration);
         }, cancellationToken);
     }
 
