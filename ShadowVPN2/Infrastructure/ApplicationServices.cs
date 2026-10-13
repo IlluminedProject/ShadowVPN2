@@ -37,9 +37,6 @@ public static class ApplicationServices {
         builder.SetupRavenDb();
         builder.Services.AddSingleton<RavenMigrationLock>();
         builder.Services.AddSingleton<RavenMigrationRunner>();
-        builder.Services.AddRavenMigration<UnifyAwgSettingsMigration>();
-        builder.Services.AddRavenMigration<RenameWireGuardAmneziaSettingsMigration>();
-        builder.Services.AddRavenMigration<InitializeNaiveProxyClientSettingsMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();
