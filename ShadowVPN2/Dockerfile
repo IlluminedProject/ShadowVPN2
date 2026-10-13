@@ -29,7 +29,9 @@ COPY --from=ravendb-source /src/ravendb .
 RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
     --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
     dotnet publish src/Raven.Server/Raven.Server.csproj -c Release -r linux-x64 \
-    --self-contained true -o /out/ravendb
+    --self-contained false -o /out/ravendb
+RUN rm -f /out/ravendb/libzstd.win.* /out/ravendb/libzstd.mac.* /out/ravendb/libzstd.arm.* \
+    /out/ravendb/alpine-librdkafka.so /out/ravendb/centos8-librdkafka.so
 COPY --from=ravendb-studio /src/ravendb/src/Raven.Studio/wwwroot/dist/Raven.Studio.zip /out/ravendb/
 
 FROM golang:1.26.8-bookworm AS singbox-build
@@ -47,7 +49,7 @@ RUN --mount=type=cache,id=shadowvpn2-singbox-mod,target=/go/pkg/mod \
     -o /out/sing-box ./cmd/sing-box \
     && cp "$(go list -m -f '{{.Dir}}' github.com/sagernet/cronet-go/lib/linux_amd64)/libcronet.so" /out/libcronet.so
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.8 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12 AS base
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -58,18 +60,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
+FROM base AS binaries
+COPY --chmod=755 --from=singbox-build /out/sing-box /usr/local/bin/sing-box
+RUN setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
+
+FROM base AS runtime-base
 COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
-COPY docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
-RUN chmod 755 /usr/local/bin/shadowvpn2-entrypoint
+COPY --chmod=755 docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 
 # Install the pinned amnezia-box build with the AWG system TUN fix.
-COPY --from=singbox-build /out/sing-box /usr/local/bin/sing-box
+COPY --from=binaries /usr/local/bin/sing-box /usr/local/bin/sing-box
 COPY --from=singbox-build /out/libcronet.so /usr/local/bin/libcronet.so
-RUN chmod +x /usr/local/bin/sing-box \
-    && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
-COPY tools/free-turn-proxy /usr/local/bin/free-turn-proxy
-RUN chmod +x /usr/local/bin/free-turn-proxy
+COPY --chmod=755 tools/free-turn-proxy /usr/local/bin/free-turn-proxy
 
 # Ensure Data directory exists and has correct permissions for volumes
 RUN install -d -o $APP_UID -g $APP_UID /data
@@ -85,20 +88,20 @@ COPY ["ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj", "ShadowVPN2.Contracts/
 COPY ["ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj", "ShadowVPN2.Frontend/"]
 COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
-    dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
+    dotnet restore "ShadowVPN2/ShadowVPN2.csproj" -r linux-x64
 COPY . .
 WORKDIR "/src/ShadowVPN2"
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
-    dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
+    dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false --no-restore
 
-FROM base AS runtime
+FROM runtime-base AS runtime
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS development
 USER root
-COPY --from=base /usr/local/bin/sing-box /usr/local/bin/sing-box
-COPY --from=base /usr/local/bin/libcronet.so /usr/local/bin/libcronet.so
-COPY --from=base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
-COPY --from=base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
+COPY --from=runtime-base /usr/local/bin/sing-box /usr/local/bin/sing-box
+COPY --from=runtime-base /usr/local/bin/libcronet.so /usr/local/bin/libcronet.so
+COPY --from=runtime-base /usr/local/bin/free-turn-proxy /usr/local/bin/free-turn-proxy
+COPY --from=runtime-base /usr/local/bin/shadowvpn2-entrypoint /usr/local/bin/shadowvpn2-entrypoint
 COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
@@ -129,10 +132,10 @@ CMD ["dotnet", "watch", "run", "--no-launch-profile", "--project", "/src/ShadowV
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
-    dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -o /app/publish \
+    dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false -o /app/publish \
     --no-restore --no-build /p:UseAppHost=false
 
-FROM base AS final
+FROM runtime-base AS final
 WORKDIR /app
 COPY --chown=1654:1654 --from=publish /app/publish .
 ENV SHADOWVPN_DATA_DIR=/data

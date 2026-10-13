@@ -109,7 +109,7 @@ internal static class RavenServerRunner {
         var executable = Path.Combine(options.ServerDirectory!,
             OperatingSystem.IsWindows() ? "Raven.Server.exe" : "Raven.Server");
         if (!File.Exists(executable))
-            throw new FileNotFoundException("Self-contained RavenDB server executable was not found", executable);
+            throw new FileNotFoundException("RavenDB server executable was not found", executable);
         return executable;
     }
 
