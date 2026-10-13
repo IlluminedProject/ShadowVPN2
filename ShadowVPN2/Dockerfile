@@ -10,8 +10,8 @@ RUN test -n "$RAVENDB_REVISION" \
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-typings
 WORKDIR /src/ravendb
 COPY --from=ravendb-source /src/ravendb .
-RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages \
-    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache \
+RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
+    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
     dotnet build tools/TypingsGenerator/TypingsGenerator.csproj -c Release
 WORKDIR /src/ravendb/src/Raven.Studio
 RUN dotnet ../../tools/TypingsGenerator/bin/Release/net10.0/TypingsGenerator.dll
@@ -26,8 +26,8 @@ RUN --mount=type=cache,id=shadowvpn2-ravendb-npm,target=/root/.npm \
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-build
 WORKDIR /src/ravendb
 COPY --from=ravendb-source /src/ravendb .
-RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages \
-    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache \
+RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
+    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
     dotnet publish src/Raven.Server/Raven.Server.csproj -c Release -r linux-x64 \
     --self-contained true -o /out/ravendb
 COPY --from=ravendb-studio /src/ravendb/src/Raven.Studio/wwwroot/dist/Raven.Studio.zip /out/ravendb/
