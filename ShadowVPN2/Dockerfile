@@ -92,7 +92,8 @@ RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
 COPY . .
 WORKDIR "/src/ShadowVPN2"
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
-    dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false --no-restore
+    dotnet restore "./ShadowVPN2.csproj" -r linux-x64 \
+    && dotnet build "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false --no-restore
 
 FROM runtime-base AS runtime
 
@@ -122,7 +123,8 @@ RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
 COPY . .
 RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
-    dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
+    dotnet restore "ShadowVPN2/ShadowVPN2.csproj" \
+    && dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
 WORKDIR /src/ShadowVPN2
 CMD ["dotnet", "/src/ShadowVPN2/bin/Debug/net10.0/ShadowVPN2.dll"]
 
