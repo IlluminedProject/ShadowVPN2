@@ -25,9 +25,19 @@ public class SingBoxProcessManager : IDisposable {
     public bool IsRunning { get; private set; }
 
     public void Dispose() {
+        var process = _process;
+        _process = null;
+        if (process != null) {
+            try {
+                if (!process.HasExited) process.Kill();
+            }
+            finally {
+                process.Dispose();
+            }
+        }
+
+        IsRunning = false;
         _semaphore.Dispose();
-        _process?.Kill();
-        _process?.Dispose();
     }
 
     public async Task ApplyConfigAsync(string configJson) {

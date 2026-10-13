@@ -96,6 +96,9 @@ forward_term() {
 
 trap forward_term TERM INT
 
+# gosu drops process capabilities; retain privileged-port binding on the executable.
+setcap cap_net_bind_service=+ep "$(readlink -f "$(command -v dotnet)")"
+
 gosu "${APP_UID:-1654}" "$@" &
 child=$!
 if wait "$child"; then
