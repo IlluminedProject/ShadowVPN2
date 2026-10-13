@@ -1,0 +1,27 @@
+services:
+    shadowvpn2:
+        image: ghcr.io/illuminedproject/shadowvpn2:${SHADOWVPN_IMAGE_TAG:-latest}
+        container_name: shadowvpn2
+        restart: unless-stopped
+        stop_grace_period: 30s
+        network_mode: host
+        cap_add:
+            - NET_ADMIN
+            - NET_BIND_SERVICE
+        devices:
+            - /dev/net/tun:/dev/net/tun
+        volumes:
+            - shadowvpn2-data:/data
+        environment:
+            ASPNETCORE_ENVIRONMENT: Production
+            ASPNETCORE_URLS: https://+:${SHADOWVPN_WEB_PORT:-5172}
+        healthcheck:
+            test: [ "CMD", "curl", "-fk", "https://localhost:${SHADOWVPN_WEB_PORT:-5172}/api/node/status" ]
+            interval: 30s
+            timeout: 5s
+            start_period: 15s
+            retries: 3
+
+volumes:
+    shadowvpn2-data:
+        driver: local
