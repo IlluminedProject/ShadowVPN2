@@ -18,5 +18,7 @@ public sealed class DatabaseOptions {
 
     public DocumentConventions? Conventions { get; set; }
 
+    public Uri? LocalServerUrl { get; set; }
+
     public DatabaseRecord DatabaseRecord { get; }
 }

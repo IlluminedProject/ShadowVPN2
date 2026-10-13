@@ -164,12 +164,13 @@ public sealed class EmbeddedServer : IDisposable {
             throw new InvalidOperationException("Cannot get document document before the server was started");
 
         if (_logger.IsEnabled(LogEventLevel.Debug))
-            _logger.Debug($"Creating document store for '{databaseName}'.");
+            _logger.Debug("Creating document store for '{DatabaseName}'", databaseName);
 
         token.ThrowIfCancellationRequested();
 
         var lazy = new Lazy<Task<IDocumentStore>>(async () => {
             var serverUrl = await GetServerUriAsync(token).ConfigureAwait(false);
+            serverUrl = options.LocalServerUrl ?? serverUrl;
             var store = new DocumentStore {
                 Urls = new[] { serverUrl.AbsoluteUri },
                 Database = databaseName,
@@ -201,7 +202,7 @@ public sealed class EmbeddedServer : IDisposable {
             // Expected behaviour when the database is already exists
 
             if (_logger.IsEnabled(LogEventLevel.Debug))
-                _logger.Debug($"{options.DatabaseRecord.DatabaseName} already exists.");
+                _logger.Debug("{DatabaseRecordDatabaseName} already exists", options.DatabaseRecord.DatabaseName);
         }
     }
 
@@ -225,7 +226,7 @@ public sealed class EmbeddedServer : IDisposable {
 
             try {
                 if (_logger.IsEnabled(LogEventLevel.Debug))
-                    _logger.Debug($"Try shutdown server PID {process.Id} gracefully.");
+                    _logger.Debug("Try shutdown server PID {ProcessId} gracefully", process.Id);
 
                 using (var inputStream = process.StandardInput) {
                     inputStream.WriteLine("shutdown no-confirmation");
@@ -237,7 +238,8 @@ public sealed class EmbeddedServer : IDisposable {
             catch (Exception e) {
                 if (_logger.IsEnabled(LogEventLevel.Warning)) {
                     _logger.Warning(e,
-                        $"Failed to shutdown server PID {process.Id} gracefully in {_serverOptions!.GracefulShutdownTimeout.ToString()}");
+                        "Failed to shutdown server PID {ProcessId} gracefully in {ToString}", process.Id,
+                        _serverOptions!.GracefulShutdownTimeout.ToString());
                 }
             }
 
@@ -255,19 +257,20 @@ public sealed class EmbeddedServer : IDisposable {
 
             try {
                 if (_logger.IsEnabled(LogEventLevel.Debug))
-                    _logger.Debug($"Killing global server PID {process.Id}.");
+                    _logger.Debug("Killing global server PID {ProcessId}", process.Id);
 
                 process.Kill();
                 if (!process.WaitForExit((int)_serverOptions!.ProcessKillTimeout.TotalMilliseconds)) {
                     if (_logger.IsEnabled(LogEventLevel.Information)) {
                         _logger.Information(
-                            $"Process {process.Id} did not exit after Kill() within {_serverOptions!.ProcessKillTimeout.ToString()} seconds.");
+                            "Process {ProcessId} did not exit after Kill() within {ToString} seconds", process.Id,
+                            _serverOptions!.ProcessKillTimeout.ToString());
                     }
                 }
             }
             catch (Exception e) {
                 if (_logger.IsEnabled(LogEventLevel.Warning)) {
-                    _logger.Warning(e, $"Failed to kill process {process.Id}");
+                    _logger.Warning(e, "Failed to kill process {ProcessId}", process.Id);
                 }
             }
         }
@@ -281,7 +284,7 @@ public sealed class EmbeddedServer : IDisposable {
 
         var process = RavenServerRunner.Run(_serverOptions);
         if (_logger.IsEnabled(LogEventLevel.Debug))
-            _logger.Debug($"Starting global server: {process.Id}");
+            _logger.Debug("Starting global server: {ProcessId}", process.Id);
 
         process.Exited += (sender, e) => ServerProcessExited?.Invoke(sender, new ServerProcessExitedEventArgs());
 

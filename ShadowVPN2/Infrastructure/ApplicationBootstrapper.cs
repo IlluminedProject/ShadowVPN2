@@ -1,5 +1,7 @@
+using System.Net;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Infrastructure.Configurations;
 using TruePath.SystemIo;
@@ -17,21 +19,26 @@ public sealed class ApplicationBootstrapper(
         LocalConfiguration.Path.CreateDirectory();
         var joinToken = configuration["JoinToken"];
         var firstLaunch = FirstLaunchExperienceHelpers.IsFirstLaunch();
-
         if (firstLaunch && !string.IsNullOrEmpty(joinToken)) {
             var join = await FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken,
-                singBoxOptions, singBoxProcessManager);
-            localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
+                singBoxOptions, singBoxProcessManager, services);
 
             logger.LogInformation("Completing cluster join");
             await FirstLaunchExperienceHelpers.CompleteJoinAsync(join.Token, join.Response, join.ConnectedTo,
-                services.GetRequiredService<IDocumentStore>());
+                services.GetRequiredService<IDocumentStore>(), services);
             return;
         }
 
         if (firstLaunch)
-            await FirstLaunchExperienceHelpers.InitializeFirstNode();
+            await FirstLaunchExperienceHelpers.InitializeFirstNode(singBoxOptions, singBoxProcessManager);
 
         localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
+        await PeerCertificateTrustService.RestoreRootStoreAsync();
+        if (!firstLaunch) {
+            logger.LogInformation("Starting saved mesh configuration before RavenDB cluster initialization");
+            singBoxProcessManager.Start();
+            await FirstLaunchExperienceHelpers.WaitForMeshAddressAsync(
+                IPAddress.Parse($"100.64.0.{localConfigurationOptions.Value.NodeNumber + 10}"), singBoxProcessManager);
+        }
     }
 }

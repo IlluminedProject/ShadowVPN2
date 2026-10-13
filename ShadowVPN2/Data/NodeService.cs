@@ -48,7 +48,7 @@ public class NodeService(
 
             // Cancel any pending disposal
             if (_disposalCts != null) {
-                logger.LogInformation("New subscription received while disposal was pending. Cancelling disposal.");
+                logger.LogInformation("New subscription received while disposal was pending. Cancelling disposal");
                 _disposalCts.Cancel();
                 _disposalCts.Dispose();
                 _disposalCts = null;

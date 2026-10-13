@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
@@ -25,6 +24,7 @@ public static class ApplicationServices {
         builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
         builder.Services.AddOptions<FreeTurnOptions>().BindConfiguration("FreeTurn");
         builder.Services.AddOptions<LocalConfiguration>();
+        builder.Services.AddSingleton<JoinStartupState>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
         builder.Services.AddSingleton<ManagedCertificateService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<ManagedCertificateService>());
@@ -90,6 +90,8 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
+        builder.Services.AddSingleton<PeerCertificateTrustService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<PeerCertificateTrustService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<FreeTurnService>());
         builder.Services.AddControllersWithViews();

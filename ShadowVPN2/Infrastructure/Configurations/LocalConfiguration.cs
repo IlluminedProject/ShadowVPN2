@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Serilog;
 using TruePath;
@@ -11,9 +10,9 @@ public class LocalConfiguration {
     private static readonly ILogger _logger = Log.ForContext<LocalConfiguration>();
 
     public static readonly AbsolutePath Path = DataUtils.DataFolder / "local";
-    public static readonly AbsolutePath CertificatePfxPath = Path / "ca.pfx";
-    public static readonly AbsolutePath CertificatePemPath = Path / "root-ca.crt";
-    public static readonly AbsolutePath RootCaPfxPath = Path / "root-ca.pfx";
+    public static readonly AbsolutePath CertificatePfxPath = Path / "node.pfx";
+    public static readonly AbsolutePath CertificatePemPath = Path / "node.crt";
+    public static readonly AbsolutePath SetupPendingPath = Path / "setup-pending";
     public static readonly AbsolutePath ConfigPath = Path / "config.json";
 
     /// <summary>
@@ -31,6 +30,7 @@ public class LocalConfiguration {
     /// </summary>
     public int NodeNumber { get; set; }
 
+
     public void CopyFrom(LocalConfiguration configuration) {
         NodeId = configuration.NodeId;
         AwgPrivateKey = configuration.AwgPrivateKey;
@@ -39,9 +39,10 @@ public class LocalConfiguration {
 
     public static async Task<LocalConfiguration> LoadAsync() {
         _logger.Information("Initializing local configuration at {Path}", Path);
-        _logger.Debug("Loading Root CA and ensuring trust");
-        var rootCaPem = X509CertificateLoader.LoadCertificateFromFile(CertificatePemPath.ToString());
-        RavenDbCertificates.TrustCustomRootCa(rootCaPem);
+        if (!File.Exists(CertificatePfxPath.Value)) {
+            throw new InvalidOperationException(
+                "This data directory uses the retired CA certificate format. Initialize a fresh cluster and rejoin nodes with new join tokens; automatic CA migration is unsupported.");
+        }
 
         _logger.Information("Loading local configuration from {ConfigPath}", ConfigPath);
         var configText = await ConfigPath.ReadAllTextAsync();

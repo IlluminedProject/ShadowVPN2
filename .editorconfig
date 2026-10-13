@@ -144,6 +144,9 @@ csharp_style_expression_bodied_lambdas = true:silent
 csharp_style_expression_bodied_local_functions = false:silent
 
 # Xaml files
+
+
+dotnet_diagnostic.CA1873.severity = none
 [*.{xaml,axaml}]
 indent_size = 2
 

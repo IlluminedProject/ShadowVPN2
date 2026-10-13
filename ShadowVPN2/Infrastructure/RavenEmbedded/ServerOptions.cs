@@ -28,6 +28,8 @@ public class ServerOptions {
 
     public SecurityOptions? Security { get; private set; }
 
+    public string[] BootstrapAdminCertificateThumbprints { get; set; } = [];
+
     public LicensingOptions Licensing { get; set; } = new();
 
     public ServerOptions Secured(string certificate, string? certPassword = null) {

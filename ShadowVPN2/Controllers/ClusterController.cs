@@ -63,11 +63,11 @@ public class ClusterController(
         }, cancellationToken);
     }
 
-    [HttpGet("root-ca")]
+    [HttpGet("node-certificate")]
     [AllowAnonymous]
-    public async Task<FileContentResult> DownloadRootCa() {
-        var certPem = await System.IO.File.ReadAllBytesAsync(LocalConfiguration.CertificatePemPath.Value);
-        return File(certPem, "application/x-pem-file", "root-ca.crt");
+    public async Task<FileContentResult> DownloadNodeCertificate() {
+        var certificate = await System.IO.File.ReadAllBytesAsync(LocalConfiguration.CertificatePemPath.Value);
+        return File(certificate, "application/x-pem-file", "node.crt");
     }
 
     [HttpPost("generate-token")]
@@ -78,7 +78,7 @@ public class ClusterController(
 
     [HttpPost("exchange-token")]
     [AllowAnonymous]
-    public async Task<ClusterSignJoinResponse> ExchangeToken([FromBody] ClusterSignJoinRequest request) {
+    public async Task<ClusterJoinResponse> ExchangeToken([FromBody] ClusterJoinRequest request) {
         var remoteIpAddress = HttpContext.Connection.RemoteIpAddress;
         if (remoteIpAddress is { IsIPv4MappedToIPv6: true }) remoteIpAddress = remoteIpAddress.MapToIPv4();
 
@@ -87,10 +87,22 @@ public class ClusterController(
         return await clusterService.ExchangeTokenAsync(request, remoteIp);
     }
 
+    [HttpPost("prepare-join")]
+    [AllowAnonymous]
+    public async Task PrepareJoin([FromBody] ClusterFinishJoinRequest request) {
+        await clusterService.PrepareJoinAsync(request);
+    }
+
     [HttpPost("finish-join")]
     [AllowAnonymous]
     public async Task FinishJoin([FromBody] ClusterFinishJoinRequest finishJoinRequest) {
         await clusterService.FinishJoinAsync(finishJoinRequest);
+    }
+
+    [HttpPost("complete-join")]
+    [AllowAnonymous]
+    public async Task CompleteJoin([FromBody] ClusterCompleteJoinRequest request) {
+        await clusterService.CompleteJoinAsync(request);
     }
 
     private static AwgClusterSettings MapAwgSettings(AwgGlobalSettings awg) {

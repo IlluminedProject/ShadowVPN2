@@ -24,26 +24,23 @@ internal static class RavenServerRunner {
             commandLineArgs.Add($"--Embedded.ParentProcessId={currentProcess.Id}");
         }
 
-        if (options.Licensing != null) {
-            if (!string.IsNullOrWhiteSpace(options.Licensing.License) &&
-                !string.IsNullOrWhiteSpace(options.Licensing.LicensePath)) {
-                throw new ArgumentException(
-                    $"Only one of Licence options '{nameof(options.Licensing.License)}' or '{nameof(options.Licensing.LicensePath)}' should be specified");
-            }
-
-            if (!string.IsNullOrWhiteSpace(options.Licensing.License))
-                commandLineArgs.Add($"--License={options.Licensing.License}");
-            else if (!string.IsNullOrWhiteSpace(options.Licensing.LicensePath))
-                commandLineArgs.Add($"--License.Path={options.Licensing.LicensePath}");
-
-            commandLineArgs.Add($"--License.Eula.Accepted={options.Licensing.EulaAccepted}");
-            commandLineArgs.Add($"--License.DisableAutoUpdate={options.Licensing.DisableAutoUpdate}");
-            commandLineArgs.Add($"--License.DisableAutoUpdateFromApi={options.Licensing.DisableAutoUpdateFromApi}");
-            commandLineArgs.Add(
-                $"--License.DisableLicenseSupportCheck={options.Licensing.DisableLicenseSupportCheck}");
-            commandLineArgs.Add(
-                $"--License.ThrowOnInvalidOrMissingLicense={options.Licensing.ThrowOnInvalidOrMissingLicense}");
+        if (!string.IsNullOrWhiteSpace(options.Licensing.License) &&
+            !string.IsNullOrWhiteSpace(options.Licensing.LicensePath)) {
+            throw new ArgumentException(
+                $"Only one of Licence options '{nameof(options.Licensing.License)}' or '{nameof(options.Licensing.LicensePath)}' should be specified");
         }
+
+        if (!string.IsNullOrWhiteSpace(options.Licensing.License))
+            commandLineArgs.Add($"--License={options.Licensing.License}");
+        else if (!string.IsNullOrWhiteSpace(options.Licensing.LicensePath))
+            commandLineArgs.Add($"--License.Path={options.Licensing.LicensePath}");
+
+        commandLineArgs.Add($"--License.Eula.Accepted={options.Licensing.EulaAccepted}");
+        commandLineArgs.Add($"--License.DisableAutoUpdate={options.Licensing.DisableAutoUpdate}");
+        commandLineArgs.Add($"--License.DisableAutoUpdateFromApi={options.Licensing.DisableAutoUpdateFromApi}");
+        commandLineArgs.Add($"--License.DisableLicenseSupportCheck={options.Licensing.DisableLicenseSupportCheck}");
+        commandLineArgs.Add(
+            $"--License.ThrowOnInvalidOrMissingLicense={options.Licensing.ThrowOnInvalidOrMissingLicense}");
 
         commandLineArgs.Add("--Setup.Mode=None");
         commandLineArgs.Add($"--DataDir={options.DataDirectory}");
@@ -64,8 +61,9 @@ internal static class RavenServerRunner {
                     $"--Security.Certificate.Load.Exec.Arguments={options.Security.CertificateLoadExecArguments}");
             }
 
-            commandLineArgs.Add(
-                $"--Security.WellKnownCertificates.Admin={options.Security.ServerCertificateThumbprint}");
+            var adminCertificates = options.BootstrapAdminCertificateThumbprints
+                .Append(options.Security.ServerCertificateThumbprint);
+            commandLineArgs.Add($"--Security.WellKnownCertificates.Admin={string.Join(';', adminCertificates)}");
         }
         else {
             if (string.IsNullOrWhiteSpace(options.ServerUrl))

@@ -21,10 +21,15 @@ namespace ShadowVPN2.Infrastructure;
 
 public static class ServiceExtensions {
     public static void SetupRavenDb(this WebApplicationBuilder builder) {
+        builder.Services.AddOptions<RavenDbOptions>().BindConfiguration("RavenDb");
         builder.Services.AddSingleton<IDocumentStore>(services => {
             var localConfiguration = services.GetRequiredService<IOptions<LocalConfiguration>>().Value;
-            return RavenDbInitializer.Initialize(LocalConfiguration.CertificatePfxPath.ToString(),
-                localConfiguration.NodeNumber);
+            var joinState = services.GetRequiredService<JoinStartupState>();
+            var certificatePath =
+                joinState.TemporaryCertificatePath ?? LocalConfiguration.CertificatePfxPath.ToString();
+            var nodeNumber = joinState.IsJoining ? joinState.TemporaryNodeNumber : localConfiguration.NodeNumber;
+            return RavenDbInitializer.Initialize(certificatePath, nodeNumber,
+                services.GetRequiredService<IOptions<RavenDbOptions>>().Value, joinState);
         });
         builder.Services.AddScoped<IAsyncDocumentSession>(sp =>
             sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());

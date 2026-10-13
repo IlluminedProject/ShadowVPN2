@@ -34,12 +34,6 @@ public class SetupController(SetupService setupService) : ControllerBase {
         return await setupService.TestOidcConnectionAsync(authority);
     }
 
-    [HttpGet("root-ca")]
-    public async Task<FileContentResult> DownloadRootCa() {
-        var bytes = await setupService.GetRootCaBytesAsync();
-        return File(bytes, "application/x-pkcs12", "root-ca.pfx");
-    }
-
     [HttpPost("finish")]
     public async Task FinishSetup() {
         await setupService.FinishSetupAsync();

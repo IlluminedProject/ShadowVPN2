@@ -1,7 +1,7 @@
 namespace ShadowVPN2.Data.Cluster;
 
-public class ClusterSignJoinRequest {
+public class ClusterJoinRequest {
     public required Guid Secret { get; set; }
-    public required string CsrPem { get; set; }
+    public required string CertificatePem { get; set; }
     public required string AwgPublicKey { get; set; }
 }

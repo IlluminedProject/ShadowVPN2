@@ -21,7 +21,7 @@ public class SetupService(
     DynamicAuthenticationManager authManager,
     ILogger<SetupService> logger) {
     public Task<bool> NeedsSetupAsync() {
-        return Task.FromResult(File.Exists(LocalConfiguration.RootCaPfxPath.Value));
+        return Task.FromResult(File.Exists(LocalConfiguration.SetupPendingPath.Value));
     }
 
     public async Task<string?> GetPublicIpAsync() {
@@ -53,6 +53,7 @@ public class SetupService(
             NodeId = localConfiguration.Value.NodeId,
             Name = request.NodeName,
             Domain = request.Domain,
+            CertificatePem = await File.ReadAllTextAsync(LocalConfiguration.CertificatePemPath.Value),
             AwgPublicKey = localConfiguration.Value.AwgPrivateKey != null
                 ? AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey)
                 : null
@@ -166,20 +167,12 @@ public class SetupService(
         });
     }
 
-    public async Task<byte[]> GetRootCaBytesAsync() {
-        if (!await NeedsSetupAsync()) {
-            throw new InvalidOperationException("Setup is already completed.");
-        }
-
-        return await File.ReadAllBytesAsync(LocalConfiguration.RootCaPfxPath.Value);
-    }
-
     public async Task FinishSetupAsync() {
         if (!await NeedsSetupAsync()) {
             throw new InvalidOperationException("Setup is already completed.");
         }
 
-        File.Delete(LocalConfiguration.RootCaPfxPath.Value);
+        File.Delete(LocalConfiguration.SetupPendingPath.Value);
         await Task.CompletedTask;
     }
 }

@@ -25,9 +25,19 @@ public class EntityClusterNode : IEntityId {
     public string? AwgPublicKey { get; set; }
 
     /// <summary>
+    ///     Public self-signed node certificate used for RavenDB mesh TLS pinning.
+    /// </summary>
+    public string? CertificatePem { get; set; }
+
+    /// <summary>
     ///     One-time secret for pending node join. Null after join completes.
     /// </summary>
     public Guid? JoinSecret { get; set; }
+
+    /// <summary>
+    ///     True after RavenDB server and database membership have been committed; JoinSecret remains until local commit acknowledgement.
+    /// </summary>
+    public bool JoinMembershipCommitted { get; set; }
 
     /// <summary>
     ///     Sequential number of the node

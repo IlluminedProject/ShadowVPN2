@@ -168,16 +168,9 @@
     }
     else
     {
-        <h1>Save the root certificate</h1>
-        <p>
-            Download and securely store <code>root-ca.pfx</code> before finishing.
-            The file is deleted from this server when setup completes.
-        </p>
-        <a class="btn btn-outline-success btn-lg" href="/api/setup/root-ca" target="_blank"
-           @onclick="() => _downloadedCertificate = true">
-            Download root-ca.pfx
-        </a>
-        <button class="btn btn-danger btn-lg" @onclick="FinishAsync" disabled="@(_busy || !_downloadedCertificate)">
+        <h1>Finish setup</h1>
+        <p>Your node and administrator login are configured.</p>
+        <button class="btn btn-danger btn-lg" @onclick="FinishAsync" disabled="@_busy">
             Finish setup
         </button>
     }
@@ -187,7 +180,6 @@
     private int _step = 1;
     private bool _busy;
     private bool _useOidc;
-    private bool _downloadedCertificate;
     private HostName? _publicAddress;
     private HostName _browserAddress;
     private int _addressSelectionVersion;
