@@ -132,7 +132,8 @@ CMD ["dotnet", "watch", "run", "--no-launch-profile", "--project", "/src/ShadowV
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
-    dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false -o /app/publish \
+    dotnet restore "./ShadowVPN2.csproj" -r linux-x64 \
+    && dotnet publish "./ShadowVPN2.csproj" -c $BUILD_CONFIGURATION -r linux-x64 --self-contained false -o /app/publish \
     --no-restore --no-build /p:UseAppHost=false
 
 FROM runtime-base AS final
