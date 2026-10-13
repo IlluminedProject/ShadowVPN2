@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Data.Cluster;
@@ -30,15 +29,13 @@ public sealed class ApplicationBootstrapper(
         }
 
         if (firstLaunch)
-            await FirstLaunchExperienceHelpers.InitializeFirstNode(singBoxOptions, singBoxProcessManager);
+            await FirstLaunchExperienceHelpers.InitializeFirstNode();
 
         localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
         await PeerCertificateTrustService.RestoreRootStoreAsync();
         if (!firstLaunch) {
             logger.LogInformation("Starting saved mesh configuration before RavenDB cluster initialization");
             singBoxProcessManager.Start();
-            await FirstLaunchExperienceHelpers.WaitForMeshAddressAsync(
-                IPAddress.Parse($"100.64.0.{localConfigurationOptions.Value.NodeNumber + 10}"), singBoxProcessManager);
         }
     }
 }

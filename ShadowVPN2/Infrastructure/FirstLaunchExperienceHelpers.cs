@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -30,8 +29,7 @@ public static class FirstLaunchExperienceHelpers {
                || !LocalConfiguration.ConfigPath.ExistsFile();
     }
 
-    public static async Task InitializeFirstNode(IOptions<SingBoxOptions> singBoxOptions,
-        SingBoxProcessManager manager) {
+    public static async Task InitializeFirstNode() {
         _logger.Information("Starting first-run setup with a self-signed node certificate");
         var localConfiguration = new LocalConfiguration { NodeNumber = 1 };
         var (privateKey, _) = AwgKeyGenerator.GenerateKeyPair();
@@ -45,9 +43,6 @@ public static class FirstLaunchExperienceHelpers {
         ]);
         await LocalConfiguration.SetupPendingPath.WriteAllTextAsync(string.Empty);
         localConfiguration.Save();
-        await BootstrapSingBox(localConfiguration.NodeNumber, new AwgGlobalSettings(), [], [],
-            privateKey, singBoxOptions, manager);
-        await WaitForMeshAddressAsync(IPAddress.Parse(meshIp), manager);
     }
 
     public static async Task<(JoinToken Token, ClusterJoinResponse Response, string ConnectedTo)>
@@ -232,24 +227,6 @@ public static class FirstLaunchExperienceHelpers {
         manager.Start();
     }
 
-    public static async Task WaitForMeshAddressAsync(IPAddress meshAddress, SingBoxProcessManager manager) {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-        try {
-            while (!NetworkInterface.GetAllNetworkInterfaces().Any(network => network.GetIPProperties()
-                       .UnicastAddresses.Any(address => address.Address.Equals(meshAddress)))) {
-                if (!manager.IsRunning) {
-                    throw new InvalidOperationException(
-                        "Bootstrap sing-box exited before the mesh interface became available");
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(100), timeout.Token);
-            }
-        }
-        catch (OperationCanceledException) when (timeout.IsCancellationRequested) {
-            throw new TimeoutException(
-                $"Mesh interface address {meshAddress} did not become available within 120 seconds");
-        }
-    }
 
     private static async Task ConnectToAnyPeer(ClusterJoinResponse response) {
         _logger.Information("Waiting for connectivity to cluster nodes...");
