@@ -84,6 +84,9 @@ public class SingBoxService(
         var config = new SingBoxConfig();
         config.Log.Level = "debug";
         foreach (var contributor in contributors) await contributor.ContributeAsync(config, protocols, clients);
+        config.Inbounds.RemoveAll(static inbound => inbound is IConditionallyEnabledConfig {
+            IsActuallyEnabled: false
+        });
 
         var configJson = JsonSerializer.Serialize(config, SerializerOptions);
         await singBoxProcessManager.ApplyConfigAsync(configJson);

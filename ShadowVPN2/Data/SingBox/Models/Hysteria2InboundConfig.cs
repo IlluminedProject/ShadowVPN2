@@ -2,12 +2,16 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Data.SingBox.Models;
 
-public class Hysteria2InboundConfig : InboundConfig {
+public class Hysteria2InboundConfig : InboundConfig, IConditionallyEnabledConfig {
     [JsonPropertyName("users")] public List<Hysteria2User> Users { get; set; } = new();
 
     [JsonPropertyName("obfs")] public Hysteria2ObfsConfig? Obfs { get; set; }
 
     [JsonPropertyName("tls")] public InboundTlsConfig? Tls { get; set; }
+
+    bool IConditionallyEnabledConfig.IsActuallyEnabled {
+        get => Users.Count > 0;
+    }
 }
 
 public class Hysteria2User {
