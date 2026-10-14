@@ -3,6 +3,8 @@
 @attribute [Authorize]
 @inject IClientApplicationService ClientsApi
 @inject IClientUpdatesService ClientRealtime
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
 @implements IAsyncDisposable
 
 <PageTitle>VPN devices - ShadowVPN2</PageTitle>
@@ -74,18 +76,35 @@
                                                        disabled="@_updatingClients.Contains(client.Id)"
                                                        @onchange="() => ToggleClientAsync(client)"/>
                                             </div>
-                                            <a class="btn btn-outline-secondary btn-sm"
-                                               href="@($"/devices/settings/{EscapeDocumentId(client.Id)}")"
-                                               aria-label="Settings for @client.Name" title="Settings"><span
-                                                    class="bi bi-gear" aria-hidden="true"></span></a>
-                                            <a class="btn btn-outline-secondary btn-sm"
-                                               href="@($"/s/{client.SubscriptionId}")" target="_blank"
-                                               aria-label="Subscription for @client.Name" title="Subscription"><span
-                                                    class="bi bi-link-45deg" aria-hidden="true"></span></a>
-                                            <button class="btn btn-outline-danger btn-sm" type="button"
-                                                    @onclick="() => RequestDeleteClient(client)"
-                                                    aria-label="Delete @client.Name" title="Delete"><span
-                                                    class="bi bi-trash" aria-hidden="true"></span></button>
+                                            <div class="btn-group btn-group-sm" role="group"
+                                                 aria-label="Subscription for @client.Name">
+                                                <button class="btn btn-outline-secondary" type="button"
+                                                        @onclick="() => CopySubscriptionLinkAsync(client.SubscriptionId)"
+                                                        aria-label="Copy subscription link for @client.Name"
+                                                        title="Copy link">
+                                                    <span class="bi bi-copy" aria-hidden="true"></span>
+                                                </button>
+                                                <a class="btn btn-outline-secondary"
+                                                   href="@($"/s/{client.SubscriptionId}")"
+                                                   @onclick="() => _subscriptionId = client.SubscriptionId"
+                                                   @onclick:preventDefault
+                                                   aria-label="Open subscription for @client.Name" title="Open link">
+                                                    <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                                                </a>
+                                            </div>
+                                            <div class="btn-group btn-group-sm" role="group"
+                                                 aria-label="Manage @client.Name">
+                                                <a class="btn btn-outline-secondary"
+                                                   href="@($"/devices/settings/{EscapeDocumentId(client.Id)}")"
+                                                   aria-label="Settings for @client.Name" title="Settings">
+                                                    <span class="bi bi-gear" aria-hidden="true"></span>
+                                                </a>
+                                                <button class="btn btn-outline-danger" type="button"
+                                                        @onclick="() => RequestDeleteClient(client)"
+                                                        aria-label="Delete @client.Name" title="Delete">
+                                                    <span class="bi bi-trash" aria-hidden="true"></span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -96,6 +115,10 @@
                 </section>
             }
         }
+    }
+    @if (_copyError is not null)
+    {
+        <div class="text-danger" role="alert">@_copyError</div>
     }
 </div>
 
@@ -138,6 +161,20 @@
                    OnConfirm="ConfirmDeleteClientAsync" OnCancel="CancelDeleteClient"/>
 }
 
+@if (_subscriptionId is not null)
+{
+    <AppDialog Title="Connection setup" OnClose="CloseSubscription" LightDismiss="true">
+        <ChildContent>
+            <div class="app-dialog__body">
+                <Subscription SubscriptionId="@_subscriptionId.Value" Embedded="true"/>
+            </div>
+        </ChildContent>
+        <Footer>
+            <button class="btn btn-outline-secondary ms-auto" type="button" @onclick="CloseSubscription">Close</button>
+        </Footer>
+    </AppDialog>
+}
+
 @code {
     private IReadOnlyList<ClientResponse> _clients = [];
     private IReadOnlyList<ClientResponse> _filteredClients = [];
@@ -154,6 +191,27 @@
     private bool _showAddClient;
     private string? _createError;
     private readonly HashSet<string> _updatingClients = [];
+    private Guid? _subscriptionId;
+
+    private string? _copyError;
+
+    private async Task CopySubscriptionLinkAsync(Guid subscriptionId)
+    {
+        _copyError = null;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Navigation.ToAbsoluteUri($"/s/{subscriptionId}").ToString());
+        }
+        catch (JSException)
+        {
+            _copyError = "Could not copy. Allow clipboard access and try again.";
+        }
+    }
+
+    private void CloseSubscription()
+    {
+        _subscriptionId = null;
+    }
 
     private void OpenAddClient()
     {

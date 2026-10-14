@@ -7,7 +7,10 @@
 @inject IJSRuntime JsRuntime
 @inject NavigationManager Navigation
 
-<PageTitle>Connection setup - ShadowVPN2</PageTitle>
+@if (!Embedded)
+{
+    <PageTitle>Connection setup - ShadowVPN2</PageTitle>
+}
 
 <div class="frontend-content" id="subscription-page">
     <div class="page-header d-flex align-items-center justify-content-between gap-3 flex-wrap">
@@ -97,6 +100,7 @@
 
 @code {
     [Parameter] public Guid SubscriptionId { get; set; }
+    [Parameter] public bool Embedded { get; set; }
 
     private SubscriptionResponse? _subscription;
     private bool _loading = true;
