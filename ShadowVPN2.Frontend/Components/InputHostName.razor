@@ -3,7 +3,7 @@
 
 <input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
        aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
-       @bind="CurrentValueAsString" @bind:event="oninput"/>
+       @bind="CurrentValueAsString"/>
 
 @code {
     protected override string? FormatValueAsString(HostName? value) => value?.ToString();
