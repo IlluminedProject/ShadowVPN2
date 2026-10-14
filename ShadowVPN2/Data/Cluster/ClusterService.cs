@@ -76,11 +76,11 @@ public class ClusterService(
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var tcp = new TcpClient();
         await tcp.ConnectAsync(address.Host.Value, address.Port ?? 443, timeout.Token);
-        using var tls = new SslStream(tcp.GetStream(), false, (_, certificate, _, _) => {
+        using var tls = new SslStream(tcp.GetStream(), false, (_, certificate, _, errors) => {
             if (certificate == null)
                 return false;
             using var leaf = new X509Certificate2(certificate);
-            return RavenDbCertificates.MatchesPin(leaf, pin);
+            return errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(leaf, pin);
         });
         await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions {
             TargetHost = address.Host.Value,
@@ -211,8 +211,8 @@ public class ClusterService(
                           ?? throw new InvalidOperationException($"Peer {peer.Name} has no management address.");
             using var pin = X509Certificate2.CreateFromPem(peer.CertificatePem);
             using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-            handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-                RavenDbCertificates.MatchesPin(certificate, pin);
+            handler.ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
+                errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(certificate, pin);
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
             using var response = await client.PostAsJsonAsync($"https://{address}/api/cluster/prepare-join", request);
             response.EnsureSuccessStatusCode();
