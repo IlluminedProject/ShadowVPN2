@@ -81,7 +81,7 @@
                         <td>
                             <div class="actions table-actions">
                                 <button class="btn btn-sm btn-outline-secondary" type="button"
-                                        aria-label="Edit domain for @node.Name" title="Edit domain"
+                                        aria-label="Edit node @node.Name" title="Edit node"
                                         @onclick="() => EditNodeAsync(node)"><span class="bi bi-pencil"
                                                                                    aria-hidden="true"></span></button>
                             </div>
@@ -175,6 +175,14 @@
                         <div class="alert alert-danger" role="alert">@_dialogError</div>
                     }
                     <ValidationSummary/>
+                    <div class="field mb-4">
+                        <label class="form-label" for="edit-node-name">Name</label>
+                        <InputText id="edit-node-name" class="form-control" @bind-Value="_domainRequest.Name"
+                                   aria-describedby="edit-node-name-validation"/>
+                        <div id="edit-node-name-validation">
+                            <ValidationMessage For="() => _domainRequest.Name"/>
+                        </div>
+                    </div>
                     <section class="mb-4" aria-labelledby="node-domain-heading">
                         <h3 id="node-domain-heading" class="h5">Domain</h3>
                         <div class="field">
@@ -292,7 +300,7 @@
     private NodeCertificateDomainsResponse? _certificateDomains;
     private IAsyncDisposable? _subscription;
     private NodeResponse? _editingNode;
-    private UpdateNodeDomainRequest _domainRequest = new();
+    private UpdateNodeRequest _domainRequest = new();
     private EditContext? _domainEditContext;
     private readonly GenerateNodeJoinTokenRequest _newNode = new() { Name = "new-node" };
     private string? _joinToken;
@@ -407,7 +415,7 @@
     private async Task EditNodeAsync(NodeResponse node)
     {
         _editingNode = node;
-        _domainRequest = new UpdateNodeDomainRequest { Domain = node.Domain };
+        _domainRequest = new UpdateNodeRequest { Name = node.Name, Domain = node.Domain };
         _domainEditContext = new EditContext(_domainRequest);
         _certificateDomains = null;
         _dialogError = null;
@@ -438,7 +446,7 @@
         _dialogError = null;
         try
         {
-            await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _domainRequest.Domain);
+            await NodesApi.UpdateAsync(_editingNode.NodeId, _domainRequest);
             await ReloadAsync();
             _editingNode = null;
         }
@@ -446,7 +454,7 @@
         {
             _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to edit nodes."
-                : "Could not update the node domain.";
+                : "Could not update the node.";
         }
         finally
         {
@@ -466,7 +474,7 @@
         try
         {
             if (_domainRequest.Domain != _editingNode.Domain)
-                await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _domainRequest.Domain);
+                await NodesApi.UpdateAsync(_editingNode.NodeId, _domainRequest);
             else
                 _editingNode.DomainStatus = await NodesApi.CheckDomainAsync(_editingNode.NodeId);
             await ReloadAsync();

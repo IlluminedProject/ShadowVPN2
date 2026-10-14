@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
-using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Authentication;
@@ -155,9 +154,12 @@ public class NodeService(
         return await CreateResponsesAsync(nodes, cancellationToken);
     }
 
-    public async Task<NodeResponse> UpdateDomainAsync(Guid nodeId, HostName? domain,
+    public async Task<NodeResponse> UpdateAsync(Guid nodeId, UpdateNodeRequest request,
         CancellationToken cancellationToken = default) {
-        var normalizedDomain = domain;
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ArgumentException("Node name is required.");
+
+        var normalizedDomain = request.Domain;
         using var session = documentStore.OpenAsyncSession();
         if (normalizedDomain != null && await session.Query<EntityClusterNode>()
                 .AnyAsync(candidate => candidate.NodeId != nodeId && candidate.Domain == normalizedDomain,
@@ -168,6 +170,7 @@ public class NodeService(
             .FirstOrDefaultAsync(candidate => candidate.NodeId == nodeId, cancellationToken);
         node = node.OrThrowNotFound("Node not found");
         node.Domain = normalizedDomain;
+        node.Name = request.Name.Trim();
         await session.SaveChangesAsync(cancellationToken);
 
         return (await CreateResponsesAsync([node], cancellationToken))[0];

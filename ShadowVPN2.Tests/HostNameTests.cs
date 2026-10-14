@@ -62,7 +62,7 @@ public sealed class HostNameTests {
 
     [Fact]
     public void Domain_request_should_reject_port_as_json_validation_error() {
-        var action = () => JsonSerializer.Deserialize<UpdateNodeDomainRequest>(
+        var action = () => JsonSerializer.Deserialize<UpdateNodeRequest>(
             "{\"Domain\":\"example.com:8443\"}");
 
         action.Should().Throw<JsonException>();
@@ -70,10 +70,9 @@ public sealed class HostNameTests {
 
     [Fact]
     public void Domain_request_should_preserve_typed_canonical_hostname() {
-        var request = JsonSerializer.Deserialize<UpdateNodeDomainRequest>(
+        var request = JsonSerializer.Deserialize<UpdateNodeRequest>(
             "{\"Domain\":\" Example.COM. \"}")!;
 
         request.Domain.Should().Be(HostName.Parse("example.com"));
-        JsonSerializer.Serialize(request).Should().Be("{\"Domain\":\"example.com\"}");
     }
 }

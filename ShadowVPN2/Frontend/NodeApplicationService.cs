@@ -1,5 +1,4 @@
 using ShadowVPN2.Contracts.Application;
-using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Infrastructure.Authentication;
@@ -21,10 +20,10 @@ public sealed class NodeApplicationService(
         return await protocolDomainService.GetRoutesAsync(cancellationToken);
     }
 
-    public async Task<NodeResponse> UpdateDomainAsync(Guid nodeId, HostName? domain,
+    public async Task<NodeResponse> UpdateAsync(Guid nodeId, UpdateNodeRequest request,
         CancellationToken cancellationToken = default) {
         await userContext.RequirePolicyAsync(AppPermissions.Nodes.Manage, cancellationToken);
-        return await nodeService.UpdateDomainAsync(nodeId, domain, cancellationToken);
+        return await nodeService.UpdateAsync(nodeId, request, cancellationToken);
     }
 
     public async Task<DomainCheckResponse> CheckDomainAsync(Guid nodeId,

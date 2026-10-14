@@ -19,11 +19,11 @@ public sealed class NodesController(
         return await nodeService.GetNodeResponsesAsync(cancellationToken);
     }
 
-    [HttpPut("{nodeId:guid}/domain")]
+    [HttpPut("{nodeId:guid}")]
     [Authorize(Policy = AppPermissions.Nodes.Manage)]
-    public async Task<NodeResponse> UpdateDomain(Guid nodeId, [FromBody] UpdateNodeDomainRequest request,
+    public async Task<NodeResponse> Update(Guid nodeId, [FromBody] UpdateNodeRequest request,
         CancellationToken cancellationToken) {
-        return await nodeService.UpdateDomainAsync(nodeId, request.Domain, cancellationToken);
+        return await nodeService.UpdateAsync(nodeId, request, cancellationToken);
     }
 
     [HttpPost("{nodeId:guid}/check-domain")]
