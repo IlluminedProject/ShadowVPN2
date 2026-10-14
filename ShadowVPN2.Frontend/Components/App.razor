@@ -8,7 +8,7 @@
     <ResourcePreloader/>
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]"/>
     <link rel="stylesheet" href="@Assets["lib/bootstrap-icons/bootstrap-icons.min.css"]"/>
-    <link rel="stylesheet" href="@Assets["app.css"]"/>
+    <link rel="stylesheet" href="_content/ShadowVPN2.Frontend/css/app.css"/>
     <link rel="stylesheet" href="_content/ShadowVPN2.Frontend/ShadowVPN2.Frontend.bundle.scp.css"/>
     <link rel="stylesheet" href="@Assets["ShadowVPN2.styles.css"]"/>
     <ImportMap/>
@@ -21,9 +21,15 @@
     <Routes @rendermode="InteractiveServer"/>
 </CascadingAuthenticationState>
 <ReconnectModal/>
+<div id="blazor-error-ui" data-nosnippet role="alert">
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <button type="button" class="btn btn-outline-secondary dismiss">Dismiss</button>
+</div>
 <script src="@Assets["_framework/blazor.web.js"]"></script>
 <script src="@Assets["js/server-ping.js"]"></script>
 <script src="_content/ShadowVPN2.Frontend/js/passkey.js" type="module"></script>
+<script src="_content/ShadowVPN2.Frontend/js/form-status.js" type="module"></script>
 </body>
 
 </html>

@@ -1,22 +1,13 @@
 @inherits LayoutComponentBase
 
-<HeadContent>
-    <link rel="stylesheet" href="_content/ShadowVPN2.Frontend/css/app.css"/>
-</HeadContent>
-
-<div class="d-flex align-items-center justify-content-center bg-light p-3" style="min-height: 100dvh;">
-    <div class="card shadow-sm p-3 p-sm-4" style="max-width: 600px; width: 100%;">
+<main class="app-shell app-shell--setup">
+    <div class="app-shell__panel">
         <div class="text-center mb-4">
-            <h2>ShadowVPN2 Setup</h2>
+            <p class="h5">ShadowVPN2 Setup</p>
             <p class="text-muted">Welcome! Let's get your VPN server configured.</p>
         </div>
 
-        @Body
+        <GlobalErrorBoundary>@Body</GlobalErrorBoundary>
     </div>
-</div>
+</main>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">Dismiss</span>
-</div>

@@ -1,30 +1,40 @@
 @page "/Account/DeviceLogin"
 @layout AccountLayout
 @attribute [AllowAnonymous]
+@using System.Text.Json
 @implements IAsyncDisposable
 
 <PageTitle>Device login</PageTitle>
 
 <div class="text-center">
     <h1 class="mb-4">Log in with device code</h1>
-    <div class="alert @(_error is null ? "alert-info" : "alert-danger")">@_message</div>
-    @if (_authorization is not null)
+    <div class="alert @(_error is null ? "alert-info" : "alert-danger")" role="@(_error is null ? "status" : "alert")">
+        @if (_error is null)
+        {
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+        }
+        @_message
+    </div>
+    @if (_authorization is not null && _error is null)
     {
-        <p>Open this address on another device:</p>
-        <p><a href="@(_authorization.VerificationUriComplete ?? _authorization.VerificationUri)" target="_blank"
-              rel="noopener">
-                @_authorization.VerificationUri</a></p>
-        <p class="mb-1">Enter this code:</p>
-        <strong class="fs-3">@_authorization.UserCode</strong>
+        <p>Open the verification address on another device and enter the code.</p>
+        <dl>
+            <dt>Verification address</dt>
+            <dd><a class="text-break" href="@(_authorization.VerificationUriComplete ?? _authorization.VerificationUri)"
+                   target="_blank" rel="noopener">@_authorization.VerificationUri</a></dd>
+            <dt>Device code</dt>
+            <dd><code class="fs-3 text-break">@_authorization.UserCode</code></dd>
+        </dl>
     }
-    <div class="mt-4">
-        <a href="/Account/Login" class="btn btn-link">Back to login</a>
+    <div class="actions justify-content-center mt-4">
+        <a href="/Account/Login" class="btn btn-outline-secondary">Back to login</a>
     </div>
 </div>
 
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private ILogger<DeviceLogin> Logger { get; set; } = default!;
 
     [SupplyParameterFromQuery] private string? TransactionId { get; set; }
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
@@ -47,13 +57,20 @@
         {
             _authorization = await Http.GetFromJsonAsync<DeviceAuthorizationStartResponse>(
                 $"/api/auth/device/details/{Uri.EscapeDataString(TransactionId)}");
+            if (_authorization is null)
+            {
+                _error = "Device authorization details are unavailable. Return to login to try again.";
+                _message = _error;
+                return;
+            }
             _message = "Waiting for confirmation...";
             _cancellation = new CancellationTokenSource();
             _ = PollAsync(_cancellation.Token);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
         {
-            _error = exception.Message;
+            Logger.LogError(exception, "Unable to prepare device authorization");
+            _error = "Device authorization could not be prepared. Return to login to try again.";
             _message = _error;
         }
     }
@@ -77,7 +94,12 @@
 
                 if (status?.Status is "expired" or "denied" or "failed")
                 {
-                    _error = status.Error ?? "Device authorization failed.";
+                    _error = status.Status switch
+                    {
+                        "expired" => "The device code has expired. Return to login to request a new code.",
+                        "denied" => "Device authorization was denied. Return to login to try again.",
+                        _ => "Device authorization failed. Return to login to try again."
+                    };
                     _message = _error;
                     await InvokeAsync(StateHasChanged);
                     return;
@@ -92,9 +114,10 @@
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
             {
-                _error = exception.Message;
+                Logger.LogError(exception, "Unable to complete device authorization");
+                _error = "Device authorization could not be completed. Return to login to try again.";
                 _message = _error;
                 await InvokeAsync(StateHasChanged);
                 return;

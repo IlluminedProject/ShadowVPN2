@@ -1,27 +1,56 @@
 @page "/Account/Manage"
+@using System.Text.Json
 @layout ManageLayout
 @attribute [Authorize]
 
 <PageTitle>Profile</PageTitle>
-<h3>Profile</h3>
-<p class="text-success">@Message</p>
-<form method="post" action="/api/account/profile">
-    <AntiforgeryToken/>
-    <label>Phone number</label>
-    <InputText class="form-control mb-3" name="PhoneNumber" @bind-Value="_phoneNumber"/>
-    <button class="btn btn-primary">Save</button>
-</form>
+<h2>Profile</h2>
+<StatusMessage Message="@Message"/>
+@if (_loadError is not null)
+{
+    <div class="alert alert-danger" role="alert">@_loadError</div>
+}
+else if (_profile is null)
+{
+    <div class="app-status" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        Loading profile...
+    </div>
+}
+else
+{
+    <form method="post" action="/api/account/profile">
+        <AntiforgeryToken/>
+        <div class="field">
+            <label class="form-label" for="phone-number">Phone number (optional)</label>
+            <InputText id="phone-number" class="form-control" name="PhoneNumber" type="tel" autocomplete="tel"
+                       @bind-Value="_phoneNumber"/>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
+}
 
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private ILogger<Index> Logger { get; set; } = default!;
     [SupplyParameterFromQuery] private string? Message { get; set; }
     private AccountProfileResponse? _profile;
     private string? _phoneNumber;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync()
     {
-        _profile = await Http.GetFromJsonAsync<AccountProfileResponse>("/api/account/profile");
-        _phoneNumber = _profile?.PhoneNumber;
+        try
+        {
+            _profile = await Http.GetFromJsonAsync<AccountProfileResponse>("/api/account/profile");
+            _phoneNumber = _profile?.PhoneNumber;
+            if (_profile is null) _loadError = "Your profile could not be loaded. Reload the page to try again.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            Logger.LogError(exception, "Unable to load account profile");
+            _loadError = "Your profile could not be loaded. Reload the page to try again.";
+        }
     }
-
 }

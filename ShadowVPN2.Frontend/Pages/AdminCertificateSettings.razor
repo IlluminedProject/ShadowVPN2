@@ -6,71 +6,109 @@
 
 <PageTitle>Certificate settings - ShadowVPN2</PageTitle>
 
-<div>
-    <AdminSettingsNav/>
-    <h1>Certificates</h1>
-    @if (_loading)
-    {
-        <p class="muted">Loading certificate settings…</p>
-    }
-    else if (!string.IsNullOrEmpty(_error))
-    {
-        <div class="alert alert-danger" role="alert">@_error</div>
-    }
-    else
-    {
-        <div class="settings-frame">
-            <div class="form-check form-switch mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="_settings.Enabled"/>
-                <label class="form-check-label">Enable automatic Let's Encrypt certificates</label>
+<AdminSettingsNav/>
+<div class="page-header"><h1>Certificates</h1></div>
+@if (_loading)
+{
+    <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
+                                                                    aria-hidden="true"></span> Loading certificate
+        settings…
+    </div>
+}
+else if (!_loaded)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+else
+{
+    <EditForm Model="_settings" OnValidSubmit="SaveAsync" class="settings-frame">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <fieldset disabled="@_busy">
+            <legend class="visually-hidden">Certificate settings</legend>
+            <div class="form-check form-switch field">
+                <InputCheckbox id="acme-enabled" class="form-check-input" @bind-Value="_settings.Enabled"/>
+                <label class="form-check-label" for="acme-enabled">Enable automatic Let's Encrypt certificates</label>
             </div>
-            <label for="acme-email">Account email</label>
-            <InputText id="acme-email" type="email" class="form-control" @bind-Value="_settings.Email"/>
-            <label for="http-port">HTTP-01 port</label>
-            <InputNumber id="http-port" class="form-control" @bind-Value="_settings.HttpPort"/>
-            <label for="renewal-days">Renewal threshold (days)</label>
-            <InputNumber id="renewal-days" class="form-control" @bind-Value="_settings.RenewalThresholdDays"/>
-            <div class="form-check form-switch mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="_settings.UseStaging"/>
-                <label class="form-check-label">Use staging CA</label>
+            <div class="field">
+                <label class="form-label" for="acme-email">Account email</label>
+                <InputText id="acme-email" type="email" autocomplete="email" class="form-control"
+                           @bind-Value="_settings.Email"/>
             </div>
-
-            <section>
+            <div class="settings-grid mb-3">
+                <div>
+                    <label class="form-label" for="http-port">HTTP-01 listen port</label>
+                    <InputNumber id="http-port" class="form-control" inputmode="numeric"
+                                 @bind-Value="_settings.HttpPort"/>
+                </div>
+                <div>
+                    <label class="form-label" for="renewal-days">Renewal threshold (days)</label>
+                    <InputNumber id="renewal-days" class="form-control" inputmode="numeric"
+                                 @bind-Value="_settings.RenewalThresholdDays"/>
+                </div>
+            </div>
+            <div class="form-check form-switch field">
+                <InputCheckbox id="acme-staging" class="form-check-input" @bind-Value="_settings.UseStaging"/>
+                <label class="form-check-label" for="acme-staging">Use staging CA</label>
+            </div>
+            <section class="mt-4">
                 <h2>Local node certificate</h2>
                 @if (_certificate is null)
                 {
-                    <p class="muted">Not issued.</p>
+                    <p class="text-body-secondary">No certificate has been issued.</p>
                 }
                 else
                 {
-                    <p>Expires: @_certificate.NotAfter.ToLocalTime().ToString("g")</p>
-                    @foreach (var domain in _certificate.Domains)
-                    {
-                        <code>@domain </code>
-                    }
-
+                    <dl class="app-details">
+                        <dt>Expires</dt>
+                        <dd>@_certificate.NotAfter.ToLocalTime().ToString("g")</dd>
+                        <dt>Domains</dt>
+                        <dd>
+                            @if (_certificate.Domains.Count == 0)
+                            {
+                                <span>No certificate domains.</span>
+                            }
+                            else
+                            {
+                                <ul class="list-unstyled mb-0">
+                                    @foreach (var domain in _certificate.Domains)
+                                    {
+                                        <li><code class="text-break">@domain</code></li>
+                                    }
+                                </ul>
+                            }
+                        </dd>
+                    </dl>
                     @if (!string.IsNullOrWhiteSpace(_certificate.LastError))
                     {
-                        <div class="alert alert-danger">@_certificate.LastError</div>
+                        <div class="alert alert-danger" role="alert">@_certificate.LastError</div>
                     }
                 }
             </section>
-        </div>
-        <div class="d-flex flex-wrap justify-content-end gap-2 mt-3">
-            <button class="btn btn-outline-primary" @onclick="RenewAsync" disabled="@_busy">Issue / renew now</button>
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">Save settings</button>
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status">@_message</p>
-    }
-</div>
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="alert alert-success app-status" role="status">@_message</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-outline-secondary" type="button" @onclick="RenewAsync"
+                        disabled="@_busy">@(_renewing ? "Issuing…" : "Issue / renew now")</button>
+                <button class="btn btn-primary" type="submit"
+                        disabled="@_busy">@(_busy && !_renewing ? "Saving…" : "Save settings")</button>
+            </div>
+        </fieldset>
+    </EditForm>
+}
 
 @code {
     private AcmeSettingsResponse _settings = new();
     private ManagedCertificateResponse? _certificate;
     private bool _loading = true;
+    private bool _loaded;
+    private bool _renewing;
     private bool _busy;
     private string? _error;
     private string? _message;
@@ -84,16 +122,13 @@
             await Task.WhenAll(settingsTask, certificateTask);
             _settings = await settingsTask;
             _certificate = await certificateTask;
+            _loaded = true;
         }
         catch (ApplicationServiceException ex)
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
                 : "Could not load certificate settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
@@ -117,9 +152,10 @@
         });
     }
 
-    private Task RenewAsync()
+    private async Task RenewAsync()
     {
-        return RunAsync(async () =>
+        _renewing = true;
+        await RunAsync(async () =>
         {
             await AdminApi.SaveCertificateSettingsAsync(new UpdateAcmeSettingsRequest
             {
@@ -133,6 +169,7 @@
             _certificate = await AdminApi.GetLocalCertificateAsync();
             _message = "Certificate issued.";
         });
+        _renewing = false;
     }
 
     private async Task RunAsync(Func<Task> action)
@@ -149,10 +186,6 @@
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to change settings."
                     : "The operation failed.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {

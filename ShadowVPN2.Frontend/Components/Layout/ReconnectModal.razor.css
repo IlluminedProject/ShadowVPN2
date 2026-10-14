@@ -21,13 +21,16 @@
 
 
 #components-reconnect-modal {
-    background-color: white;
-    width: 20rem;
-    margin: 20vh auto;
-    padding: 2rem;
-    border: 0;
-    border-radius: 0.5rem;
-    box-shadow: 0 3px 6px 2px rgba(0, 0, 0, 0.3);
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    width: calc(100% - 2rem);
+    max-width: 26rem;
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 1.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--app-radius);
+    box-shadow: var(--bs-box-shadow);
     opacity: 0;
     transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
     animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
@@ -40,7 +43,7 @@
 }
 
 #components-reconnect-modal::backdrop {
-    background-color: rgba(0, 0, 0, 0.4);
+    background-color: rgb(0 0 0 / 50%);
     animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
     opacity: 1;
 }
@@ -87,21 +90,6 @@
     text-align: center;
 }
 
-#components-reconnect-modal button {
-    border: 0;
-    background-color: #6b9ed2;
-    color: white;
-    padding: 4px 24px;
-    border-radius: 4px;
-}
-
-#components-reconnect-modal button:hover {
-    background-color: #3b6ea2;
-}
-
-#components-reconnect-modal button:active {
-    background-color: #6b9ed2;
-}
 
 .components-rejoining-animation {
     position: relative;
@@ -111,7 +99,7 @@
 
 .components-rejoining-animation div {
     position: absolute;
-    border: 3px solid #0087ff;
+    border: 3px solid var(--bs-primary);
     opacity: 1;
     border-radius: 50%;
     animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
@@ -152,5 +140,16 @@
         width: 80px;
         height: 80px;
         opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal,
+    #components-reconnect-modal[open],
+    #components-reconnect-modal::backdrop,
+    .components-rejoining-animation div {
+        animation: none;
+        transition: none;
+        opacity: 1;
     }
 }

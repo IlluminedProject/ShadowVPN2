@@ -1,190 +1,244 @@
 @page "/admin/settings/protocols"
-@using System.Net
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
+@inject IJSRuntime JsRuntime
+@using System.Net
+@implements IAsyncDisposable
 
 <PageTitle>Protocol settings - ShadowVPN2</PageTitle>
 
 <div>
     <AdminSettingsNav/>
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div class="page-header">
         <div>
             <h1>Protocol settings</h1>
-            <p class="muted">Configure VPN protocols and transport overlays.</p>
+            <p class="text-body-secondary mb-0">Configure VPN protocols and transport overlays.</p>
         </div>
-        <div class="dropdown">
-            <button class="btn btn-outline-primary dropdown-toggle" type="button"
-                    @onclick="ToggleProtocolMenu" aria-expanded="@_protocolMenuOpen">
-                Add protocol
+        <div class="dropdown" id="protocol-dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-dropdown-trigger
+                    aria-expanded="false" aria-controls="protocol-options"
+                    disabled="@(_loading || !_loaded || _saving)">Add protocol
             </button>
-            @if (_protocolMenuOpen)
-            {
-                <ul class="dropdown-menu show">
-                    <li>
-                        <button class="dropdown-item" type="button" @onclick="AddHysteria2">Hysteria2</button>
-                    </li>
-                    <li>
-                        <button class="dropdown-item" type="button" @onclick="AddWireGuard">WireGuard / AmneziaWG
-                        </button>
-                    </li>
-                    <li>
-                        <button class="dropdown-item" type="button" @onclick="AddNaiveProxy">NaiveProxy</button>
-                    </li>
-                </ul>
-            }
+            <ul id="protocol-options" class="dropdown-menu" data-dropdown-popup>
+                <li>
+                    <button class="dropdown-item" type="button" @onclick="AddHysteria2">Hysteria2</button>
+                </li>
+                <li>
+                    <button class="dropdown-item" type="button" @onclick="AddWireGuard">WireGuard / AmneziaWG</button>
+                </li>
+                <li>
+                    <button class="dropdown-item" type="button" @onclick="AddNaiveProxy">NaiveProxy</button>
+                </li>
+            </ul>
         </div>
     </div>
 
     @if (_loading)
     {
-        <p class="muted">Loading protocol settings…</p>
+        <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
+                                                                        aria-hidden="true"></span> Loading protocol
+            settings…
+        </div>
     }
-    else if (!string.IsNullOrEmpty(_error))
+    else if (!_loaded)
     {
         <div class="alert alert-danger" role="alert">@_error</div>
     }
     else
     {
-        <EditForm @key="_request" Model="_request" OnValidSubmit="SaveAsync">
+        <EditForm @key="_request" Model="_request" OnValidSubmit="SaveAsync" class="settings-frame">
         <DataAnnotationsValidator/>
         <ValidationSummary/>
-        <div class="settings-frame">
-            <label class="form-label" for="main-domain">Global main domain</label>
-            <InputHostName id="main-domain" class="form-control" @bind-Value="_request.MainDomain"
-                           DisplayName="Global main domain" placeholder="vpn.example.com"/>
-            <ValidationMessage For="() => _request.MainDomain"/>
-
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="alert alert-danger" role="alert">@_error</div>
+            }
+            <fieldset disabled="@_saving">
+                <legend class="visually-hidden">Protocol settings</legend>
+                <div class="field">
+                    <label class="form-label" for="main-domain">Global main domain (optional)</label>
+                    <InputHostName id="main-domain" class="form-control" @bind-Value="_request.MainDomain"
+                                   DisplayName="Global main domain" placeholder="vpn.example.com"
+                                   aria-describedby="main-domain-error"/>
+                    <div id="main-domain-error">
+                        <ValidationMessage For="() => _request.MainDomain"/>
+                    </div>
+                </div>
+                @if (_request.Protocols.Count == 0)
+                {
+                    <p class="text-body-secondary">No protocols configured. Use Add protocol to configure a connection
+                        protocol.</p>
+                }
             @foreach (var item in _request.Protocols.ToArray())
             {
                 <section @key="item" class="settings-item">
                     <SettingsItemHeader Title="@ProtocolName(item)"
                                         @bind-ListenPort="item.ListenPort"
                                         @bind-Enabled="item.Enabled"
-                                        OnRemove="() => RemoveProtocol(item)"/>
-                    <div class="settings-item-body border border-top-0 rounded-bottom p-3">
-                        <label class="form-label">Main domain override
-                            <InputHostName class="form-control" @bind-Value="item.MainDomain" DisplayName="Main domain override"/>
-                            <ValidationMessage For="() => item.MainDomain"/>
-                        </label>
+                                        Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
+                    <div class="settings-item-body">
+                        <div class="field">
+                            <label class="form-label" for="@($"protocol-{item.Id}-domain")">Main domain override
+                                (optional)</label>
+                            <InputHostName id="@($"protocol-{item.Id}-domain")" class="form-control"
+                                           @bind-Value="item.MainDomain" DisplayName="Main domain override"
+                                           aria-describedby="@($"protocol-{item.Id}-domain-error")"/>
+                            <div id="@($"protocol-{item.Id}-domain-error")">
+                                <ValidationMessage For="() => item.MainDomain"/>
+                            </div>
+                        </div>
                         @{ var protocolIndex = _request.Protocols.IndexOf(item); }
                         @if (protocolIndex >= 0 && protocolIndex < _domainRoutes.Count &&
                              _domainRoutes[protocolIndex].State != ProtocolDomainRouteState.NoDomain)
                         {
-                            <p class="muted">
-                                @_domainRoutes[protocolIndex].Domain — @_domainRoutes[protocolIndex].State
-                                @if (_domainRoutes[protocolIndex].NodeName is not null)
-                                {
-                                    <span> (@_domainRoutes[protocolIndex].NodeName)</span>
-                                }
-                            </p>
+                            <dl class="app-details field">
+                                <dt>Domain route</dt>
+                                <dd><code class="text-break">@_domainRoutes[protocolIndex].Domain</code></dd>
+                                <dt>Status</dt>
+                                <dd>@_domainRoutes[protocolIndex].State</dd>
+                                <dt>Node</dt>
+                                <dd>@(_domainRoutes[protocolIndex].NodeName ?? "—")</dd>
+                            </dl>
                         }
                         @if (item is Hysteria2ProtocolSettingsDto hysteria2)
                         {
-                            <label>Obfuscation type
-                                <InputSelect class="form-select" @bind-Value="hysteria2.ObfsType">
+                            <div class="field">
+                                <label class="form-label" for="@($"protocol-{item.Id}-obfs")">Obfuscation type</label>
+                                <InputSelect id="@($"protocol-{item.Id}-obfs")" class="form-select"
+                                             @bind-Value="hysteria2.ObfsType">
                                     <option value="salamander">salamander</option>
                                     <option value="none">none</option>
                                 </InputSelect>
-                            </label>
+                            </div>
                             @if (hysteria2.ObfsType != "none")
                             {
-                                <label>Obfuscation password
-                                    <InputText class="form-control" @bind-Value="hysteria2.ObfsPassword"/>
-                                </label>
+                                <div class="field"><label class="form-label" for="@($"protocol-{item.Id}-password")">Obfuscation
+                                        password</label>
+                                    <InputText id="@($"protocol-{item.Id}-password")" class="form-control"
+                                               @bind-Value="hysteria2.ObfsPassword"/>
+                                </div>
                             }
 
-                            <p class="muted">TLS
-                                certificate: @(hysteria2.HasTlsCertificate ? "generated" : "missing")</p>
-                            <button class="btn btn-outline-primary" type="button"
+                            <dl class="app-details field">
+                                <dt>TLS certificate</dt>
+                                <dd>@(hysteria2.HasTlsCertificate ? "Generated" : "Missing")</dd>
+                            </dl>
+                            <button class="btn btn-outline-secondary" type="button"
                                     @onclick="() => RegenerateCertificateAsync(hysteria2.Id)" disabled="@_saving">
-                                Regenerate TLS certificate
+                                @(_regenerating == hysteria2.Id ? "Regenerating…" : "Regenerate TLS certificate")
                             </button>
                         }
                         else if (item is AwgProtocolSettingsDto awg)
                         {
                             <details>
                                 <summary>AmneziaWG parameters</summary>
-                                <p class="muted">H1-H4 and S1-S4 must match between all nodes.</p>
+                                <p class="text-body-secondary">H1-H4 and S1-S4 must match between all nodes.</p>
                                 <div class="settings-grid">
-                                    <label>H1
-                                        <InputText class="form-control" @bind-Value="awg.H1"/>
-                                    </label>
-                                    <label>H2
-                                        <InputText class="form-control" @bind-Value="awg.H2"/>
-                                    </label>
-                                    <label>H3
-                                        <InputText class="form-control" @bind-Value="awg.H3"/>
-                                    </label>
-                                    <label>H4
-                                        <InputText class="form-control" @bind-Value="awg.H4"/>
-                                    </label>
-                                    <label>Jc
-                                        <InputNumber class="form-control" @bind-Value="awg.Jc"/>
-                                    </label>
-                                    <label>Jmin
-                                        <InputNumber class="form-control" @bind-Value="awg.Jmin"/>
-                                    </label>
-                                    <label>Jmax
-                                        <InputNumber class="form-control" @bind-Value="awg.Jmax"/>
-                                    </label>
-                                    <label>S1
-                                        <InputNumber class="form-control" @bind-Value="awg.S1"/>
-                                    </label>
-                                    <label>S2
-                                        <InputNumber class="form-control" @bind-Value="awg.S2"/>
-                                    </label>
-                                    <label>S3
-                                        <InputNumber class="form-control" @bind-Value="awg.S3"/>
-                                    </label>
-                                    <label>S4
-                                        <InputNumber class="form-control" @bind-Value="awg.S4"/>
-                                    </label>
-                                    <label>I1
-                                        <InputText class="form-control font-monospace" @bind-Value="awg.I1"/>
-                                    </label>
-                                    <label>I2
-                                        <InputText class="form-control font-monospace" @bind-Value="awg.I2"/>
-                                    </label>
-                                    <label>I3
-                                        <InputText class="form-control font-monospace" @bind-Value="awg.I3"/>
-                                    </label>
-                                    <label>I4
-                                        <InputText class="form-control font-monospace" @bind-Value="awg.I4"/>
-                                    </label>
-                                    <label>I5
-                                        <InputText class="form-control font-monospace" @bind-Value="awg.I5"/>
-                                    </label>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h1")">H1</label>
+                                        <InputText id="@($"protocol-{item.Id}-h1")" class="form-control"
+                                                   @bind-Value="awg.H1"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h2")">H2</label>
+                                        <InputText id="@($"protocol-{item.Id}-h2")" class="form-control"
+                                                   @bind-Value="awg.H2"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h3")">H3</label>
+                                        <InputText id="@($"protocol-{item.Id}-h3")" class="form-control"
+                                                   @bind-Value="awg.H3"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h4")">H4</label>
+                                        <InputText id="@($"protocol-{item.Id}-h4")" class="form-control"
+                                                   @bind-Value="awg.H4"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jc")">Jc</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-jc")" class="form-control"
+                                                     @bind-Value="awg.Jc"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jmin")">Jmin</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-jmin")" class="form-control"
+                                                     @bind-Value="awg.Jmin"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jmax")">Jmax</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-jmax")" class="form-control"
+                                                     @bind-Value="awg.Jmax"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s1")">S1</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-s1")" class="form-control"
+                                                     @bind-Value="awg.S1"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s2")">S2</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-s2")" class="form-control"
+                                                     @bind-Value="awg.S2"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s3")">S3</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-s3")" class="form-control"
+                                                     @bind-Value="awg.S3"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s4")">S4</label>
+                                        <InputNumber id="@($"protocol-{item.Id}-s4")" class="form-control"
+                                                     @bind-Value="awg.S4"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i1")">I1</label>
+                                        <InputText id="@($"protocol-{item.Id}-i1")" class="form-control font-monospace"
+                                                   @bind-Value="awg.I1"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i2")">I2</label>
+                                        <InputText id="@($"protocol-{item.Id}-i2")" class="form-control font-monospace"
+                                                   @bind-Value="awg.I2"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i3")">I3</label>
+                                        <InputText id="@($"protocol-{item.Id}-i3")" class="form-control font-monospace"
+                                                   @bind-Value="awg.I3"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i4")">I4</label>
+                                        <InputText id="@($"protocol-{item.Id}-i4")" class="form-control font-monospace"
+                                                   @bind-Value="awg.I4"/>
+                                    </div>
+                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i5")">I5</label>
+                                        <InputText id="@($"protocol-{item.Id}-i5")" class="form-control font-monospace"
+                                                   @bind-Value="awg.I5"/>
+                                    </div>
                                 </div>
                             </details>
                         }
                         else if (item is NaiveProxyProtocolSettingsDto naiveProxy)
                         {
-                            <p class="muted">TCP only. A matching managed certificate is validated normally; otherwise
-                                subscriptions use a pinned self-signed certificate.</p>
-                            <p class="muted">Fallback
-                                certificate: @(naiveProxy.HasTlsCertificate ? "generated" : "will be generated on save")</p>
-                            <button class="btn btn-outline-primary" type="button"
+                            <p class="text-body-secondary">TCP only. A matching managed certificate is validated
+                                normally; otherwise subscriptions use a pinned self-signed certificate.</p>
+                            <dl class="app-details field">
+                                <dt>Fallback certificate</dt>
+                                <dd>@(naiveProxy.HasTlsCertificate ? "Generated" : "Will be generated on save")</dd>
+                            </dl>
+                            <button class="btn btn-outline-secondary" type="button"
                                     @onclick="() => RegenerateCertificateAsync(naiveProxy.Id)"
                                     disabled="@(_saving || !naiveProxy.HasTlsCertificate)">
-                                Regenerate fallback certificate
+                                @(_regenerating == naiveProxy.Id ? "Regenerating…" : "Regenerate fallback certificate")
                             </button>
                         }
                     </div>
                 </section>
             }
 
-        </div>
-        <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" type="submit" disabled="@_saving">Save settings</button>
-        </div>
+                @if (!string.IsNullOrEmpty(_message))
+                {
+                    <div class="alert alert-success app-status mt-3" role="status">@_message</div>
+                }
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="submit"
+                            disabled="@_saving">@(_saving && _regenerating is null ? "Saving…" : "Save settings")</button>
+                </div>
+            </fieldset>
         </EditForm>
     }
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status">@_message</p>
-    }
 </div>
+@if (_pendingRemoval is not null)
+{
+    <ConfirmDialog Title="Remove protocol"
+                   Message="@($"Remove {ProtocolName(_pendingRemoval)} on port {_pendingRemoval.ListenPort} and its transport overlays? The change takes effect when you save settings.")"
+                   ConfirmText="Remove protocol" OnConfirm="ConfirmRemoveProtocol"
+                   OnCancel="() => _pendingRemoval = null"/>
+}
 
 @code {
     private UpdateProtocolsSettingsRequest _request = new();
@@ -192,13 +246,43 @@
     private int _meshPort;
     private bool _loading = true;
     private bool _saving;
-    private bool _protocolMenuOpen;
+    private bool _loaded;
+    private readonly HashSet<Guid> _savedProtocols = [];
+    private ProtocolSettingsDto? _pendingRemoval;
+    private Guid? _regenerating;
+    private IJSObjectReference? _dropdownModule;
     private string? _error;
     private string? _message;
 
-    private void ToggleProtocolMenu()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _protocolMenuOpen = !_protocolMenuOpen;
+        _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/dropdown.js");
+        await _dropdownModule.InvokeVoidAsync("initialize", "protocol-dropdown");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dropdownModule is null) return;
+        try
+        {
+            await _dropdownModule.InvokeVoidAsync("dispose", "protocol-dropdown");
+            await _dropdownModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void RequestRemoveProtocol(ProtocolSettingsDto protocol)
+    {
+        if (_savedProtocols.Contains(protocol.Id)) _pendingRemoval = protocol;
+        else RemoveProtocol(protocol);
+    }
+
+    private void ConfirmRemoveProtocol()
+    {
+        if (_pendingRemoval is not null) RemoveProtocol(_pendingRemoval);
+        _pendingRemoval = null;
     }
 
     protected override async Task OnInitializedAsync()
@@ -214,6 +298,8 @@
                 Transports = settings.Transports
             };
             _domainRoutes = await LoadDomainRoutesAsync();
+            _savedProtocols.UnionWith(_request.Protocols.Select(protocol => protocol.Id));
+            _loaded = true;
         }
         catch (ApplicationServiceException ex)
         {
@@ -221,31 +307,19 @@
                 ? "You do not have permission to view settings."
                 : "Could not load protocol settings.";
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _loading = false;
         }
     }
 
-    private async Task<IReadOnlyList<ProtocolDomainRouteResponse>> LoadDomainRoutesAsync()
+    private Task<IReadOnlyList<ProtocolDomainRouteResponse>> LoadDomainRoutesAsync()
     {
-        try
-        {
-            return await NodesApi.GetProtocolDomainRoutesAsync();
-        }
-        catch (Exception)
-        {
-            return [];
-        }
+        return NodesApi.GetProtocolDomainRoutesAsync();
     }
 
     private void AddHysteria2()
     {
-        _protocolMenuOpen = false;
         var settings = new Hysteria2ProtocolSettingsDto
         {
             Id = Guid.NewGuid(),
@@ -258,7 +332,6 @@
 
     private void AddWireGuard()
     {
-        _protocolMenuOpen = false;
         _request.Protocols.Add(new AwgProtocolSettingsDto
         {
                 Id = Guid.NewGuid(),
@@ -269,7 +342,6 @@
 
     private void AddNaiveProxy()
     {
-        _protocolMenuOpen = false;
         _request.Protocols.Add(new NaiveProxyProtocolSettingsDto
         {
                 Id = Guid.NewGuid(),
@@ -320,6 +392,8 @@
                     Transports = settings.Transports
             };
             _domainRoutes = await LoadDomainRoutesAsync();
+            _savedProtocols.Clear();
+            _savedProtocols.UnionWith(_request.Protocols.Select(protocol => protocol.Id));
             _message = "Protocol settings saved. Nodes will update automatically.";
         }
         catch (ApplicationServiceException ex)
@@ -327,10 +401,6 @@
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "Could not save protocol settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
@@ -340,6 +410,7 @@
 
     private async Task RegenerateCertificateAsync(Guid protocolId)
     {
+        _regenerating = protocolId;
         _saving = true;
         _error = null;
         _message = null;
@@ -356,13 +427,10 @@
                 ? "You do not have permission to change settings."
                 : "Could not regenerate the TLS certificate.";
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _saving = false;
+            _regenerating = null;
         }
     }
 

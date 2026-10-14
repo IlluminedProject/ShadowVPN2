@@ -2,9 +2,9 @@
 @layout MainLayout
 
 <h1>Manage your account</h1>
-<div class="row">
+<div class="row g-4">
     <div class="col-lg-3">
-        <nav class="nav flex-column">
+        <nav class="nav flex-column app-subnav" aria-label="Account settings">
             <NavLink class="nav-link" href="/Account/Manage" Match="NavLinkMatch.All">Profile</NavLink>
             <NavLink class="nav-link" href="/Account/Manage/Email">Email</NavLink>
             <NavLink class="nav-link" href="/Account/Manage/ChangePassword">Password</NavLink>
@@ -14,5 +14,7 @@
             <NavLink class="nav-link" href="/Account/Manage/PersonalData">Personal data</NavLink>
         </nav>
     </div>
-    <div class="col-lg-9">@Body</div>
+    <div class="col-lg-9">
+        <div class="settings-frame">@Body</div>
+    </div>
 </div>

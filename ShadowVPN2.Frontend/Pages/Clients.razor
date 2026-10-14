@@ -3,13 +3,16 @@
 @attribute [Authorize]
 @inject IClientApplicationService ClientsApi
 @inject IClientUpdatesService ClientRealtime
-@inject IJSRuntime JsRuntime
 @implements IAsyncDisposable
 
 <PageTitle>VPN clients - ShadowVPN2</PageTitle>
 
 <div>
-    <h1>VPN clients</h1>
+    <div class="page-header">
+        <h1>VPN clients</h1>
+        <button class="btn btn-primary ms-auto" type="button" disabled="@_loading" @onclick="OpenAddClient">Add client
+        </button>
+    </div>
 
     @if (_loading)
     {
@@ -25,71 +28,115 @@
             <div class="alert alert-danger" role="alert">@_error</div>
         }
 
-        <EditForm Model="_newClient" OnValidSubmit="CreateClientAsync">
-            <DataAnnotationsValidator/>
-            <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
-                <InputText class="form-control" @bind-Value="_newClient.Name" placeholder="Device name"/>
-                <button class="btn btn-primary" type="submit" disabled="@_saving">Add client</button>
-            </div>
-            <ValidationMessage For="() => _newClient.Name"/>
-        </EditForm>
 
-        <div class="mb-3">
-            <InputText class="form-control" @bind-Value="_search" @bind-Value:after="ApplySearch"
-                       placeholder="Search clients"/>
+        <div class="field">
+            <label class="form-label" for="client-search">Search clients</label>
+            <InputText id="client-search" class="form-control" @bind-Value="_search" @bind-Value:after="ApplySearch"/>
         </div>
 
         @if (_filteredClients.Count == 0)
         {
-            <p class="muted">@(_clients.Count == 0 ? "No VPN clients configured yet." : "No clients match the search.")</p>
+            <p class="text-body-secondary">@(_clients.Count == 0 ? "No VPN clients configured yet." : "No clients match the search.")</p>
         }
         else
         {
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
-                    <thead>
-                    <tr>
-                        <th>Name</th>
-                        @if (_isAdministrator)
-                        {
-                            <th>User</th>
-                        }
-                        <th>IP address</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th></th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var client in _filteredClients)
+            @foreach (var group in _filteredClients.GroupBy(client => client.UserNumber))
+            {
+                <section class="mb-4">
+                    @if (_isAdministrator)
                     {
-                        <tr>
-                            <td>@client.Name</td>
-                            @if (_isAdministrator)
-                            {
-                                <td>@(client.IsOwnedByCurrentUser ? "You" : client.OwnerDisplayName)</td>
-                            }
-                            <td><code>@client.AssignedIp</code></td>
-                            <td>@(client.IsEnabled ? "Enabled" : "Disabled")</td>
-                            <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
-                            <td class="actions">
-                                <a class="btn btn-outline-primary btn-sm"
-                                   href="@($"/clients/settings/{EscapeDocumentId(client.Id)}")">Settings</a>
-                                <a class="btn btn-outline-info btn-sm" href="@($"/s/{client.SubscriptionId}")"
-                                   target="_blank">Subscription</a>
-                                <button class="btn btn-outline-danger btn-sm"
-                                        @onclick="() => DeleteClientAsync(client)">
-                                    Delete
-                                </button>
-                            </td>
-                        </tr>
+                        var owner = group.First();
+                        <h2>@(owner.IsOwnedByCurrentUser ? "You" : owner.OwnerDisplayName ?? $"User {owner.UserNumber}")</h2>
                     }
-                    </tbody>
-                </table>
-            </div>
+                    <div class="table-responsive" tabindex="0" aria-label="VPN clients">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>IP address</th>
+                                <th>Created</th>
+                                <th><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var client in group)
+                            {
+                                <tr @key="client.Id">
+                                    <td>@client.Name</td>
+                                    <td><code class="text-break">@client.AssignedIp</code></td>
+                                    <td>@client.CreatedAt.LocalDateTime.ToString("g")</td>
+                                    <td>
+                                        <div class="actions table-actions justify-content-end">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                       checked="@client.IsEnabled" aria-label="Enable @client.Name"
+                                                       title="Enable @client.Name"
+                                                       disabled="@_updatingClients.Contains(client.Id)"
+                                                       @onchange="() => ToggleClientAsync(client)"/>
+                                            </div>
+                                            <a class="btn btn-outline-secondary btn-sm"
+                                               href="@($"/clients/settings/{EscapeDocumentId(client.Id)}")"
+                                               aria-label="Settings for @client.Name" title="Settings"><span
+                                                    class="bi bi-gear" aria-hidden="true"></span></a>
+                                            <a class="btn btn-outline-secondary btn-sm"
+                                               href="@($"/s/{client.SubscriptionId}")" target="_blank"
+                                               aria-label="Subscription for @client.Name" title="Subscription"><span
+                                                    class="bi bi-link-45deg" aria-hidden="true"></span></a>
+                                            <button class="btn btn-outline-danger btn-sm" type="button"
+                                                    @onclick="() => RequestDeleteClient(client)"
+                                                    aria-label="Delete @client.Name" title="Delete"><span
+                                                    class="bi bi-trash" aria-hidden="true"></span></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
         }
     }
 </div>
+
+@if (_showAddClient)
+{
+    <AppDialog Title="Add client" Busy="_saving" OnClose="CloseAddClient">
+        <ChildContent>
+            <EditForm Model="_newClient" OnValidSubmit="CreateClientAsync">
+                <div class="app-dialog__body">
+                    <DataAnnotationsValidator/>
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger" role="alert">@_createError</div>
+                    }
+                    <div class="field">
+                        <label class="form-label" for="new-client-name">Client name</label>
+                        <InputText id="new-client-name" class="form-control" @bind-Value="_newClient.Name"
+                                   disabled="@_saving" autofocus/>
+                        <ValidationMessage For="() => _newClient.Name"/>
+                    </div>
+                </div>
+                <footer class="app-dialog__footer">
+                    <div class="actions ms-auto">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseAddClient"
+                                disabled="@_saving">Cancel
+                        </button>
+                        <button class="btn btn-primary" type="submit"
+                                disabled="@_saving">@(_saving ? "Creating…" : "Add client")</button>
+                    </div>
+                </footer>
+            </EditForm>
+        </ChildContent>
+    </AppDialog>
+}
+
+@if (_deleteClient is not null)
+{
+    <ConfirmDialog Title="Delete client" Message="@($"Delete client '{_deleteClient.Name}'? This cannot be undone.")"
+                   ConfirmText="Delete" Busy="_deleting" Error="@_deleteError"
+                   OnConfirm="ConfirmDeleteClientAsync" OnCancel="CancelDeleteClient"/>
+}
 
 @code {
     private IReadOnlyList<ClientResponse> _clients = [];
@@ -97,10 +144,109 @@
     private readonly CreateClientRequest _newClient = new() { Name = string.Empty };
     private bool _loading = true;
     private bool _saving;
+    private bool _deleting;
     private string? _error;
+    private string? _deleteError;
     private string _search = string.Empty;
     private bool _isAdministrator;
+    private ClientResponse? _deleteClient;
     private IAsyncDisposable? _realtimeSubscription;
+    private bool _showAddClient;
+    private string? _createError;
+    private readonly HashSet<string> _updatingClients = [];
+
+    private void OpenAddClient()
+    {
+        _newClient.Name = string.Empty;
+        _createError = null;
+        _showAddClient = true;
+    }
+
+    private void CloseAddClient()
+    {
+        if (!_saving) _showAddClient = false;
+    }
+
+    private async Task ToggleClientAsync(ClientResponse client)
+    {
+        if (!_updatingClients.Add(client.Id)) return;
+        _error = null;
+        try
+        {
+            await ClientsApi.UpdateClientAsync(client.Id, new UpdateClientRequest
+            {
+                Name = client.Name,
+                IsEnabled = !client.IsEnabled,
+                WireGuard = client.WireGuard is null ? null : new WireGuardClientSettingsRequest { Mtu = client.WireGuard.Mtu }
+            });
+            await LoadClientsAsync();
+        }
+        catch (ApplicationServiceException)
+        {
+            _error = "Could not update the client.";
+        }
+        finally
+        {
+            _updatingClients.Remove(client.Id);
+        }
+    }
+
+
+    private async Task CreateClientAsync()
+    {
+        _saving = true;
+        _createError = null;
+        try
+        {
+            await ClientsApi.CreateClientAsync(_newClient);
+            _newClient.Name = string.Empty;
+            await LoadClientsAsync();
+            _showAddClient = false;
+        }
+        catch (ApplicationServiceException)
+        {
+            _createError = "Could not create the client.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void RequestDeleteClient(ClientResponse client)
+    {
+        _deleteClient = client;
+        _deleteError = null;
+    }
+
+    private void CancelDeleteClient()
+    {
+        if (!_deleting)
+            _deleteClient = null;
+    }
+
+    private async Task ConfirmDeleteClientAsync()
+    {
+        if (_deleteClient is null)
+            return;
+
+        _deleting = true;
+        _deleteError = null;
+        try
+        {
+            await ClientsApi.DeleteClientAsync(_deleteClient.Id);
+            await LoadClientsAsync();
+            _deleteClient = null;
+        }
+        catch (ApplicationServiceException)
+        {
+            _deleteError = "Could not delete the client.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
 
     private static string EscapeDocumentId(string id)
     {
@@ -149,43 +295,6 @@
                 .ToArray();
     }
 
-    private async Task CreateClientAsync()
-    {
-        _saving = true;
-        _error = null;
-        try
-        {
-            await ClientsApi.CreateClientAsync(_newClient);
-            _newClient.Name = string.Empty;
-            await LoadClientsAsync();
-        }
-        catch (ApplicationServiceException)
-        {
-            _error = "Could not create the client.";
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    private async Task DeleteClientAsync(ClientResponse client)
-    {
-        var confirmed = await JsRuntime.InvokeAsync<bool>("confirm", $"Delete client '{client.Name}'?");
-        if (!confirmed)
-            return;
-
-        _error = null;
-        try
-        {
-            await ClientsApi.DeleteClientAsync(client.Id);
-            await LoadClientsAsync();
-        }
-        catch (ApplicationServiceException)
-        {
-            _error = "Could not delete the client.";
-        }
-    }
 
     public async ValueTask DisposeAsync()
     {

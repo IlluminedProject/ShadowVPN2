@@ -2,10 +2,10 @@
 
 @attribute [Authorize]
 
-<PageTitle>Auth</PageTitle>
+<PageTitle>Authentication - ShadowVPN2</PageTitle>
 
-<h1>You are authenticated</h1>
-
+<div class="page-header"><h1>You are authenticated</h1></div>
 <AuthorizeView>
-    Hello @context.User.Identity?.Name!
+    <p>Signed in as <strong class="text-break">@context.User.Identity?.Name</strong>.</p>
 </AuthorizeView>
+<div class="actions"><a class="btn btn-outline-secondary" href="/">Back to dashboard</a></div>

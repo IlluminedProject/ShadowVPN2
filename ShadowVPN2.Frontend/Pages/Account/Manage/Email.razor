@@ -2,12 +2,18 @@
 @layout ManageLayout
 @attribute [Authorize]
 <PageTitle>Manage email</PageTitle>
-<h3>Manage email</h3>
+<h2>Manage email</h2>
 <form method="post" action="/api/account/email">
     <AntiforgeryToken/>
-    <label>New email</label>
-    <InputText class="form-control mb-3" name="Email" type="email" required @bind-Value="_email"/>
-    <button class="btn btn-primary">Change email</button>
+    <div class="field">
+        <label class="form-label" for="account-email">New email</label>
+        <InputText id="account-email" class="form-control" name="Email" type="email" autocomplete="email" required
+                   @bind-Value="_email"/>
+    </div>
+    <div class="form-actions">
+        <a class="btn btn-outline-secondary" href="/Account/Manage">Cancel</a>
+        <button type="submit" class="btn btn-primary">Change email</button>
+    </div>
 </form>
 
 @code {

@@ -12,9 +12,11 @@
 <PageTitle>Nodes - ShadowVPN2</PageTitle>
 
 <div>
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="page-header">
         <h1>Nodes</h1>
-        <button class="btn btn-primary" @onclick="OpenAddNode">Add node</button>
+        <div class="actions">
+            <button class="btn btn-primary" type="button" @onclick="OpenAddNode">Add node</button>
+        </div>
     </div>
 
     @if (_loading)
@@ -38,7 +40,7 @@
     }
     else if (_nodes.Count > 0)
     {
-        <div class="table-responsive">
+        <div class="table-responsive" tabindex="0" aria-label="Nodes">
             <table class="table table-striped table-hover align-middle">
                 <thead>
                 <tr>
@@ -59,27 +61,30 @@
                         <td>@node.Number</td>
                         <td>@node.Name</td>
                         <td>
-                            <code>@(node.Domain?.ToString() ?? "—")</code>
+                            <code class="text-break">@(node.Domain?.ToString() ?? "—")</code>
                             @if (node.DomainStatus is not null)
                             {
-                                <div class="muted">@DomainStatusText(node.DomainStatus.State)</div>
+                                <div class="text-secondary small">@DomainStatusText(node.DomainStatus.State)</div>
                             }
                         </td>
-                        <td><code>@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code></td>
-                        <td><code>@node.AwgMeshIp</code></td>
+                        <td><code class="text-break">@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code></td>
+                        <td><code class="text-break">@node.AwgMeshIp</code></td>
                         <td>
                             @foreach (var route in _protocolRoutes.Where(route => route.NodeId == node.NodeId &&
                                                                                   route.State is ProtocolDomainRouteState.Valid or
                                                                                       ProtocolDomainRouteState.PartialMatch))
                             {
-                                <div><code>@route.Domain</code></div>
+                                <div><code class="text-break">@route.Domain</code></div>
                             }
                         </td>
                         <td>@(node.IsPending ? "Pending" : "Joined")</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => EditNodeAsync(node)">Edit
-                                domain
-                            </button>
+                            <div class="actions table-actions">
+                                <button class="btn btn-sm btn-outline-secondary" type="button"
+                                        aria-label="Edit domain for @node.Name" title="Edit domain"
+                                        @onclick="() => EditNodeAsync(node)"><span class="bi bi-pencil"
+                                                                                   aria-hidden="true"></span></button>
+                            </div>
                         </td>
                     </tr>
                 }
@@ -91,92 +96,194 @@
 
 @if (_showAddNode)
 {
-    <div class="modal-backdrop">
-        <section class="dialog modal-content" role="dialog" aria-modal="true">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5">Add node</h2>
-                <button class="btn-close" type="button" aria-label="Close" @onclick="CloseAddNode"></button>
-            </div>
-            <div class="modal-body">
-                @if (_joinToken is null)
-                {
-                    <EditForm Model="_newNode" OnValidSubmit="GenerateTokenAsync">
-                        <DataAnnotationsValidator/>
+    <AppDialog Title="Add node" OnClose="CloseAddNode" Busy="_busy">
+        <ChildContent>
+            @if (_joinToken is null)
+            {
+                <EditForm Model="_newNode" OnValidSubmit="GenerateTokenAsync">
+                    <DataAnnotationsValidator/>
+                    <div class="app-dialog__body">
+                        @if (!string.IsNullOrEmpty(_dialogError))
+                        {
+                            <div class="alert alert-danger" role="alert">@_dialogError</div>
+                        }
                         <ValidationSummary/>
-                        <label class="form-label" for="node-name">Node name</label>
-                        <InputText id="node-name" class="form-control" @bind-Value="_newNode.Name"/>
-                        <label class="form-label" for="node-domain">Domain (optional)</label>
-                        <InputHostName id="node-domain" class="form-control" @bind-Value="_newNode.Domain"/>
-                        <ValidationMessage For="() => _newNode.Domain"/>
-                        <button class="btn btn-primary" type="submit" disabled="@_busy">Generate join token</button>
-                    </EditForm>
-                }
-                else
-                {
+                        <div class="field">
+                            <label class="form-label" for="node-name">Node name</label>
+                            <InputText id="node-name" class="form-control" @bind-Value="_newNode.Name"/>
+                        </div>
+                        <div class="field">
+                            <label class="form-label" for="node-domain">Domain (optional)</label>
+                            <InputHostName id="node-domain" class="form-control" @bind-Value="_newNode.Domain"/>
+                            <ValidationMessage For="() => _newNode.Domain"/>
+                        </div>
+                    </div>
+                    <div class="app-dialog__footer">
+                        <div class="actions">
+                            <button class="btn btn-outline-secondary" type="button" @onclick="CloseAddNode"
+                                    disabled="@_busy">Cancel
+                            </button>
+                            <button class="btn btn-primary" type="submit" disabled="@_busy">
+                                @(_busy ? "Generating…" : "Generate join token")
+                            </button>
+                        </div>
+                    </div>
+                </EditForm>
+            }
+            else
+            {
+                <div class="app-dialog__body">
+                    @if (!string.IsNullOrEmpty(_dialogError))
+                    {
+                        <div class="alert alert-danger" role="alert">@_dialogError</div>
+                    }
                     <p>Set this token as <code>JoinToken</code> on the new node.</p>
-                    <textarea class="form-control mb-2" rows="5" readonly>@_joinToken</textarea>
-                    <button class="btn btn-outline-secondary" @onclick="CopyTokenAsync">Copy token</button>
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseAddNode">Close</button>
-            </div>
-        </section>
-    </div>
+                    <label class="form-label" for="join-token">Join token</label>
+                    <div class="d-flex align-items-start gap-2">
+                        <textarea id="join-token" class="form-control font-monospace text-break" rows="5"
+                                  readonly>@_joinToken</textarea>
+                        <button class="btn btn-outline-secondary flex-shrink-0" type="button" @onclick="CopyTokenAsync">
+                            Copy token
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_copyStatus))
+                    {
+                        <div class="text-secondary small" role="status">@_copyStatus</div>
+                    }
+                </div>
+                <div class="app-dialog__footer">
+                    <div class="actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseAddNode"
+                                disabled="@_busy">Close
+                        </button>
+                    </div>
+                </div>
+            }
+        </ChildContent>
+    </AppDialog>
 }
 
 @if (_editingNode is not null)
 {
-    <div class="modal-backdrop">
-        <section class="dialog modal-content" role="dialog" aria-modal="true">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5">Node: @_editingNode.Name</h2>
-                <button class="btn-close" type="button" aria-label="Close"
-                        @onclick="() => _editingNode = null"></button>
-            </div>
+    <AppDialog Title="@($"Node: {_editingNode.Name}")" OnClose="CloseEditNode" Busy="_busy">
+        <ChildContent>
             <EditForm @key="_domainRequest" EditContext="_domainEditContext" OnValidSubmit="SaveDomainAsync">
-            <DataAnnotationsValidator/>
-            <ValidationSummary/>
-            <div class="modal-body">
-                <label class="form-label" for="edit-domain">Domain</label>
-                <InputHostName id="edit-domain" class="form-control" @bind-Value="_domainRequest.Domain"/>
-                <ValidationMessage For="() => _domainRequest.Domain"/>
-                <p class="muted">
-                    Public IPv4: @_editingNode.PublicIpv4 — Public IPv6: @_editingNode.PublicIpv6
-                </p>
-                <p>Internal addresses: @(_editingNode.InternalAddresses.Count == 0
-                                               ? "—"
-                                               : string.Join(", ", _editingNode.InternalAddresses))</p>
-                @if (_editingNode.DomainStatus is not null)
-                {
-                    <p>@DomainStatusText(_editingNode.DomainStatus.State)</p>
-                    @if (_editingNode.DomainStatus.ResolvedAddresses.Count > 0)
+                <DataAnnotationsValidator/>
+                <div class="app-dialog__body">
+                    @if (!string.IsNullOrEmpty(_dialogError))
                     {
-                        <p>Resolved: @string.Join(", ", _editingNode.DomainStatus.ResolvedAddresses)</p>
+                        <div class="alert alert-danger" role="alert">@_dialogError</div>
                     }
-                }
-                @if (_certificateDomains is not null)
-                {
-                    <p>Certificate domains: @(_certificateDomains.Domains.Count == 0
-                                                    ? "none"
-                                                    : string.Join(", ", _certificateDomains.Domains))</p>
-                }
-                @foreach (var route in _protocolRoutes.Where(route => route.NodeId == _editingNode.NodeId &&
-                                                                      route.State is ProtocolDomainRouteState.Valid or
-                                                                          ProtocolDomainRouteState.PartialMatch))
-                {
-                    <p><code>@route.Domain</code> — @route.Protocol</p>
-                }
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline-secondary" type="button" @onclick="CheckDomainAsync" disabled="@_busy">Check DNS
-                </button>
-                <button class="btn btn-primary" type="submit" disabled="@_busy">Save</button>
-                <button class="btn btn-secondary" type="button" @onclick="() => _editingNode = null">Close</button>
-            </div>
+                    <ValidationSummary/>
+                    <section class="mb-4" aria-labelledby="node-domain-heading">
+                        <h3 id="node-domain-heading" class="h5">Domain</h3>
+                        <div class="field">
+                            <label class="form-label" for="edit-domain">Hostname</label>
+                            <InputHostName id="edit-domain" class="form-control" @bind-Value="_domainRequest.Domain"
+                                           aria-describedby="edit-domain-validation"/>
+                            <div id="edit-domain-validation">
+                                <ValidationMessage For="() => _domainRequest.Domain"/>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="mb-4" aria-labelledby="node-network-heading">
+                        <h3 id="node-network-heading" class="h5">Network</h3>
+                        <dl class="app-details">
+                            <dt>Public IPv4</dt>
+                            <dd><code class="text-break">@(_editingNode.PublicIpv4 ?? "—")</code></dd>
+                            <dt>Public IPv6</dt>
+                            <dd><code class="text-break">@(_editingNode.PublicIpv6 ?? "—")</code></dd>
+                            <dt>Internal addresses</dt>
+                            <dd>
+                                @if (_editingNode.InternalAddresses.Count == 0)
+                                {
+                                    <span>—</span>
+                                }
+                                else
+                                {
+                                    @foreach (var address in _editingNode.InternalAddresses)
+                                    {
+                                        <div><code class="text-break">@address</code></div>
+                                    }
+                                }
+                            </dd>
+                        </dl>
+                    </section>
+                    <section class="mb-4" aria-labelledby="node-dns-heading">
+                        <h3 id="node-dns-heading" class="h5">DNS</h3>
+                        <p class="small text-body-secondary">Check DNS saves a changed hostname before checking. Cancel
+                            discards only changes that have not been saved.</p>
+                        <dl class="app-details">
+                            <dt>Status</dt>
+                            <dd>@(_editingNode.DomainStatus is null ? "Not checked" : DomainStatusText(_editingNode.DomainStatus.State))</dd>
+                            <dt>Resolved addresses</dt>
+                            <dd>
+                                @if (_editingNode.DomainStatus?.ResolvedAddresses.Count > 0)
+                                {
+                                    @foreach (var address in _editingNode.DomainStatus.ResolvedAddresses)
+                                    {
+                                        <div><code class="text-break">@address</code></div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </dd>
+                        </dl>
+                    </section>
+                    <section aria-labelledby="node-certificates-heading">
+                        <h3 id="node-certificates-heading" class="h5">Certificates</h3>
+                        <dl class="app-details">
+                            <dt>Certificate domains</dt>
+                            <dd>
+                                @if (_operation == "load")
+                                {
+                                    <span role="status">Loading certificate domains…</span>
+                                }
+                                else if (_certificateDomains is null)
+                                {
+                                    <span>Certificate domains unavailable</span>
+                                }
+                                else if (_certificateDomains.Domains.Count > 0)
+                                {
+                                    @foreach (var domain in _certificateDomains.Domains)
+                                    {
+                                        <div><code class="text-break">@domain</code></div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span>No certificate domains</span>
+                                }
+                            </dd>
+                            <dt>Protocol domains</dt>
+                            <dd>
+                                @foreach (var route in _protocolRoutes.Where(route => route.NodeId == _editingNode.NodeId &&
+                                                                                      route.State is ProtocolDomainRouteState.Valid or ProtocolDomainRouteState.PartialMatch))
+                                {
+                                    <div><code class="text-break">@route.Domain</code> — @route.Protocol</div>
+                                }
+                            </dd>
+                        </dl>
+                    </section>
+                </div>
+                <div class="app-dialog__footer">
+                    <div class="actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CheckDomainAsync"
+                                disabled="@_busy">@(_operation == "check" ? "Checking…" : "Check DNS")</button>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseEditNode"
+                                disabled="@_busy">Cancel
+                        </button>
+                        <button class="btn btn-primary" type="submit"
+                                disabled="@_busy">@(_operation == "save" ? "Saving…" : "Save")</button>
+                    </div>
+                </div>
             </EditForm>
-        </section>
-    </div>
+        </ChildContent>
+    </AppDialog>
 }
 
 @code {
@@ -192,8 +299,11 @@
     private bool _showAddNode;
     private bool _loading = true;
     private bool _busy;
+    private string? _operation;
     private bool _authenticationRequired;
     private string? _error;
+    private string? _dialogError;
+    private string? _copyStatus;
 
     private string LoginUrl =>
         $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
@@ -219,10 +329,6 @@
                     ? "You do not have permission to view nodes."
                     : "Could not load nodes.";
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _loading = false;
@@ -238,31 +344,42 @@
     {
         _showAddNode = true;
         _joinToken = null;
-        _error = null;
+        _dialogError = null;
+        _copyStatus = null;
     }
 
     private void CloseAddNode()
     {
+        if (_busy)
+            return;
+
         _showAddNode = false;
+        _dialogError = null;
+        _copyStatus = null;
+    }
+
+    private void CloseEditNode()
+    {
+        if (_busy)
+            return;
+
+        _editingNode = null;
+        _dialogError = null;
     }
 
     private async Task GenerateTokenAsync()
     {
         _busy = true;
-        _error = null;
+        _dialogError = null;
         try
         {
             _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNode.Name.Trim(), _newNode.Domain);
         }
         catch (ApplicationServiceException exception)
         {
-            _error = exception.StatusCode == HttpStatusCode.Forbidden
+            _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "Only administrators can add nodes."
                 : "Could not generate a node join token.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
@@ -272,8 +389,19 @@
 
     private async Task CopyTokenAsync()
     {
-        if (_joinToken is not null)
+        if (_joinToken is null)
+            return;
+
+        _copyStatus = null;
+        try
+        {
             await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _joinToken);
+            _copyStatus = "Copied";
+        }
+        catch (JSException)
+        {
+            _copyStatus = "Could not copy token.";
+        }
     }
 
     private async Task EditNodeAsync(NodeResponse node)
@@ -281,8 +409,23 @@
         _editingNode = node;
         _domainRequest = new UpdateNodeDomainRequest { Domain = node.Domain };
         _domainEditContext = new EditContext(_domainRequest);
-        _certificateDomains = await NodesApi.GetCertificateDomainsAsync(node.NodeId);
-        _error = null;
+        _certificateDomains = null;
+        _dialogError = null;
+        _busy = true;
+        _operation = "load";
+        try
+        {
+            _certificateDomains = await NodesApi.GetCertificateDomainsAsync(node.NodeId);
+        }
+        catch (ApplicationServiceException)
+        {
+            _dialogError = "Could not load certificate domains. Close and reopen this node to try again.";
+        }
+        finally
+        {
+            _busy = false;
+            _operation = null;
+        }
     }
 
     private async Task SaveDomainAsync()
@@ -291,6 +434,8 @@
             return;
 
         _busy = true;
+        _operation = "save";
+        _dialogError = null;
         try
         {
             await NodesApi.UpdateDomainAsync(_editingNode.NodeId, _domainRequest.Domain);
@@ -299,13 +444,14 @@
         }
         catch (ApplicationServiceException exception)
         {
-            _error = exception.StatusCode == HttpStatusCode.Forbidden
+            _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to edit nodes."
                 : "Could not update the node domain.";
         }
         finally
         {
             _busy = false;
+            _operation = null;
         }
     }
 
@@ -315,6 +461,8 @@
             return;
 
         _busy = true;
+        _operation = "check";
+        _dialogError = null;
         try
         {
             if (_domainRequest.Domain != _editingNode.Domain)
@@ -326,11 +474,12 @@
         }
         catch (ApplicationServiceException)
         {
-            _error = "Could not check the node domain.";
+            _dialogError = "Could not check the node domain.";
         }
         finally
         {
             _busy = false;
+            _operation = null;
         }
     }
 

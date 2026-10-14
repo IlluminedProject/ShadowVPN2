@@ -1,8 +1,13 @@
 @page "/Account/Manage/GenerateRecoveryCodes"
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Recovery codes</PageTitle><h3>Recovery codes</h3>
+<PageTitle>Recovery codes</PageTitle>
+<h2>Recovery codes</h2>
+<p class="alert alert-warning" role="alert">Generating new recovery codes invalidates your existing recovery codes.</p>
 <form method="post" action="/api/account/2fa/recovery-codes">
     <AntiforgeryToken/>
-    <button class="btn btn-danger">Generate recovery codes</button>
+    <div class="form-actions">
+        <a class="btn btn-outline-secondary" href="/Account/Manage/TwoFactorAuthentication">Cancel</a>
+        <button type="submit" class="btn btn-danger">Generate recovery codes</button>
+    </div>
 </form>

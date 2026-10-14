@@ -1,9 +1,20 @@
-<header class="frontend-nav d-flex flex-wrap align-items-center justify-content-between gap-2">
-    <a class="text-white text-decoration-none" href="/"><strong>ShadowVPN2</strong></a>
-    <nav class="d-flex flex-wrap gap-2">
-        <a class="btn btn-sm btn-outline-light" href="/">Nodes</a>
-        <a class="btn btn-sm btn-outline-light" href="/clients">Clients</a>
-        <a class="btn btn-sm btn-outline-light" href="/admin/settings">Settings</a>
-        <a class="btn btn-sm btn-outline-light" href="/Account/Manage">Account / sign in</a>
+<header class="frontend-nav">
+    <a class="text-body text-decoration-none" href="/"><strong>ShadowVPN2</strong></a>
+    <nav class="actions" aria-label="Main navigation">
+        <AuthorizeView Policy="Nodes.View">
+            <NavLink class="btn btn-outline-secondary" href="/" Match="NavLinkMatch.All">Nodes</NavLink>
+        </AuthorizeView>
+        <AuthorizeView>
+            <Authorized>
+                <NavLink class="btn btn-outline-secondary" href="/clients">Clients</NavLink>
+                <AuthorizeView Policy="Settings.View" Context="settingsContext">
+                    <NavLink class="btn btn-outline-secondary" href="/admin/settings">Settings</NavLink>
+                </AuthorizeView>
+                <NavLink class="btn btn-outline-secondary" href="/Account/Manage">Account</NavLink>
+            </Authorized>
+            <NotAuthorized>
+                <a class="btn btn-outline-secondary" href="/Account/Login">Sign in</a>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </header>

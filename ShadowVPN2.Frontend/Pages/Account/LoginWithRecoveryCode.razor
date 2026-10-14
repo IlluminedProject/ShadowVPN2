@@ -8,20 +8,26 @@
 <h1 class="text-center mb-4 h3">Recovery code verification</h1>
 <p class="text-center mb-4 small">Enter one of your recovery codes to finish signing in.</p>
 
-@if (ErrorCode == "invalid")
-{
-    <div class="alert alert-danger" role="alert">Invalid recovery code.</div>
-}
 
 <form method="post" action="/api/auth/recovery-code">
     <AntiforgeryToken/>
     <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
-    <div class="form-floating mb-3">
-        <InputText name="RecoveryCode" id="RecoveryCode" class="form-control" autocomplete="off"
-                   placeholder="Recovery code" required @bind-Value="_model.RecoveryCode"/>
-        <label for="RecoveryCode">Recovery code</label>
+    @if (ErrorCode == "invalid")
+    {
+        <div id="recovery-code-error" class="alert alert-danger" role="alert">Invalid recovery code. Enter an unused
+            recovery code.
+        </div>
+    }
+    <div class="form-floating field">
+        <InputText name="RecoveryCode" id="RecoveryCode" class="form-control" autocomplete="off" spellcheck="false"
+                   placeholder="Recovery code" required aria-invalid="@(ErrorCode == "invalid" ? "true" : null)"
+                   aria-describedby="@(ErrorCode == "invalid" ? "recovery-code-error" : null)"
+                   @bind-Value="_model.RecoveryCode"/>
+        <label class="form-label" for="RecoveryCode">Recovery code</label>
     </div>
-    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+    <div class="form-actions">
+        <button type="submit" class="w-100 btn btn-primary">Log in</button>
+    </div>
 </form>
 
 @code {

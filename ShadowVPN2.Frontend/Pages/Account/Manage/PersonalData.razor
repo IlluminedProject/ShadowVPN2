@@ -1,6 +1,10 @@
 @page "/Account/Manage/PersonalData"
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Personal data</PageTitle><h3>Personal data</h3><p>Download or delete your account data.</p>
-<a class="btn btn-primary" href="/api/account/personal-data">Download</a> <a class="btn btn-danger"
-                                                                             href="/Account/Manage/DeletePersonalData">Delete</a>
+<PageTitle>Personal data</PageTitle>
+<h2>Personal data</h2>
+<p>Download or delete your account data.</p>
+<div class="actions">
+    <a class="btn btn-outline-secondary" href="/api/account/personal-data">Download</a>
+    <a class="btn btn-outline-danger" href="/Account/Manage/DeletePersonalData">Delete</a>
+</div>

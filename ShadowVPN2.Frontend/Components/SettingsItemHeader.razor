@@ -1,15 +1,19 @@
 <div class="settings-item-header">
     <div class="settings-item-accent bg-primary"></div>
-    <div class="d-flex flex-wrap align-items-center gap-3 p-3">
+    <div class="settings-item-heading">
         <div class="form-check form-switch mb-0">
-            <InputCheckbox class="form-check-input" aria-label="@($"Enable {Title}")" @bind-Value:get="Enabled"
-                           @bind-Value:set="EnabledChanged"/>
+            <InputCheckbox id="@_enabledId" class="form-check-input" @bind-Value:get="Enabled"
+                           @bind-Value:set="EnabledChanged" disabled="@Busy"/>
+            <label class="visually-hidden" for="@_enabledId">Enable @Title</label>
         </div>
-        <h2 class="h5 mb-0">@Title</h2>
-        <InputNumber class="form-control w-auto" aria-label="Listen port" @bind-Value:get="ListenPort"
-                     @bind-Value:set="ListenPortChanged"/>
+        <h2>@Title</h2>
+        <div class="settings-item-port">
+            <label class="visually-hidden" for="@_portId">Listen port for @Title</label>
+            <InputNumber id="@_portId" class="form-control form-control-sm" @bind-Value:get="ListenPort"
+                         @bind-Value:set="ListenPortChanged" disabled="@Busy"/>
+        </div>
         <button class="btn btn-sm btn-outline-danger ms-auto" type="button"
-                aria-label="Remove @Title" title="Remove @Title" @onclick="OnRemove">
+                aria-label="Remove @Title" title="Remove @Title" @onclick="OnRemove" disabled="@Busy">
             <span class="bi bi-trash" aria-hidden="true"></span>
         </button>
     </div>
@@ -22,4 +26,7 @@
     [Parameter] public bool Enabled { get; set; }
     [Parameter] public EventCallback<bool> EnabledChanged { get; set; }
     [Parameter] public EventCallback OnRemove { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    private readonly string _enabledId = $"enabled-{Guid.NewGuid():N}";
+    private readonly string _portId = $"port-{Guid.NewGuid():N}";
 }

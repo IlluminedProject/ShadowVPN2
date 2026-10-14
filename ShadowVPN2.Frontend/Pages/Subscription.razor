@@ -9,7 +9,8 @@
 <PageTitle>Connection setup - ShadowVPN2</PageTitle>
 
 <FrontendNav/>
-<main class="frontend-content">
+<div class="frontend-content">
+    <div class="page-header"><h1>@(_subscription?.ClientName ?? "Connection setup")</h1></div>
     @if (_loading)
     {
         <div class="d-flex align-items-center gap-2 text-secondary" role="status">
@@ -19,78 +20,112 @@
     }
     else if (_subscription is null)
     {
-        <h1>Invalid link</h1>
-        <div class="alert alert-danger">This subscription link is invalid or has been removed.</div>
+        <h2>Invalid link</h2>
+        <div class="alert alert-danger" role="alert">This subscription link is invalid or has been removed.</div>
     }
     else
     {
-        <h1>@_subscription.ClientName</h1>
         <section class="mb-4">
             <h2>Subscription URLs</h2>
-            <div class="d-flex flex-column gap-2">
+            <div class="app-list">
                 @foreach (var format in SubscriptionFormats)
                 {
-                    <div class="d-flex gap-2 align-items-center">
-                        <code class="text-break flex-grow-1">@CreateSubscriptionUrl(format.Key)</code>
-                        <button class="btn btn-outline-primary text-nowrap"
-                                @onclick="() => CopySubscriptionUrlAsync(format.Key)">
-                            @(CopiedKey == $"subscription:{format.Key}" ? "Copied" : format.Value)
-                        </button>
+                    var key = $"subscription:{format.Key}";
+                    <div class="app-list-item">
+                        <div class="flex-grow-1">
+                            <span class="d-block fw-semibold">@format.Key</span>
+                            <code class="text-break">@CreateSubscriptionUrl(format.Key)</code>
+                            @if (FeedbackKey == key)
+                            {
+                                <div class="app-status @(_copying ? "text-body-secondary" : CopyError is null ? "text-success" : "text-danger")"
+                                     role="@(CopyError is null ? "status" : "alert")">@(_copying ? "Copying…" : CopyError ?? "Copied to clipboard.")</div>
+                            }
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    @onclick="() => CopySubscriptionUrlAsync(format.Key)"
+                                    disabled="@_copying">@(_copying && FeedbackKey == key ? "Copying…" : format.Value)</button>
+                        </div>
                     </div>
                 }
             </div>
         </section>
+        <section class="mb-4">
         <h2>Available connection hosts</h2>
         @if (!_subscription.Protocols.Any())
         {
-            <p class="muted">No connection protocols are enabled for this client.</p>
+                <p class="text-body-secondary">No connection protocols are enabled for this client.</p>
         }
 
         @foreach (var protocol in _subscription.Protocols)
         {
             <h3>@protocol.Protocol</h3>
+                @if (protocol.Endpoints.Count == 0)
+                {
+                    <p class="text-body-secondary">No connection hosts are available for this protocol.</p>
+                }
             @foreach (var endpoint in protocol.Endpoints)
             {
-                <section class="endpoint">
-                    <div><strong>@endpoint.Name</strong> <span class="muted">@endpoint.Address</span></div>
-                    <div class="d-flex flex-wrap gap-2 mt-2">
+                    <section class="endpoint app-list-item">
+                        <div class="flex-grow-1">
+                            <h4 class="h6">@endpoint.Name</h4>
+                            <dl class="app-details mb-0">
+                                <dt>Address</dt>
+                                <dd class="font-monospace text-break">@endpoint.Address</dd>
+                            </dl>
+                            @if (FeedbackKey == ConnectionKey(protocol, endpoint) || endpoint.Transports.OfType<FreeTurnConnectionInfo>().Any(transport => FeedbackKey == $"{endpoint.Name}:{transport.Peer}"))
+                            {
+                                <div class="app-status @(_copying ? "text-body-secondary" : CopyError is null ? "text-success" : "text-danger")"
+                                     role="@(CopyError is null ? "status" : "alert")">@(_copying ? "Copying…" : CopyError ?? "Copied to clipboard.")</div>
+                            }
+                        </div>
+                        <div class="actions">
                         @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
                         {
-                            <a class="btn btn-outline-primary text-nowrap" href="@CreateConfigDataUrl(wireGuard)"
+                                <a class="btn btn-outline-secondary" href="@CreateConfigDataUrl(wireGuard)"
                                download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
                                 Download VPN config
                             </a>
                         }
-                        <button class="btn btn-outline-primary text-nowrap"
-                                @onclick="() => CopyConnectionAsync(protocol, endpoint)">
-                            @(CopiedKey == ConnectionKey(protocol, endpoint) ? "Copied" : "Copy connection")
-                        </button>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    @onclick="() => CopyConnectionAsync(protocol, endpoint)"
+                                    disabled="@_copying">@(_copying && FeedbackKey == ConnectionKey(protocol, endpoint) ? "Copying…" : "Copy connection")</button>
                         @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
                         {
-                            <button class="btn btn-outline-primary text-nowrap"
-                                    @onclick="() => CopyFreeTurnAsync(endpoint, transport)">Copy FreeTurn link
-                            </button>
+                                <button class="btn btn-outline-secondary" type="button"
+                                        @onclick="() => CopyFreeTurnAsync(endpoint, transport)"
+                                        disabled="@_copying">@(_copying && FeedbackKey == $"{endpoint.Name}:{transport.Peer}" ? "Copying…" : "Copy FreeTurn link")</button>
                         }
                     </div>
                 </section>
             }
         }
+        </section>
 
         @if (_servers.Count > 0)
         {
             <section>
                 <h2>Server latency</h2>
-                <p class="muted">Measured from your device.</p>
-                <button class="btn btn-outline-primary" @onclick="PingServersAsync" disabled="@_pinging">Check again
-                </button>
-                @foreach (var server in _servers)
-                {
-                    <p class="text-break">@server.Name — @server.Address — @PingText(server)</p>
-                }
+                <p class="text-body-secondary">Measured from your device.</p>
+                <div class="actions mb-3">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="PingServersAsync"
+                            disabled="@_pinging">@(_pinging ? "Checking…" : "Check again")</button>
+                </div>
+                <div class="app-list">
+                    @foreach (var server in _servers)
+                    {
+                        <div class="app-list-item">
+                            <div><span class="fw-semibold">@server.Name</span>
+                                <div class="font-monospace text-break">@server.Address</div>
+                            </div>
+                            <span class="app-status" role="status">@PingText(server)</span>
+                        </div>
+                    }
+                </div>
             </section>
         }
     }
-</main>
+</div>
 
 @code {
     [Parameter] public Guid SubscriptionId { get; set; }
@@ -99,7 +134,10 @@
     private bool _loading = true;
     private bool _pinging;
     private readonly List<ServerState> _servers = [];
-    private string? CopiedKey { get; set; }
+    private string? FeedbackKey { get; set; }
+    private string? CopyError { get; set; }
+    private int _copyVersion;
+    private bool _copying;
 
     private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
         new Dictionary<string, string>
@@ -118,7 +156,7 @@
             _subscription = await SubscriptionApi.GetSubscriptionAsync(SubscriptionId);
             BuildServerList();
         }
-        catch (Exception)
+        catch (ApplicationServiceException)
         {
             _subscription = null;
         }
@@ -164,7 +202,7 @@
                 server.Latency = await JsRuntime.InvokeAsync<int>("pingServer",
                         $"https://{server.Address}/api/node/status", 3000);
             }
-            catch (Exception)
+            catch (JSException)
             {
                 server.Latency = -1;
             }
@@ -214,8 +252,30 @@
 
     private async Task CopyAsync(string text, string key)
     {
-        await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
-        CopiedKey = key;
+        _copying = true;
+        var version = ++_copyVersion;
+        CopyError = null;
+        FeedbackKey = key;
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            _copying = false;
+            StateHasChanged();
+            await Task.Delay(2000);
+            if (_copyVersion == version) FeedbackKey = null;
+        }
+        catch (JSException)
+        {
+            if (_copyVersion == version)
+            {
+                CopyError = "Could not copy. Allow clipboard access and try again.";
+                _copying = false;
+            }
+        }
+        finally
+        {
+            if (_copyVersion == version) _copying = false;
+        }
     }
 
     private static string ConnectionKey(ProtocolSubscription protocol, SubscriptionEndpoint endpoint)

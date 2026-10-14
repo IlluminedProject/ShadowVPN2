@@ -1,11 +1,7 @@
 @inherits LayoutComponentBase
 
-<div class="d-flex align-items-center justify-content-center bg-light p-3" style="min-height: 100dvh;">
-    <div class="w-100" style="max-width: 500px;">
-        <div class="card shadow border-0 overflow-hidden">
-            <div class="card-body p-4 p-sm-5">
-                @Body
-            </div>
-        </div>
+<main class="app-shell app-shell--account">
+    <div class="app-shell__panel">
+        <GlobalErrorBoundary>@Body</GlobalErrorBoundary>
     </div>
-</div>
+</main>

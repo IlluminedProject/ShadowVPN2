@@ -1,8 +1,14 @@
 @page "/Account/Manage/Disable2fa"
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Disable two-factor authentication</PageTitle><h3>Disable two-factor authentication</h3>
+<PageTitle>Disable two-factor authentication</PageTitle>
+<h2>Disable two-factor authentication</h2>
+<p class="alert alert-warning" role="alert">Disabling two-factor authentication removes the authenticator-code
+    requirement when signing in. Your account will have less protection.</p>
 <form method="post" action="/api/account/2fa/disable">
     <AntiforgeryToken/>
-    <button class="btn btn-danger">Disable 2FA</button>
+    <div class="form-actions">
+        <a class="btn btn-outline-secondary" href="/Account/Manage/TwoFactorAuthentication">Cancel</a>
+        <button type="submit" class="btn btn-danger">Disable 2FA</button>
+    </div>
 </form>

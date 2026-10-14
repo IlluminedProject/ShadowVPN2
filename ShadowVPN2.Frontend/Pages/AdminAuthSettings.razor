@@ -6,89 +6,114 @@
 
 <PageTitle>Authorization settings - ShadowVPN2</PageTitle>
 
-<div>
-    <AdminSettingsNav/>
-    <h1>Authorization settings</h1>
-    @if (_loading)
-    {
-        <p class="muted">Loading settings…</p>
-    }
-    else if (!string.IsNullOrEmpty(_error))
-    {
-        <div class="alert alert-danger" role="alert">@_error</div>
-    }
-    else
-    {
-        <div class="settings-frame">
-            <div class="form-check form-switch mb-4">
-                <InputCheckbox class="form-check-input" @bind-Value="_request.EnableLocalLogin"/>
-                <label class="form-check-label h5">Enable local login</label>
+<AdminSettingsNav/>
+<div class="page-header"><h1>Authorization settings</h1></div>
+@if (_loading)
+{
+    <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
+                                                                    aria-hidden="true"></span> Loading settings…
+    </div>
+}
+else if (!_loaded)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+else
+{
+    <EditForm Model="_request" OnValidSubmit="SaveAsync" class="settings-frame">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <fieldset disabled="@_busy">
+            <legend class="visually-hidden">Authorization settings</legend>
+            <div class="form-check form-switch field">
+                <InputCheckbox id="enable-local-login" class="form-check-input"
+                               @bind-Value="_request.EnableLocalLogin"/>
+                <label class="form-check-label" for="enable-local-login">Enable local login</label>
             </div>
-            <div class="form-check form-switch mb-4">
-                <InputCheckbox class="form-check-input" @bind-Value="_request.SelfRegistrationEnabled"/>
-                <label class="form-check-label h5">Enable self-registration</label>
+            <div class="form-check form-switch field">
+                <InputCheckbox id="self-registration" class="form-check-input"
+                               @bind-Value="_request.SelfRegistrationEnabled"/>
+                <label class="form-check-label" for="self-registration">Enable self-registration</label>
             </div>
-            <div class="form-check form-switch mb-3">
-                <InputCheckbox class="form-check-input" @bind-Value="_request.EnableOidc"/>
-                <label class="form-check-label h5">Enable OpenID Connect</label>
+            <div class="form-check form-switch field">
+                <InputCheckbox id="enable-oidc" class="form-check-input" @bind-Value="_request.EnableOidc"/>
+                <label class="form-check-label" for="enable-oidc">Enable OpenID Connect</label>
             </div>
             @if (_request.EnableOidc)
             {
-                <div class="ms-4 p-3 border-start">
-                    <div class="mb-3">
+                <section class="mt-4">
+                    <h2>OpenID Connect provider</h2>
+                    <div class="field">
                         <label class="form-label" for="display-name">Display name</label>
                         <InputText id="display-name" class="form-control"
                                    @bind-Value="_request.OidcSettings!.DisplayName"/>
                     </div>
-                    <div class="form-check form-switch mb-3">
-                        <InputCheckbox class="form-check-input" @bind-Value="_request.OidcSettings!.DeviceFlowEnabled"/>
-                        <label class="form-check-label h5">Enable device flow</label>
+                    <div class="form-check form-switch field">
+                        <InputCheckbox id="device-flow" class="form-check-input"
+                                       @bind-Value="_request.OidcSettings!.DeviceFlowEnabled"/>
+                        <label class="form-check-label" for="device-flow">Enable device flow</label>
                     </div>
-                    <div class="mb-3">
+                    <div class="field">
                         <label class="form-label" for="authority">Issuer URL</label>
                         <InputText id="authority" type="url" class="form-control"
                                    @bind-Value="_request.OidcSettings!.Authority"/>
                     </div>
-                    <div class="mb-3">
+                    <div class="field">
                         <label class="form-label" for="client-id">Client ID</label>
                         <InputText id="client-id" class="form-control" @bind-Value="_request.OidcSettings!.ClientId"/>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="client-secret">Client secret (blank keeps the saved
-                            secret)</label>
-                        <InputText id="client-secret" type="password" class="form-control"
+                    <div class="field">
+                        <label class="form-label" for="client-secret">Client secret (optional)</label>
+                        <InputText id="client-secret" type="password" autocomplete="off" class="form-control"
+                                   aria-describedby="client-secret-hint"
                                    @bind-Value="_request.OidcSettings!.ClientSecret"/>
+                        <div id="client-secret-hint" class="form-text">Leave blank to keep the saved secret.</div>
                     </div>
-                    <div class="mb-3">
+                    <div class="field">
                         <label class="form-label" for="scopes">Scopes</label>
                         <InputText id="scopes" class="form-control" @bind-Value="_request.OidcSettings!.Scopes"/>
                     </div>
                     @if (!_request.OidcSettings.DeviceFlowEnabled)
                     {
-                        <p>Redirect URI: <code>@RedirectUri</code></p>
+                        <dl class="app-details">
+                            <dt>Redirect URI</dt>
+                            <dd><code class="text-break">@RedirectUri</code></dd>
+                        </dl>
                     }
-
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-outline-info" @onclick="TestOidcAsync" disabled="@_busy">Test provider
-                        </button>
+                    <div class="actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="TestOidcAsync"
+                                disabled="@_busy">@(_testing ? "Testing…" : "Test provider")</button>
                     </div>
-                </div>
+                    @if (_testMessage is not null)
+                    {
+                        <div class="alert @(_testSucceeded ? "alert-success" : "alert-danger") mt-3"
+                             role="@(_testSucceeded ? "status" : "alert")">@_testMessage</div>
+                    }
+                </section>
             }
-
-        </div>
-        <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">Save settings</button>
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status">@_message</p>
-    }
-</div>
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="alert alert-success app-status mt-3" role="status">@_message</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit"
+                        disabled="@_busy">@(_busy && !_testing ? "Saving…" : "Save settings")</button>
+            </div>
+        </fieldset>
+    </EditForm>
+}
 
 @code {
     private readonly UpdateAuthSettingsRequest _request = new() { OidcSettings = new OidcAuthSettings() };
     private bool _loading = true;
+    private bool _loaded;
+    private bool _testing;
+    private bool _testSucceeded;
+    private string? _testMessage;
     private bool _busy;
     private string? _error;
     private string? _message;
@@ -105,16 +130,13 @@
             _request.SelfRegistrationEnabled = response.SelfRegistrationEnabled;
             _request.EnableOidc = response.EnableOidc;
             _request.OidcSettings = response.OidcSettings ?? new OidcAuthSettings();
+            _loaded = true;
         }
         catch (ApplicationServiceException ex)
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
                 : "Could not load authorization settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
@@ -133,11 +155,14 @@
 
     private async Task TestOidcAsync()
     {
+        _testing = true;
+        _testMessage = null;
         await RunAsync(async () =>
         {
-            var success = await AdminApi.TestOidcAsync(_request.OidcSettings!.Authority);
-            _message = success ? "Connected to the OIDC discovery endpoint." : "OIDC discovery failed.";
+            _testSucceeded = await AdminApi.TestOidcAsync(_request.OidcSettings!.Authority);
+            _testMessage = _testSucceeded ? "Connected to the OIDC discovery endpoint." : "OIDC discovery failed. Check the issuer URL and try again.";
         });
+        _testing = false;
     }
 
     private async Task RunAsync(Func<Task> action)
@@ -154,10 +179,6 @@
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "The operation failed.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {

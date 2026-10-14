@@ -1,180 +1,208 @@
 @page "/setup"
-@using System.Net
-@using System.Net.Sockets
-@using RandomFriendlyNameGenerator
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout SetupLayout
 @inject ISetupApplicationService SetupApi
 @inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@using System.Net
+@using System.Net.Sockets
+@using RandomFriendlyNameGenerator
+@implements IAsyncDisposable
 
 <PageTitle>Initial setup - ShadowVPN2</PageTitle>
 
-<main>
-    <div class="progress mb-3" role="progressbar" aria-label="Setup progress">
-        <div class="progress-bar" style="width: @(_step * 33)%">Step @_step of 3</div>
+<div>
+    <div class="page-header">
+        <h1>Initial setup</h1>
+        <span class="text-body-secondary">Step @_step of 3</span>
     </div>
-
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div class="alert alert-danger" role="alert">@_error</div>
-    }
-
+    <div class="progress mb-4" role="progressbar" aria-label="Setup progress"
+         aria-valuenow="@(_step == 3 ? 100 : (_step - 1) * 50)" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar"
+             style="width: @(_step == 3 ? 100 : (_step - 1) * 50)%">@(_step == 3 ? 100 : (_step - 1) * 50)%
+        </div>
+    </div>
     @if (_step == 1)
     {
-        <h1>Network information</h1>
-        <p>Configure this node's name and optional public domain.</p>
-        <EditForm Model="_node" OnValidSubmit="SaveNodeAsync">
-        <DataAnnotationsValidator/>
-        <ValidationSummary/>
-        <div class="mb-3">
-            <label class="form-label" for="node-domain">Node address</label>
-            <div class="input-group">
-                <button class="btn btn-outline-secondary dropdown-toggle" type="button" @onclick="ToggleDropdown">
-                    Select
-                </button>
-                @if (_isDropdownOpen)
+        <section>
+            <h2>Network information</h2>
+            <p class="text-body-secondary">Configure this node's name and optional public domain.</p>
+            <EditForm Model="_node" OnValidSubmit="SaveNodeAsync">
+                <DataAnnotationsValidator/>
+                <ValidationSummary/>
+                @if (!string.IsNullOrWhiteSpace(_error))
                 {
-                    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1040;"
-                         @onclick="() => _isDropdownOpen = false"></div>
+                    <div class="alert alert-danger" role="alert">@_error</div>
                 }
-                <ul class="dropdown-menu @(_isDropdownOpen ? "show" : "")"
-                    style="@(_isDropdownOpen ? "display: block; position: absolute; margin-top: 40px; z-index: 1050;" : "display: none;")">
-                    <li>
-                        <button class="dropdown-item" type="button" @onclick="() => SelectAddress(_browserAddress)">
-                            Browser Hostname (@_browserAddress)
+                <div class="field">
+                    <label class="form-label" for="node-domain">Node address</label>
+                    <div class="input-group" id="setup-address-dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-dropdown-trigger
+                                aria-expanded="false" aria-controls="setup-address-options" disabled="@_busy">Select
+                            address
                         </button>
-                    </li>
-                    @if (_publicAddress is not null)
-                    {
-                        <li>
-                            <button class="dropdown-item" type="button" @onclick="() => SelectAddress(_publicAddress)">
-                                Public IP (@_publicAddress)
-                            </button>
-                        </li>
-                    }
-                    else
-                    {
-                        <li>
-                            <button class="dropdown-item disabled" type="button">Public IP (Loading...)</button>
-                        </li>
-                    }
-                </ul>
-                <InputHostName @key="_addressSelectionVersion" id="node-domain" class="form-control" @bind-Value="_node.Domain"
-                               @bind-Value:after="UpdateNodeNamePlaceholder" DisplayName="Node address"
-                               placeholder="e.g. vpn.mydomain.com or 203.0.113.1"/>
-                <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupIpAsync()"
-                        disabled="@_busy">
-                    @if (_busy)
-                    {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    }
-                    else
-                    {
-                        <span>Refresh IP</span>
-                    }
-                </button>
-            </div>
-            <ValidationMessage For="() => _node.Domain"/>
-            <div class="form-text">This address will be used by clients to connect. You can select from the dropdown or
-                enter a custom address.
-            </div>
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="node-name">Node name</label>
-            <div class="input-group">
-                <InputText id="node-name" class="form-control" @bind-Value="_node.NodeName"
-                           placeholder="@_nodeNamePlaceholder"/>
-                <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName">Random Name
-                </button>
-            </div>
-            <div class="form-text">A friendly name for this server in your cluster.</div>
-        </div>
-
-        <button class="btn btn-primary w-100" type="submit" disabled="@_busy">Continue</button>
-        </EditForm>
+                        <ul id="setup-address-options" class="dropdown-menu" data-dropdown-popup>
+                            <li>
+                                <button class="dropdown-item" type="button"
+                                        @onclick="() => SelectAddress(_browserAddress)">Browser hostname
+                                    (@_browserAddress)
+                                </button>
+                            </li>
+                            @if (_publicAddress is not null)
+                            {
+                                <li>
+                                    <button class="dropdown-item" type="button"
+                                            @onclick="() => SelectAddress(_publicAddress)">Public IP (@_publicAddress)
+                                    </button>
+                                </li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <button class="dropdown-item" type="button" disabled>Public IP
+                                        (@(_refreshing ? "loading…" : "unavailable"))
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                        <InputHostName @key="_addressSelectionVersion" id="node-domain" class="form-control"
+                                       @bind-Value="_node.Domain" @bind-Value:after="UpdateNodeNamePlaceholder"
+                                       DisplayName="Node address" aria-describedby="node-domain-hint node-domain-error"
+                                       placeholder="e.g. vpn.mydomain.com or 203.0.113.1" disabled="@_busy"/>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => LookupIpAsync()"
+                                disabled="@_busy">@(_refreshing ? "Refreshing…" : "Refresh IP")</button>
+                    </div>
+                    <div id="node-domain-hint" class="form-text">This address will be used by clients to connect. Choose
+                        an address or enter a custom value.
+                    </div>
+                    <div id="node-domain-error">
+                        <ValidationMessage For="() => _node.Domain"/>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="node-name">Node name</label>
+                    <div class="input-group">
+                        <InputText id="node-name" class="form-control" @bind-Value="_node.NodeName"
+                                   placeholder="@_nodeNamePlaceholder" disabled="@_busy"
+                                   aria-describedby="node-name-hint"/>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="GenerateRandomNodeName"
+                                disabled="@_busy">Random name
+                        </button>
+                    </div>
+                    <div id="node-name-hint" class="form-text">A friendly name for this server in your cluster.</div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="submit"
+                            disabled="@_busy">@(_busy && !_refreshing ? "Saving…" : "Continue")</button>
+                </div>
+            </EditForm>
+        </section>
     }
     else if (_step == 2)
     {
-        <h1>Authentication</h1>
-        <p>Choose local administrator login or an OpenID Connect provider.</p>
-        <ul class="nav nav-tabs mb-3">
-            <li class="nav-item">
+        <section>
+            <h2>Authentication</h2>
+            <p class="text-body-secondary">Choose local administrator login or an OpenID Connect provider.</p>
+            <div class="nav nav-tabs mb-4" aria-label="Authentication method">
                 <button class="nav-link @(!_useOidc ? "active" : "")" type="button"
-                        @onclick="() => _useOidc = false">
+                        aria-current="@(!_useOidc ? "true" : null)" disabled="@_busy" @onclick="() => _useOidc = false">
                     Local login
                 </button>
-            </li>
-            <li class="nav-item">
                 <button class="nav-link @(_useOidc ? "active" : "")" type="button"
-                        @onclick="() => _useOidc = true">
+                        aria-current="@(_useOidc ? "true" : null)" disabled="@_busy" @onclick="() => _useOidc = true">
                     OpenID Connect
                 </button>
-            </li>
-        </ul>
-
-        @if (!_useOidc)
-        {
-            <div class="mb-3">
-                <label class="form-label" for="email">Administrator email</label>
-                <InputText id="email" type="email" class="form-control" @bind-Value="_localAuth.Email"/>
             </div>
-            <div class="mb-3">
-                <label class="form-label" for="password">Password</label>
-                <InputText id="password" type="password" class="form-control" @bind-Value="_localAuth.Password"/>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="confirm-password">Confirm password</label>
-                <InputText id="confirm-password" type="password" class="form-control" @bind-Value="_confirmPassword"/>
-            </div>
-        }
-        else
-        {
-            <div class="mb-3">
-                <label class="form-label" for="oidc-name">Provider display name</label>
-                <InputText id="oidc-name" class="form-control" @bind-Value="_oidc.DisplayName"/>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="authority">Issuer URL</label>
-                <InputText id="authority" type="url" class="form-control" @bind-Value="_oidc.Authority"/>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="client-id">Client ID</label>
-                <InputText id="client-id" class="form-control" @bind-Value="_oidc.ClientId"/>
-            </div>
-            <div class="mb-3">
-                <label class="form-label" for="client-secret">Client secret</label>
-                <InputText id="client-secret" type="password" class="form-control" @bind-Value="_oidc.ClientSecret"/>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Redirect URI</label>
-                <p class="form-control-plaintext"><code>@Navigation.ToAbsoluteUri("/signin-OIDC")</code></p>
-            </div>
-            <div class="mb-3">
-                <button class="btn btn-outline-info" type="button" @onclick="TestOidcAsync" disabled="@_busy">Test
-                    provider
-                </button>
-            </div>
-            @if (_oidcTestResult is not null)
-            {
-                <p class="@(_oidcTestResult.Value ? "success" : "error")">@_oidcTestMessage</p>
-            }
-        }
-
-        <div class="d-flex gap-2 mt-3">
-            <button class="btn btn-secondary" @onclick="() => _step = 1" disabled="@_busy">Back</button>
-            <button class="btn btn-primary" @onclick="SaveAuthenticationAsync" disabled="@_busy">Continue</button>
-        </div>
+            <EditForm Model="@(_useOidc ? _oidc : _localAuth)" OnValidSubmit="SaveAuthenticationAsync">
+                <DataAnnotationsValidator/>
+                <ValidationSummary/>
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger" role="alert">@_error</div>
+                }
+                <fieldset disabled="@_busy">
+                    <legend class="visually-hidden">Administrator authentication</legend>
+                    @if (!_useOidc)
+                    {
+                        <div class="field"><label class="form-label" for="email">Administrator email</label>
+                            <InputText id="email" type="email" autocomplete="email" class="form-control"
+                                       @bind-Value="_localAuth.Email"/>
+                        </div>
+                        <div class="field"><label class="form-label" for="password">Password</label>
+                            <InputText id="password" type="password" autocomplete="new-password" class="form-control"
+                                       @bind-Value="_localAuth.Password"/>
+                        </div>
+                        <div class="field">
+                            <label class="form-label" for="confirm-password">Confirm password</label>
+                            <InputText id="confirm-password" type="password" autocomplete="new-password"
+                                       class="form-control" @bind-Value="_confirmPassword"
+                                       aria-describedby="confirm-password-error"
+                                       aria-invalid="@(_passwordMismatch ? "true" : "false")"/>
+                            @if (_passwordMismatch)
+                            {
+                                <div id="confirm-password-error" class="text-danger small mt-1">Passwords do not match.
+                                    Enter the same password in both fields.
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="field"><label class="form-label" for="oidc-name">Provider display name</label>
+                            <InputText id="oidc-name" class="form-control" @bind-Value="_oidc.DisplayName"/>
+                        </div>
+                        <div class="field"><label class="form-label" for="authority">Issuer URL</label>
+                            <InputText id="authority" type="url" class="form-control" @bind-Value="_oidc.Authority"/>
+                        </div>
+                        <div class="field"><label class="form-label" for="client-id">Client ID</label>
+                            <InputText id="client-id" class="form-control" @bind-Value="_oidc.ClientId"/>
+                        </div>
+                        <div class="field"><label class="form-label" for="client-secret">Client secret</label>
+                            <InputText id="client-secret" type="password" autocomplete="off" class="form-control"
+                                       @bind-Value="_oidc.ClientSecret"/>
+                        </div>
+                        <dl class="app-details field">
+                            <dt>Redirect URI</dt>
+                            <dd><code class="text-break">@Navigation.ToAbsoluteUri("/signin-OIDC")</code></dd>
+                        </dl>
+                        <div class="actions">
+                            <button class="btn btn-outline-secondary" type="button" @onclick="TestOidcAsync"
+                                    disabled="@_busy">@(_testing ? "Testing…" : "Test provider")</button>
+                        </div>
+                        @if (_oidcTestResult is not null)
+                        {
+                            <div class="alert @(_oidcTestResult.Value ? "alert-success" : "alert-danger") mt-3"
+                                 role="@(_oidcTestResult.Value ? "status" : "alert")">@_oidcTestMessage</div>
+                        }
+                    }
+                    <div class="form-actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="() => _step = 1"
+                                disabled="@_busy">Back
+                        </button>
+                        <button class="btn btn-primary" type="submit"
+                                disabled="@_busy">@(_busy && !_testing ? "Saving…" : "Continue")</button>
+                    </div>
+                </fieldset>
+            </EditForm>
+        </section>
     }
     else
     {
-        <h1>Finish setup</h1>
-        <p>Your node and administrator login are configured.</p>
-        <button class="btn btn-danger btn-lg" @onclick="FinishAsync" disabled="@_busy">
-            Finish setup
-        </button>
+        <section>
+            <h2>Finish setup</h2>
+            <p class="text-body-secondary">Your node and administrator login are configured.</p>
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger" role="alert">@_error</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" type="button" @onclick="FinishAsync"
+                        disabled="@_busy">@(_busy ? "Finishing…" : "Finish setup")</button>
+            </div>
+        </section>
     }
-</main>
+</div>
 
 @code {
     private int _step = 1;
@@ -184,7 +212,10 @@
     private HostName _browserAddress;
     private int _addressSelectionVersion;
     private string _nodeNamePlaceholder = "primary-node";
-    private bool _isDropdownOpen;
+    private IJSObjectReference? _dropdownModule;
+    private bool _testing;
+    private bool _refreshing;
+    private bool _passwordMismatch;
     private string? _error;
     private bool? _oidcTestResult;
     private string? _oidcTestMessage;
@@ -202,15 +233,34 @@
         await LookupIpAsync(false);
     }
 
-    private void ToggleDropdown()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _isDropdownOpen = !_isDropdownOpen;
+        if (_step != 1)
+        {
+            if (_dropdownModule is not null) await _dropdownModule.InvokeVoidAsync("dispose", "setup-address-dropdown");
+            return;
+        }
+
+        _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/dropdown.js");
+        await _dropdownModule.InvokeVoidAsync("initialize", "setup-address-dropdown");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dropdownModule is null) return;
+        try
+        {
+            await _dropdownModule.InvokeVoidAsync("dispose", "setup-address-dropdown");
+            await _dropdownModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void SelectAddress(HostName? address)
     {
         SetNodeAddress(address);
-        _isDropdownOpen = false;
     }
 
     private void SetNodeAddress(HostName? address)
@@ -252,6 +302,7 @@
     private async Task LookupIpAsync(bool manualRefresh = true)
     {
         _busy = true;
+        _refreshing = true;
         _error = null;
         try
         {
@@ -260,13 +311,14 @@
                 && _publicAddress is not null)
                 SetNodeAddress(_publicAddress);
         }
-        catch (Exception ex)
+        catch (ApplicationServiceException)
         {
-            _error = ex.Message;
+            _error = "Could not look up the public IP. Enter an address or try refreshing again.";
         }
         finally
         {
             _busy = false;
+            _refreshing = false;
         }
     }
 
@@ -308,9 +360,10 @@
 
     private async Task SaveAuthenticationAsync()
     {
+        _passwordMismatch = false;
         if (!_useOidc && _localAuth.Password != _confirmPassword)
         {
-            _error = "Passwords do not match.";
+            _passwordMismatch = true;
             return;
         }
 
@@ -326,6 +379,8 @@
 
     private async Task TestOidcAsync()
     {
+        _testing = true;
+        _oidcTestResult = null;
         await RunAsync(async () =>
         {
             _oidcTestResult = await SetupApi.TestOidcConnectionAsync(_oidc.Authority);
@@ -333,6 +388,7 @@
                 ? "Connected to the OIDC discovery endpoint."
                 : "Could not connect to the OIDC discovery endpoint.";
         });
+        _testing = false;
     }
 
     private async Task FinishAsync()
@@ -352,9 +408,9 @@
         {
             await action();
         }
-        catch (Exception ex)
+        catch (ApplicationServiceException)
         {
-            _error = ex.Message;
+            _error = "Could not complete setup. Check the entered settings and try again.";
         }
         finally
         {

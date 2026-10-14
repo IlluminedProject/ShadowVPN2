@@ -1,0 +1,39 @@
+<AppDialog Title="@Title" OnClose="OnCancel" Busy="Busy">
+    <ChildContent>
+        <div class="app-dialog__body">
+            <p class="mb-0">@Message</p>
+            @if (!string.IsNullOrEmpty(Error))
+            {
+                <div class="alert alert-danger mt-3 mb-0" role="alert">@Error</div>
+            }
+        </div>
+        <footer class="app-dialog__footer">
+            <div class="actions ms-auto">
+                <button type="button" class="btn btn-outline-secondary" autofocus disabled="@Busy" @onclick="OnCancel">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" disabled="@Busy" @onclick="OnConfirm">
+                    @if (Busy)
+                    {
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        <span>Processing…</span>
+                    }
+                    else
+                    {
+                        @ConfirmText
+                    }
+                </button>
+            </div>
+        </footer>
+    </ChildContent>
+</AppDialog>
+
+@code {
+    [Parameter][EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter][EditorRequired] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmText { get; set; } = "Delete";
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool Busy { get; set; }
+}

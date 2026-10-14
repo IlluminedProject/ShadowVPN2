@@ -9,12 +9,16 @@
 <PageTitle>Client settings - ShadowVPN2</PageTitle>
 
 <div>
-    <p><a class="btn btn-link ps-0" href="/clients">← VPN clients</a></p>
-    <h1>Client settings</h1>
+    <div class="page-header">
+        <h1>Client settings</h1>
+        <div class="actions"><a class="btn btn-outline-secondary" href="/clients">Back to VPN clients</a></div>
+    </div>
 
     @if (_loading)
     {
-        <p class="muted">Loading client…</p>
+        <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
+                                                                        aria-hidden="true"></span> Loading client…
+        </div>
     }
     else if (!_authenticated)
     {
@@ -23,51 +27,66 @@
     }
     else if (_client is null)
     {
-        <div class="alert alert-danger">Client not found or access denied.</div>
+        <div class="alert alert-danger" role="alert">Client not found or access denied.</div>
     }
     else
     {
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <div class="alert alert-danger" role="alert">@_error</div>
-        }
-
-        @if (!string.IsNullOrEmpty(_message))
-        {
-            <p role="status">@_message</p>
-        }
-
-        <EditForm Model="_form" OnValidSubmit="SaveAsync">
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="settings-frame">
             <DataAnnotationsValidator/>
-            <div class="mb-3">
-                <label for="client-name">Device name</label>
-                <InputText id="client-name" class="form-control" @bind-Value="_form.Name"/>
-                <ValidationMessage For="() => _form.Name"/>
-            </div>
-            <div class="form-check form-switch mb-3">
-                <InputCheckbox id="client-enabled" class="form-check-input" @bind-Value="_form.IsEnabled"/>
-                <label class="form-check-label" for="client-enabled">Enabled</label>
-            </div>
-            <div class="mb-3">
-                <label for="client-mtu">WireGuard MTU</label>
-                <InputNumber id="client-mtu" class="form-control" @bind-Value="_form.WireGuardMtu"/>
-                <ValidationMessage For="() => _form.WireGuardMtu"/>
-            </div>
-            <button class="btn btn-primary" type="submit" disabled="@_saving">Save</button>
+            <ValidationSummary/>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="alert alert-danger" role="alert">@_error</div>
+            }
+            <fieldset disabled="@_saving">
+                <legend class="visually-hidden">Client settings</legend>
+                <div class="field">
+                    <label class="form-label" for="client-name">Device name</label>
+                    <InputText id="client-name" class="form-control" @bind-Value="_form.Name"
+                               aria-describedby="client-name-error"/>
+                    <div id="client-name-error">
+                        <ValidationMessage For="() => _form.Name"/>
+                    </div>
+                </div>
+                <div class="form-check form-switch field">
+                    <InputCheckbox id="client-enabled" class="form-check-input" @bind-Value="_form.IsEnabled"/>
+                    <label class="form-check-label" for="client-enabled">Enabled</label>
+                </div>
+                <div class="field">
+                    <label class="form-label" for="client-mtu">WireGuard MTU (bytes, optional)</label>
+                    <InputNumber id="client-mtu" class="form-control" inputmode="numeric"
+                                 @bind-Value="_form.WireGuardMtu" aria-describedby="client-mtu-hint client-mtu-error"/>
+                    <div id="client-mtu-hint" class="form-text">Enter a value from 576 to 9000 bytes, or leave blank to
+                        use the default.
+                    </div>
+                    <div id="client-mtu-error">
+                        <ValidationMessage For="() => _form.WireGuardMtu"/>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(_message))
+                {
+                    <div class="alert alert-success app-status" role="status">@_message</div>
+                }
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="submit"
+                            disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+                </div>
+            </fieldset>
         </EditForm>
 
-        <section>
+        <section class="mt-4">
             <h2>Connection details</h2>
-            <dl>
+            <dl class="app-details">
                 <dt>Assigned IP</dt>
-                <dd>@_client.AssignedIp</dd>
+                <dd class="font-monospace text-break">@_client.AssignedIp</dd>
                 <dt>Subscription</dt>
-                <dd><a class="btn btn-outline-info" href="/s/@_client.SubscriptionId" target="_blank">Open
+                <dd><a class="btn btn-outline-secondary" href="/s/@_client.SubscriptionId" target="_blank"
+                       rel="noopener">Open
                         subscription</a></dd>
                 @if (_client.Hysteria2 is not null)
                 {
                     <dt>Hysteria2 password</dt>
-                    <dd><code>@_client.Hysteria2.Password</code></dd>
+                    <dd><code class="text-break">@_client.Hysteria2.Password</code></dd>
                 }
             </dl>
         </section>

@@ -1,8 +1,16 @@
 @page "/Account/Manage/ResetAuthenticator"
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Reset authenticator</PageTitle><h3>Reset authenticator key</h3>
-<form method="post" action="/api/account/2fa/reset">
-    <AntiforgeryToken/>
-    <button class="btn btn-danger">Reset authenticator key</button>
-</form>
+<PageTitle>Reset authenticator</PageTitle>
+<h2>Reset authenticator key</h2>
+<section>
+    <p class="alert alert-warning" role="alert">Resetting the key will invalidate the current authenticator setup.
+        Configure a new authenticator afterward.</p>
+    <form method="post" action="/api/account/2fa/reset">
+        <AntiforgeryToken/>
+        <div class="form-actions">
+            <a class="btn btn-outline-secondary" href="/Account/Manage/TwoFactorAuthentication">Cancel</a>
+            <button type="submit" class="btn btn-danger">Reset authenticator key</button>
+        </div>
+    </form>
+</section>

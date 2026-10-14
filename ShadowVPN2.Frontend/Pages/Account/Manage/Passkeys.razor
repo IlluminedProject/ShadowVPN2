@@ -1,32 +1,96 @@
 @page "/Account/Manage/Passkeys"
+@using System.Text.Json
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Passkeys</PageTitle><h3>Manage your passkeys</h3>
-@if (_keys is not null)
+<PageTitle>Passkeys</PageTitle>
+<h2>Manage your passkeys</h2>
+<StatusMessage Message="@Message"/>
+@if (_loadError is not null)
 {
-    @foreach (var key in _keys)
+    <div class="alert alert-danger" role="alert">@_loadError</div>
+}
+else if (_keys is null)
+{
+    <div class="app-status" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        Loading passkeys...
+    </div>
+}
+else
+{
+    @if (_keys.Count == 0)
     {
-        <div class="d-flex gap-2 mb-2"><span>@(key.Name ?? "Unnamed passkey")</span>
+        <p class="text-body-secondary">No passkeys are configured. Add a passkey to sign in using your device.</p>
+    }
+    else
+    {
+        <div class="app-list">
+            @foreach (var key in _keys)
+            {
+                <div class="app-list-item">
+                    <span class="text-break">@(key.Name ?? "Unnamed passkey")</span>
+                    <div class="actions">
+                        <a class="btn btn-outline-secondary" href="/Account/Manage/RenamePasskey/@key.Id">Rename</a>
+                        <button type="button" class="btn btn-outline-danger" @onclick="() => _deleteKey = key">Delete
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <form method="post" action="/api/auth/passkey/register" class="form-actions">
+        <AntiforgeryToken/>
+        <button type="submit" data-passkey-register class="btn btn-primary">Add a new passkey</button>
+    </form>
+}
+@if (_deleteKey is not null)
+{
+    <AppDialog Title="Delete passkey" OnClose="CancelDelete">
+        <ChildContent>
             <form method="post" action="/api/account/passkeys/delete">
                 <AntiforgeryToken/>
-                <input type="hidden" name="Id" value="@key.Id"/>
-                <button class="btn btn-sm btn-danger">Delete</button>
+                <input type="hidden" name="Id" value="@_deleteKey.Id"/>
+                <div class="app-dialog__body">
+                    <p class="text-break mb-0">Delete “@(_deleteKey.Name ?? "Unnamed passkey")”? You will no longer be
+                        able to use this passkey to sign in.</p>
+                </div>
+                <div class="app-dialog__footer">
+                    <div class="actions ms-auto">
+                        <button type="button" class="btn btn-outline-secondary" autofocus @onclick="CancelDelete">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-danger">Delete passkey</button>
+                    </div>
+                </div>
             </form>
-            <a class="btn btn-sm btn-primary" href="/Account/Manage/RenamePasskey/@key.Id">Rename</a></div>
-    }
+        </ChildContent>
+    </AppDialog>
 }
-<form method="post" action="/api/auth/passkey/register" class="mt-3">
-    <AntiforgeryToken/>
-    <button data-passkey-register class="btn btn-primary">Add a new passkey</button>
-</form>
 
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private ILogger<Passkeys> Logger { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? Message { get; set; }
     private IReadOnlyList<PasskeyResponse>? _keys;
+    private PasskeyResponse? _deleteKey;
+    private string? _loadError;
+
+    private void CancelDelete()
+    {
+        _deleteKey = null;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        _keys = await Http.GetFromJsonAsync<IReadOnlyList<PasskeyResponse>>("/api/account/passkeys");
+        try
+        {
+            _keys = await Http.GetFromJsonAsync<IReadOnlyList<PasskeyResponse>>("/api/account/passkeys");
+            if (_keys is null) _loadError = "Passkeys could not be loaded. Reload the page to try again.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            Logger.LogError(exception, "Unable to load passkeys");
+            _loadError = "Passkeys could not be loaded. Reload the page to try again.";
+        }
     }
-
 }

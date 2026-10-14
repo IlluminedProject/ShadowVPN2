@@ -8,26 +8,33 @@
 <h1 class="text-center mb-4 h3">Two-factor authentication</h1>
 <p class="text-center mb-4">Enter your authenticator code below.</p>
 
-@if (ErrorCode == "invalid")
-{
-    <div class="alert alert-danger" role="alert">Invalid authenticator code.</div>
-}
 
 <form method="post" action="/api/auth/2fa">
     <AntiforgeryToken/>
     <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
     <input type="hidden" name="RememberMe" value="@RememberMe"/>
-    <div class="form-floating mb-3">
+    @if (ErrorCode == "invalid")
+    {
+        <div id="two-factor-error" class="alert alert-danger" role="alert">Invalid authenticator code. Enter a current
+            code from your authenticator app.
+        </div>
+    }
+    <div class="form-floating field">
         <InputText name="TwoFactorCode" id="TwoFactorCode" class="form-control" autocomplete="one-time-code"
-                   required minlength="6" maxlength="7" @bind-Value="_model.TwoFactorCode"/>
-        <label for="TwoFactorCode">Authenticator code</label>
+                   inputmode="numeric" placeholder="123456"
+                   required minlength="6" maxlength="7" aria-invalid="@(ErrorCode == "invalid" ? "true" : null)"
+                   aria-describedby="@(ErrorCode == "invalid" ? "two-factor-error" : null)"
+                   @bind-Value="_model.TwoFactorCode"/>
+        <label class="form-label" for="TwoFactorCode">Authenticator code</label>
     </div>
-    <div class="form-check mb-3">
+    <div class="form-check field">
         <InputCheckbox id="RememberMachine" @bind-Value="_model.RememberMachine" name="RememberMachine"
                        class="form-check-input"/>
         <label class="form-check-label" for="RememberMachine">Remember this machine</label>
     </div>
-    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+    <div class="form-actions">
+        <button type="submit" class="w-100 btn btn-primary">Log in</button>
+    </div>
 </form>
 
 <p class="text-center mt-4 mb-0">

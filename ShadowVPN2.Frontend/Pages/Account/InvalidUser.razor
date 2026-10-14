@@ -1,7 +1,10 @@
-﻿@page "/Account/InvalidUser"
+@page "/Account/InvalidUser"
+@layout AccountLayout
+@attribute [AllowAnonymous]
 
 <PageTitle>Invalid user</PageTitle>
-
-<h3>Invalid user</h3>
-
-<StatusMessage/>
+<h1 class="text-center mb-4">Invalid user</h1>
+<StatusMessage Severity="StatusMessage.StatusSeverity.Error"/>
+<div class="actions justify-content-center">
+    <a class="btn btn-outline-secondary" href="/Account/Login">Back to login</a>
+</div>

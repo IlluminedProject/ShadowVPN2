@@ -1,12 +1,22 @@
 @page "/Account/Manage/DeletePersonalData"
 @layout ManageLayout
 @attribute [Authorize]
-<PageTitle>Delete personal data</PageTitle><h3>Delete personal data</h3><p>This permanently removes your account.</p>
+<PageTitle>Delete personal data</PageTitle>
+<h2>Delete personal data</h2>
+<p class="alert alert-warning" role="alert">This permanently removes your account and personal data. This action cannot
+    be undone.</p>
 <form method="post" action="/api/account/delete">
     <AntiforgeryToken/>
-    <InputText class="form-control mb-2" name="Password" type="password" placeholder="Password (if required)"
-               @bind-Value="_password"/>
-    <button class="btn btn-danger">Delete account</button>
+    <div class="field">
+        <label class="form-label" for="delete-password">Password (if your account has a password)</label>
+        <InputText id="delete-password" class="form-control" name="Password" type="password"
+                   autocomplete="current-password" aria-describedby="delete-password-help" @bind-Value="_password"/>
+        <div id="delete-password-help" class="form-text">Enter your current password if required by your account.</div>
+    </div>
+    <div class="form-actions">
+        <a class="btn btn-outline-secondary" href="/Account/Manage/PersonalData">Cancel</a>
+        <button type="submit" class="btn btn-danger">Delete account</button>
+    </div>
 </form>
 
 @code {

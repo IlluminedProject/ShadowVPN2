@@ -11,7 +11,7 @@ else
     <div class="alert alert-danger" role="alert">
         <h1 class="h4">Something went wrong</h1>
         <p>The operation could not be completed. Try again or reload the page.</p>
-        <button class="btn btn-outline-danger" @onclick="Recover">Try again</button>
+        <button type="button" class="btn btn-outline-secondary" @onclick="Recover">Try again</button>
 
         @if (Environment.EnvironmentName == Environments.Development)
         {

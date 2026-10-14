@@ -8,98 +8,99 @@
 
 <div>
     <AdminSettingsNav/>
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div class="page-header">
         <div>
             <h1>Transport settings</h1>
-            <p class="muted">Configure FreeTurn transport overlays for the enabled protocols.</p>
+            <p class="text-body-secondary mb-0">Configure FreeTurn transport overlays for the enabled protocols.</p>
         </div>
-        <button class="btn btn-outline-primary" @onclick="AddFreeTurn" disabled="@(_request.Protocols.Count == 0)">
+        <button class="btn btn-outline-secondary" type="button" @onclick="AddFreeTurn" disabled="@(_loading || !_loaded || _saving || _request.Protocols.Count == 0)">
             Add FreeTurn
         </button>
     </div>
 
     @if (_loading)
     {
-        <p class="muted">Loading transport settings…</p>
+        <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading transport settings…</div>
     }
-    else if (!string.IsNullOrEmpty(_error))
+    else if (!_loaded)
     {
         <div class="alert alert-danger" role="alert">@_error</div>
     }
     else
     {
-        <div class="settings-frame">
+        <EditForm Model="_request" OnValidSubmit="SaveAsync" class="settings-frame">
+        <DataAnnotationsValidator/><ValidationSummary/>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <fieldset disabled="@_saving">
+            <legend class="visually-hidden">Transport settings</legend>
             @if (_request.Transports.Count == 0)
             {
-                <div class="alert alert-secondary mb-0">No transport overlays configured.</div>
+                <p class="text-body-secondary">No transport overlays configured. @(_request.Protocols.Count == 0 ? "Configure a protocol before adding a transport." : "Use Add FreeTurn to configure a transport.")</p>
             }
             @foreach (var transport in _request.Transports.OfType<FreeTurnTransportSettingsDto>().ToArray())
             {
-                <div class="settings-item">
+                <section @key="transport" class="settings-item">
                     <SettingsItemHeader Title="FreeTurn"
                                          @bind-ListenPort="transport.ListenPort"
                                          @bind-Enabled="transport.Enabled"
-                                         OnRemove="() => _request.Transports.Remove(transport)"/>
-                    <div class="settings-item-body border border-top-0 rounded-bottom p-3">
-                    <div class="row g-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label">Protocol
-                                <InputSelect class="form-select" @bind-Value="transport.ProtocolId">
+                                         Busy="_saving" OnRemove="() => RequestRemoveTransport(transport)"/>
+                    <div class="settings-item-body">
+                        <div class="settings-grid">
+                            <div>
+                                <label class="form-label" for="@($"transport-{transport.Id}-protocol")">Protocol</label>
+                                <InputSelect id="@($"transport-{transport.Id}-protocol")" class="form-select" @bind-Value="transport.ProtocolId">
                                     @foreach (var protocol in _request.Protocols)
                                     {
                                         <option value="@protocol.Id">@ProtocolOptionName(protocol)</option>
                                     }
                                 </InputSelect>
-                            </label>
-                        </div>
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label">Obfuscation
-                                <InputSelect class="form-select" @bind-Value="transport.ObfuscationProfile">
-                                    <option value="">Disabled</option>
-                                    <option value="RtpOpus">RTP/Opus</option>
-                                    <option value="RtpOpus2">RTP/Opus 2</option>
-                                    <option value="RtpOpus3">RTP/Opus 3</option>
+                            </div>
+                            <div>
+                                <label class="form-label" for="@($"transport-{transport.Id}-obfuscation")">Obfuscation</label>
+                                <InputSelect id="@($"transport-{transport.Id}-obfuscation")" class="form-select" @bind-Value="transport.ObfuscationProfile">
+                                    <option value="">Disabled</option><option value="RtpOpus">RTP/Opus</option><option value="RtpOpus2">RTP/Opus 2</option><option value="RtpOpus3">RTP/Opus 3</option>
                                 </InputSelect>
-                            </label>
+                            </div>
+                            <div>
+                                <label class="form-label" for="@($"transport-{transport.Id}-turn")">TURN transport</label>
+                                <InputSelect id="@($"transport-{transport.Id}-turn")" class="form-select" @bind-Value="transport.TurnTransport"><option value="Tcp">TCP/TLS</option><option value="Udp">UDP</option></InputSelect>
+                            </div>
+                            <div>
+                                <label class="form-label" for="@($"transport-{transport.Id}-streams")">Streams</label>
+                                <InputNumber id="@($"transport-{transport.Id}-streams")" class="form-control" inputmode="numeric" @bind-Value="transport.Streams"/>
+                            </div>
                         </div>
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label">TURN transport
-                                <InputSelect class="form-select" @bind-Value="transport.TurnTransport">
-                                    <option value="Tcp">TCP/TLS</option>
-                                    <option value="Udp">UDP</option>
-                                </InputSelect>
-                            </label>
-                        </div>
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label">Streams
-                                <InputNumber class="form-control" @bind-Value="transport.Streams"/>
-                            </label>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Obfuscation key
-                                <InputText class="form-control font-monospace" @bind-Value="transport.ObfuscationKey"/>
-                            </label>
+                        <div class="field mt-3">
+                            <label class="form-label" for="@($"transport-{transport.Id}-key")">Obfuscation key</label>
+                            <InputText id="@($"transport-{transport.Id}-key")" class="form-control font-monospace" @bind-Value="transport.ObfuscationKey"/>
                         </div>
                     </div>
-                    </div>
-                </div>
+                </section>
             }
-        </div>
-        <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Save settings</button>
-        </div>
-    }
-
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <div class="alert alert-success mt-3" role="status">@_message</div>
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="alert alert-success app-status mt-3" role="status">@_message</div>
+            }
+            <div class="form-actions"><button class="btn btn-primary" type="submit" disabled="@_saving">@(_saving ? "Saving…" : "Save settings")</button></div>
+        </fieldset>
+        </EditForm>
     }
 </div>
+@if (_pendingRemoval is not null)
+{
+    <ConfirmDialog Title="Remove transport" Message="@($"Remove FreeTurn on port {_pendingRemoval.ListenPort}? Clients using this transport will lose that connection option when you save settings.")" ConfirmText="Remove transport" OnConfirm="ConfirmRemoveTransport" OnCancel="() => _pendingRemoval = null"/>
+}
 
 @code {
     private UpdateProtocolsSettingsRequest _request = new();
     private int _meshPort;
     private bool _loading = true;
+    private bool _loaded;
+    private readonly HashSet<Guid> _savedTransports = [];
+    private FreeTurnTransportSettingsDto? _pendingRemoval;
     private bool _saving;
     private string? _error;
     private string? _message;
@@ -116,6 +117,8 @@
                 Protocols = settings.Protocols,
                 Transports = settings.Transports
             };
+            _savedTransports.UnionWith(_request.Transports.Select(transport => transport.Id));
+            _loaded = true;
         }
         catch (ApplicationServiceException exception)
         {
@@ -123,14 +126,22 @@
                 ? "You do not have permission to view settings."
                 : "Could not load transport settings.";
         }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
-        }
         finally
         {
             _loading = false;
         }
+    }
+
+    private void RequestRemoveTransport(FreeTurnTransportSettingsDto transport)
+    {
+        if (_savedTransports.Contains(transport.Id)) _pendingRemoval = transport;
+        else _request.Transports.Remove(transport);
+    }
+
+    private void ConfirmRemoveTransport()
+    {
+        if (_pendingRemoval is not null) _request.Transports.Remove(_pendingRemoval);
+        _pendingRemoval = null;
     }
 
     private void AddFreeTurn()
@@ -160,6 +171,7 @@
         {
             Hysteria2ProtocolSettingsDto => "Hysteria2",
             AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
+            NaiveProxyProtocolSettingsDto => "NaiveProxy",
             _ => "Unknown"
         }} : {protocol.ListenPort}";
     }
@@ -172,6 +184,8 @@
         try
         {
             await AdminApi.SaveProtocolsAsync(_request);
+            _savedTransports.Clear();
+            _savedTransports.UnionWith(_request.Transports.Select(transport => transport.Id));
             _message = "Transport settings saved. Nodes will update automatically.";
         }
         catch (ApplicationServiceException exception)
@@ -179,10 +193,6 @@
             _error = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "Could not save transport settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {

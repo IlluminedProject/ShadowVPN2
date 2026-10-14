@@ -6,97 +6,112 @@
 
 <PageTitle>Cluster settings - ShadowVPN2</PageTitle>
 
-<div>
-    <AdminSettingsNav/>
-    <h1>Cluster settings</h1>
-    @if (_loading)
-    {
-        <p class="muted">Loading settings…</p>
-    }
-    else if (!string.IsNullOrEmpty(_error))
-    {
-        <div class="alert alert-danger" role="alert">@_error</div>
-    }
-    else
-    {
-        <EditForm Model="_cluster" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator/>
-            <ValidationSummary/>
-        <div class="settings-frame">
-            <label class="form-label" for="global-domain">Global node domain</label>
-            <InputHostName id="global-domain" class="form-control" @bind-Value="_cluster.GlobalDomain"
-                           DisplayName="Global node domain"/>
-            <ValidationMessage For="() => _cluster.GlobalDomain"/>
-            <label for="awg-port">AmneziaWG mesh listen port</label>
-            <InputNumber id="awg-port" class="form-control" @bind-Value="_awg.ListenPort"/>
-            <h2>Obfuscation parameters</h2>
-            <p class="muted">H1-H4 and S1-S4 must match between all nodes.</p>
-            <div class="settings-grid">
-                <label>H1
-                    <InputText class="form-control" @bind-Value="_awg.H1"/>
-                </label>
-                <label>H2
-                    <InputText class="form-control" @bind-Value="_awg.H2"/>
-                </label>
-                <label>H3
-                    <InputText class="form-control" @bind-Value="_awg.H3"/>
-                </label>
-                <label>H4
-                    <InputText class="form-control" @bind-Value="_awg.H4"/>
-                </label>
-                <label>Jc
-                    <InputNumber class="form-control" @bind-Value="_awg.Jc"/>
-                </label>
-                <label>Jmin
-                    <InputNumber class="form-control" @bind-Value="_awg.Jmin"/>
-                </label>
-                <label>Jmax
-                    <InputNumber class="form-control" @bind-Value="_awg.Jmax"/>
-                </label>
-                <label>S1
-                    <InputNumber class="form-control" @bind-Value="_awg.S1"/>
-                </label>
-                <label>S2
-                    <InputNumber class="form-control" @bind-Value="_awg.S2"/>
-                </label>
-                <label>S3
-                    <InputNumber class="form-control" @bind-Value="_awg.S3"/>
-                </label>
-                <label>S4
-                    <InputNumber class="form-control" @bind-Value="_awg.S4"/>
-                </label>
-                <label>I1
-                    <InputText class="form-control font-monospace" @bind-Value="_awg.I1"/>
-                </label>
-                <label>I2
-                    <InputText class="form-control font-monospace" @bind-Value="_awg.I2"/>
-                </label>
-                <label>I3
-                    <InputText class="form-control font-monospace" @bind-Value="_awg.I3"/>
-                </label>
-                <label>I4
-                    <InputText class="form-control font-monospace" @bind-Value="_awg.I4"/>
-                </label>
-                <label>I5
-                    <InputText class="form-control font-monospace" @bind-Value="_awg.I5"/>
-                </label>
+<AdminSettingsNav/>
+<div class="page-header"><h1>Cluster settings</h1></div>
+@if (_loading)
+{
+    <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
+                                                                    aria-hidden="true"></span> Loading settings…
+    </div>
+}
+else if (!_loaded)
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+else
+{
+    <EditForm Model="_cluster" OnValidSubmit="SaveAsync" class="settings-frame">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger" role="alert">@_error</div>
+        }
+        <fieldset disabled="@_busy">
+            <legend class="visually-hidden">Cluster settings</legend>
+            <div class="field">
+                <label class="form-label" for="global-domain">Global node domain (optional)</label>
+                <InputHostName id="global-domain" class="form-control" @bind-Value="_cluster.GlobalDomain"
+                               DisplayName="Global node domain" aria-describedby="global-domain-error"/>
+                <div id="global-domain-error">
+                    <ValidationMessage For="() => _cluster.GlobalDomain"/>
+                </div>
             </div>
-        </div>
-        <div class="d-flex justify-content-end mt-3">
-            <button class="btn btn-primary" type="submit" disabled="@_busy">Save settings</button>
-        </div>
-        </EditForm>
-    }
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status">@_message</p>
-    }
-</div>
+            <div class="field">
+                <label class="form-label" for="awg-port">AmneziaWG mesh listen port</label>
+                <InputNumber id="awg-port" class="form-control" inputmode="numeric" @bind-Value="_awg.ListenPort"/>
+            </div>
+            <section class="mt-4">
+                <h2>Obfuscation parameters</h2>
+                <p class="text-body-secondary">H1-H4 and S1-S4 must match between all nodes.</p>
+                <div class="settings-grid">
+                    <div><label class="form-label" for="mesh-h1">H1</label>
+                        <InputText id="mesh-h1" class="form-control" @bind-Value="_awg.H1"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-h2">H2</label>
+                        <InputText id="mesh-h2" class="form-control" @bind-Value="_awg.H2"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-h3">H3</label>
+                        <InputText id="mesh-h3" class="form-control" @bind-Value="_awg.H3"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-h4">H4</label>
+                        <InputText id="mesh-h4" class="form-control" @bind-Value="_awg.H4"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-jc">Jc</label>
+                        <InputNumber id="mesh-jc" class="form-control" @bind-Value="_awg.Jc"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-jmin">Jmin</label>
+                        <InputNumber id="mesh-jmin" class="form-control" @bind-Value="_awg.Jmin"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-jmax">Jmax</label>
+                        <InputNumber id="mesh-jmax" class="form-control" @bind-Value="_awg.Jmax"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-s1">S1</label>
+                        <InputNumber id="mesh-s1" class="form-control" @bind-Value="_awg.S1"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-s2">S2</label>
+                        <InputNumber id="mesh-s2" class="form-control" @bind-Value="_awg.S2"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-s3">S3</label>
+                        <InputNumber id="mesh-s3" class="form-control" @bind-Value="_awg.S3"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-s4">S4</label>
+                        <InputNumber id="mesh-s4" class="form-control" @bind-Value="_awg.S4"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-i1">I1</label>
+                        <InputText id="mesh-i1" class="form-control font-monospace" @bind-Value="_awg.I1"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-i2">I2</label>
+                        <InputText id="mesh-i2" class="form-control font-monospace" @bind-Value="_awg.I2"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-i3">I3</label>
+                        <InputText id="mesh-i3" class="form-control font-monospace" @bind-Value="_awg.I3"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-i4">I4</label>
+                        <InputText id="mesh-i4" class="form-control font-monospace" @bind-Value="_awg.I4"/>
+                    </div>
+                    <div><label class="form-label" for="mesh-i5">I5</label>
+                        <InputText id="mesh-i5" class="form-control font-monospace" @bind-Value="_awg.I5"/>
+                    </div>
+                </div>
+            </section>
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="alert alert-success app-status mt-3" role="status">@_message</div>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" type="submit"
+                        disabled="@_busy">@(_busy ? "Saving…" : "Save settings")</button>
+            </div>
+        </fieldset>
+    </EditForm>
+}
 
 @code {
     private ClusterSettingsResponse _cluster = new();
     private AwgClusterSettings _awg = new();
     private bool _loading = true;
+    private bool _loaded;
     private bool _busy;
     private string? _error;
     private string? _message;
@@ -110,16 +125,13 @@
             await Task.WhenAll(clusterTask, awgTask);
             _cluster = await clusterTask;
             _awg = await awgTask;
+            _loaded = true;
         }
         catch (ApplicationServiceException ex)
         {
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to view settings."
                     : "Could not load cluster settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
@@ -143,10 +155,6 @@
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to change settings."
                     : "Could not save cluster settings.";
-        }
-        catch (Exception)
-        {
-            _error = "Could not complete the operation.";
         }
         finally
         {
