@@ -7,6 +7,7 @@
     <UserSecretsId>aspnet-ShadowVPN2-fd2afc53-cf08-4b5b-bffb-1d96b27e117b</UserSecretsId>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileFastModeStage>development</DockerfileFastModeStage>
     <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 

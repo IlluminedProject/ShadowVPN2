@@ -49,7 +49,7 @@ RUN --mount=type=cache,id=shadowvpn2-singbox-mod,target=/go/pkg/mod \
     -o /out/sing-box ./cmd/sing-box \
     && cp "$(go list -m -f '{{.Dir}}' github.com/sagernet/cronet-go/lib/linux_amd64)/libcronet.so" /out/libcronet.so
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.12 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12 AS runtime-dependencies
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -60,11 +60,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/*
 
-FROM base AS binaries
+FROM runtime-dependencies AS binaries
 COPY --chmod=755 --from=singbox-build /out/sing-box /usr/local/bin/sing-box
 RUN setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
-FROM base AS runtime-base
+FROM runtime-dependencies AS runtime-base
 COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
 COPY --chmod=755 docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 
@@ -109,9 +109,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     && rm -rf /var/lib/apt/lists/* \
     && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
-RUN mkdir -p /data
+RUN mkdir -p /data && chmod o+x /root
 WORKDIR /src/ShadowVPN2
 ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
+
 
 FROM development AS debug
 ARG BUILD_CONFIGURATION=Debug
@@ -124,7 +125,8 @@ RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
 COPY . .
 RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj" \
-    && dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore
+    && dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore \
+    && chmod o+x /root
 WORKDIR /src/ShadowVPN2
 CMD ["dotnet", "/src/ShadowVPN2/bin/Debug/net10.0/ShadowVPN2.dll"]
 
