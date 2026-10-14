@@ -1,4 +1,4 @@
-﻿FROM node:24-bookworm AS ravendb-source
+﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-source
 ARG RAVENDB_REVISION=2b692f492db3ebfbe1143433543dc107d176c357
 WORKDIR /src/ravendb
 RUN test -n "$RAVENDB_REVISION" \
@@ -6,22 +6,6 @@ RUN test -n "$RAVENDB_REVISION" \
     && git remote add origin https://github.com/IlluminedProject/ravendb.git \
     && git fetch --depth=1 origin "$RAVENDB_REVISION" \
     && git checkout --detach FETCH_HEAD
-
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-typings
-WORKDIR /src/ravendb
-COPY --from=ravendb-source /src/ravendb .
-RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
-    --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
-    dotnet build tools/TypingsGenerator/TypingsGenerator.csproj -c Release -p:RavenEnableLocalEmbeddings=false
-WORKDIR /src/ravendb/src/Raven.Studio
-RUN dotnet ../../tools/TypingsGenerator/bin/Release/net10.0/TypingsGenerator.dll
-
-FROM node:24-bookworm AS ravendb-studio
-COPY --from=ravendb-typings /src/ravendb /src/ravendb
-WORKDIR /src/ravendb/src/Raven.Studio
-RUN --mount=type=cache,id=shadowvpn2-ravendb-npm,target=/root/.npm \
-    npm ci && npm run fix-packages && npm run generate-icons-font \
-    && npx webpack --config webpack.config.js --mode production
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-build
 WORKDIR /src/ravendb
@@ -32,7 +16,6 @@ RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,
     --self-contained false -p:RavenEnableLocalEmbeddings=false -o /out/ravendb
 RUN rm -f /out/ravendb/libzstd.win.* /out/ravendb/libzstd.mac.* /out/ravendb/libzstd.arm.* \
     /out/ravendb/alpine-librdkafka.so /out/ravendb/centos8-librdkafka.so
-COPY --from=ravendb-studio /src/ravendb/src/Raven.Studio/wwwroot/dist/Raven.Studio.zip /out/ravendb/
 
 FROM golang:1.26.8-bookworm AS singbox-build
 ARG AMNEZIA_BOX_REVISION=a63f4dd4a4f44b7fea0a7d2ab630e38d610cbf7d
