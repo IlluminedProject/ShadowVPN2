@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
+using DnsClient;
+using DnsClient.Protocol;
 using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Data;
 
-public sealed class DomainValidationService(ILogger<DomainValidationService> logger) {
+public sealed class DomainValidationService(LookupClient dnsClient, ILogger<DomainValidationService> logger) {
     public async Task<DomainCheckResponse> CheckAsync(HostName? domain, string? publicIpv4, string? publicIpv6,
         CancellationToken cancellationToken = default) {
         var checkedAt = DateTimeOffset.UtcNow;
@@ -58,21 +60,30 @@ public sealed class DomainValidationService(ILogger<DomainValidationService> log
     public async Task<DomainResolutionResponse> ResolveAsync(HostName domain,
         CancellationToken cancellationToken = default) {
         try {
-            var hostname = domain.Value;
-            var addresses = (await Dns.GetHostAddressesAsync(hostname, cancellationToken))
+            if (IPAddress.TryParse(domain.Value, out var literal)) {
+                return new DomainResolutionResponse
+                    { Domain = domain, Addresses = [NormalizeAddress(literal).ToString()] };
+            }
+
+            // Query DNS records directly: OS hostname resolution also includes /etc/hosts and local interfaces.
+            var ipv4 = dnsClient.QueryAsync(domain.Value + ".", QueryType.A, cancellationToken: cancellationToken);
+            var ipv6 = dnsClient.QueryAsync(domain.Value + ".", QueryType.AAAA, cancellationToken: cancellationToken);
+            var responses = await Task.WhenAll(ipv4, ipv6);
+            var addresses = responses.SelectMany(response => response.Answers)
+                .Where(record => record is ARecord or AaaaRecord)
+                .Select(record => record is ARecord a ? a.Address : ((AaaaRecord)record).Address)
                 .Select(NormalizeAddress)
                 .Distinct()
                 .OrderBy(address => address.AddressFamily)
                 .ThenBy(address => address.ToString(), StringComparer.OrdinalIgnoreCase)
                 .Select(address => address.ToString())
-                .ToList()
-                .AsReadOnly();
+                .ToList();
             return new DomainResolutionResponse { Domain = domain, Addresses = addresses };
         }
-        catch (SocketException ex) when (ex.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData) {
+        catch (DnsResponseException ex) when (ex.Code == DnsResponseCode.NotExistentDomain) {
             return new DomainResolutionResponse { Domain = domain, Addresses = [] };
         }
-        catch (Exception ex) when (ex is SocketException or ArgumentException) {
+        catch (Exception ex) when (ex is DnsResponseException or SocketException or ArgumentException) {
             logger.LogWarning(ex, "DNS lookup failed for {Domain}", domain);
             return new DomainResolutionResponse { Domain = domain, Addresses = [], Error = ex.Message };
         }

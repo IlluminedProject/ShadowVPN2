@@ -1,3 +1,4 @@
+using DnsClient;
 using Microsoft.AspNetCore.Components;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
@@ -76,6 +77,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<NodeService>();
         builder.Services.AddSingleton<NodeNetworkService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<NodeNetworkService>());
+        builder.Services.AddSingleton(_ => new LookupClient(new LookupClientOptions { ThrowDnsErrors = true }));
         builder.Services.AddSingleton<DomainValidationService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
         builder.Services.AddSingleton<SingBoxService>();
