@@ -2,13 +2,13 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout PublicLayout
+@implements IAsyncDisposable
 @inject ISubscriptionApplicationService SubscriptionApi
 @inject IJSRuntime JsRuntime
 @inject NavigationManager Navigation
 
 <PageTitle>Connection setup - ShadowVPN2</PageTitle>
 
-<FrontendNav/>
 <div class="frontend-content">
     <div class="page-header"><h1>@(_subscription?.ClientName ?? "Connection setup")</h1></div>
     @if (_loading)
@@ -26,46 +26,47 @@
     else
     {
         <section class="mb-4">
-            <h2>Subscription URLs</h2>
-            <div class="app-list">
-                @foreach (var format in SubscriptionFormats)
-                {
-                    var key = $"subscription:{format.Key}";
-                    <div class="app-list-item">
-                        <div class="flex-grow-1">
-                            <span class="d-block fw-semibold">@format.Key</span>
-                            <code class="text-break">@CreateSubscriptionUrl(format.Key)</code>
-                            @if (FeedbackKey == key)
-                            {
-                                <div class="app-status @(_copying ? "text-body-secondary" : CopyError is null ? "text-success" : "text-danger")"
-                                     role="@(CopyError is null ? "status" : "alert")">@(_copying ? "Copying…" : CopyError ?? "Copied to clipboard.")</div>
-                            }
-                        </div>
-                        <div class="actions">
-                            <button class="btn btn-outline-secondary" type="button"
-                                    @onclick="() => CopySubscriptionUrlAsync(format.Key)"
-                                    disabled="@_copying">@(_copying && FeedbackKey == key ? "Copying…" : format.Value)</button>
-                        </div>
-                    </div>
-                }
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="fw-semibold">Subscription</span>
+                <div class="btn-group dropdown" id="subscription-dropdown">
+                    <button class="btn btn-outline-secondary" type="button"
+                            @onclick="() => CopySubscriptionUrlAsync()" disabled="@_copying">Copy subscription URL
+                    </button>
+                    <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button"
+                            data-dropdown-trigger aria-expanded="false" aria-controls="subscription-options"
+                            aria-label="Choose subscription format" disabled="@_copying">
+                    </button>
+                    <ul id="subscription-options" class="dropdown-menu" data-dropdown-popup>
+                        @foreach (var format in SubscriptionFormats)
+                        {
+                            <li>
+                                <button class="dropdown-item" type="button" disabled="@_copying"
+                                        @onclick="() => CopySubscriptionUrlAsync(format.Key)">@format.Value</button>
+                            </li>
+                        }
+                    </ul>
+                </div>
             </div>
+            @if (CopyError is not null && FeedbackKey?.StartsWith("subscription:") == true)
+            {
+                <div class="app-status text-danger" role="alert">@CopyError</div>
+            }
         </section>
         <section class="mb-4">
-        <h2>Available connection hosts</h2>
-        @if (!_subscription.Protocols.Any())
-        {
-                <p class="text-body-secondary">No connection protocols are enabled for this client.</p>
-        }
-
-        @foreach (var protocol in _subscription.Protocols)
-        {
-            <h3>@protocol.Protocol</h3>
-                @if (protocol.Endpoints.Count == 0)
-                {
-                    <p class="text-body-secondary">No connection hosts are available for this protocol.</p>
-                }
-            @foreach (var endpoint in protocol.Endpoints)
+            <h2>Available connection hosts</h2>
+            @if (!_subscription.Protocols.Any())
             {
+                <p class="text-body-secondary">No connection protocols are enabled for this client.</p>
+            }
+
+            @foreach (var protocol in _subscription.Protocols)
+            {
+                if (protocol.Endpoints.Count == 0)
+                    continue;
+
+                <h3>@protocol.Protocol</h3>
+                @foreach (var endpoint in protocol.Endpoints)
+                {
                     <section class="endpoint app-list-item">
                         <div class="flex-grow-1">
                             <h4 class="h6">@endpoint.Name</h4>
@@ -73,44 +74,43 @@
                                 <dt>Address</dt>
                                 <dd class="font-monospace text-break">@endpoint.Address</dd>
                             </dl>
-                            @if (FeedbackKey == ConnectionKey(protocol, endpoint) || endpoint.Transports.OfType<FreeTurnConnectionInfo>().Any(transport => FeedbackKey == $"{endpoint.Name}:{transport.Peer}"))
+                            @if (CopyError is not null && (FeedbackKey == ConnectionKey(protocol, endpoint) || endpoint.Transports.OfType<FreeTurnConnectionInfo>().Any(transport => FeedbackKey == $"{endpoint.Name}:{transport.Peer}")))
                             {
-                                <div class="app-status @(_copying ? "text-body-secondary" : CopyError is null ? "text-success" : "text-danger")"
-                                     role="@(CopyError is null ? "status" : "alert")">@(_copying ? "Copying…" : CopyError ?? "Copied to clipboard.")</div>
+                                <div class="app-status text-danger" role="alert">@CopyError</div>
                             }
                         </div>
                         <div class="actions">
-                        @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
-                        {
+                            @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
+                            {
                                 <a class="btn btn-outline-secondary" href="@CreateConfigDataUrl(wireGuard)"
-                               download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
-                                Download VPN config
-                            </a>
-                        }
+                                   download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
+                                    Download VPN config
+                                </a>
+                            }
                             <button class="btn btn-outline-secondary" type="button"
                                     @onclick="() => CopyConnectionAsync(protocol, endpoint)"
                                     disabled="@_copying">@(_copying && FeedbackKey == ConnectionKey(protocol, endpoint) ? "Copying…" : "Copy connection")</button>
-                        @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
-                        {
+                            @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
+                            {
                                 <button class="btn btn-outline-secondary" type="button"
                                         @onclick="() => CopyFreeTurnAsync(endpoint, transport)"
                                         disabled="@_copying">@(_copying && FeedbackKey == $"{endpoint.Name}:{transport.Peer}" ? "Copying…" : "Copy FreeTurn link")</button>
-                        }
-                    </div>
-                </section>
+                            }
+                        </div>
+                    </section>
+                }
             }
-        }
         </section>
 
         @if (_servers.Count > 0)
         {
             <section>
-                <h2>Server latency</h2>
-                <p class="text-body-secondary">Measured from your device.</p>
-                <div class="actions mb-3">
+                <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                    <h2 class="mb-0">Server latency</h2>
                     <button class="btn btn-outline-secondary" type="button" @onclick="PingServersAsync"
                             disabled="@_pinging">@(_pinging ? "Checking…" : "Check again")</button>
                 </div>
+                <p class="text-body-secondary">Measured from your device.</p>
                 <div class="app-list">
                     @foreach (var server in _servers)
                     {
@@ -136,8 +136,8 @@
     private readonly List<ServerState> _servers = [];
     private string? FeedbackKey { get; set; }
     private string? CopyError { get; set; }
-    private int _copyVersion;
     private bool _copying;
+    private IJSObjectReference? _dropdownModule;
 
     private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
         new Dictionary<string, string>
@@ -168,8 +168,27 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_subscription is not null)
+        {
+            _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/dropdown.js");
+            await _dropdownModule.InvokeVoidAsync("initialize", "subscription-dropdown");
+        }
+
         if (firstRender && _servers.Count > 0)
             await PingServersAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dropdownModule is null) return;
+        try
+        {
+            await _dropdownModule.InvokeVoidAsync("dispose", "subscription-dropdown");
+            await _dropdownModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void BuildServerList()
@@ -179,8 +198,8 @@
             return;
 
         _servers.AddRange(_subscription.Protocols.SelectMany(protocol => protocol.Endpoints)
-                .DistinctBy(endpoint => endpoint.Address)
-                .Select(endpoint => new ServerState(endpoint.Name, endpoint.Address)));
+            .DistinctBy(endpoint => endpoint.Address)
+            .Select(endpoint => new ServerState(endpoint.Name, endpoint.Address)));
     }
 
     private async Task PingServersAsync()
@@ -200,7 +219,7 @@
             try
             {
                 server.Latency = await JsRuntime.InvokeAsync<int>("pingServer",
-                        $"https://{server.Address}/api/node/status", 3000);
+                    $"https://{server.Address}/api/node/status", 3000);
             }
             catch (JSException)
             {
@@ -219,22 +238,25 @@
     {
         var shareUrl = endpoint.Connection switch
         {
-                Hysteria2ConnectionInfo hysteria2 => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria2,
-                        _subscription!.ClientName),
-                NaiveProxyConnectionInfo naiveProxy => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naiveProxy,
-                        _subscription!.ClientName),
-                WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
-                _ => string.Empty
+            Hysteria2ConnectionInfo hysteria2 => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria2,
+                _subscription!.ClientName),
+            NaiveProxyConnectionInfo naiveProxy => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naiveProxy,
+                _subscription!.ClientName),
+            WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
+            _ => string.Empty
         };
         await CopyAsync(shareUrl, ConnectionKey(protocol, endpoint));
     }
 
-    private string CreateSubscriptionUrl(string format)
+    private string CreateSubscriptionUrl(string? format)
     {
-        return Navigation.ToAbsoluteUri($"s/{SubscriptionId}/subscription?format={Uri.EscapeDataString(format)}").ToString();
+        var path = $"s/{SubscriptionId}/subscription";
+        if (format is not null)
+            path += $"?format={Uri.EscapeDataString(format)}";
+        return Navigation.ToAbsoluteUri(path).ToString();
     }
 
-    private Task CopySubscriptionUrlAsync(string format)
+    private Task CopySubscriptionUrlAsync(string? format = null)
     {
         return CopyAsync(CreateSubscriptionUrl(format), $"subscription:{format}");
     }
@@ -243,38 +265,30 @@
     {
         var localConnection = SubscriptionLinkBuilder.CreateLocalConnection(endpoint.Connection);
         var wireGuardConfig = localConnection is WireGuardConnectionInfo wireGuard
-                ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)
-                : null;
+            ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)
+            : null;
         var shareUrl = SubscriptionLinkBuilder.CreateFreeTurnShareUrl(transport, _subscription!.ClientName,
-                wireGuardConfig);
+            wireGuardConfig);
         await CopyAsync(shareUrl, $"{endpoint.Name}:{transport.Peer}");
     }
 
     private async Task CopyAsync(string text, string key)
     {
         _copying = true;
-        var version = ++_copyVersion;
         CopyError = null;
         FeedbackKey = key;
         try
         {
             await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
-            _copying = false;
-            StateHasChanged();
-            await Task.Delay(2000);
-            if (_copyVersion == version) FeedbackKey = null;
+            FeedbackKey = null;
         }
         catch (JSException)
         {
-            if (_copyVersion == version)
-            {
-                CopyError = "Could not copy. Allow clipboard access and try again.";
-                _copying = false;
-            }
+            CopyError = "Could not copy. Allow clipboard access and try again.";
         }
         finally
         {
-            if (_copyVersion == version) _copying = false;
+            _copying = false;
         }
     }
 
@@ -289,16 +303,16 @@
     }
 
     private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
-            HostName serverAddress)
+        HostName serverAddress)
     {
         var invalidChars = Path.GetInvalidFileNameChars();
         var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress.ToString() }
-                .Select(part => new string(part.Trim().Select(character => char.IsControl(character) ||
-                                                                           invalidChars.Contains(character) || character is '/' or '\\'
-                                ? '-'
-                                : character).ToArray())
-                        .Trim(' ', '.', '-'))
-                .Where(part => part.Length > 0);
+            .Select(part => new string(part.Trim().Select(character => char.IsControl(character) ||
+                                                                       invalidChars.Contains(character) || character is '/' or '\\'
+                    ? '-'
+                    : character).ToArray())
+                .Trim(' ', '.', '-'))
+            .Where(part => part.Length > 0);
         var name = string.Join('-', parts);
         return $"{name[..Math.Min(name.Length, 180)]}.conf";
     }
@@ -309,9 +323,9 @@
             ? "Checking…"
             : server.Latency switch
             {
-                    null => "—",
-                    -1 => "Unavailable",
-                    _ => $"{server.Latency} ms"
+                null => "—",
+                -1 => "Unavailable",
+                _ => $"{server.Latency} ms"
             };
     }
 
