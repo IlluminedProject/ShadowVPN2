@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ShadowVPN2.Contracts.Protocols;
 
 public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto {
@@ -17,4 +19,14 @@ public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto {
     public string? I3 { get; set; }
     public string? I4 { get; set; }
     public string? I5 { get; set; }
+
+    [JsonIgnore]
+    public bool IsAmneziaWg {
+        get => Jc != 0 || Jmin != 0 || Jmax != 0
+               || S1 != 0 || S2 != 0 || S3 != 0 || S4 != 0
+               || H1 != "1" || H2 != "2" || H3 != "3" || H4 != "4"
+               || !string.IsNullOrWhiteSpace(I1) || !string.IsNullOrWhiteSpace(I2)
+               || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
+               || !string.IsNullOrWhiteSpace(I5);
+    }
 }

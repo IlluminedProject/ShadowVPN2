@@ -48,6 +48,13 @@
                                          @bind-Enabled="transport.Enabled"
                                          Busy="_saving" OnRemove="() => RequestRemoveTransport(transport)"/>
                     <div class="settings-item-body">
+                        @if (_request.Protocols.Any(protocol => protocol.Id == transport.ProtocolId && protocol is AwgProtocolSettingsDto))
+                        {
+                            <div class="alert alert-warning" role="status">
+                                This transport requires an AmneziaWG client with FreeTurn support. Standard WireGuard
+                                clients cannot use FreeTurn.
+                            </div>
+                        }
                         <div class="settings-grid">
                             <div>
                                 <label class="form-label" for="@($"transport-{transport.Id}-protocol")">Protocol</label>
