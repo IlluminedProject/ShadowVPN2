@@ -1,5 +1,5 @@
 ﻿FROM node:24-bookworm AS ravendb-source
-ARG RAVENDB_REVISION=4633e42f4a30345125203173daa93397ac5cbbc6
+ARG RAVENDB_REVISION=9f93ca1db1165991eecc6d1e9115b9e73151dd8e
 WORKDIR /src/ravendb
 RUN test -n "$RAVENDB_REVISION" \
     && git init . \
@@ -12,7 +12,7 @@ WORKDIR /src/ravendb
 COPY --from=ravendb-source /src/ravendb .
 RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
     --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
-    dotnet build tools/TypingsGenerator/TypingsGenerator.csproj -c Release -p:RavenEnableAI=false
+    dotnet build tools/TypingsGenerator/TypingsGenerator.csproj -c Release -p:RavenEnableLocalEmbeddings=false
 WORKDIR /src/ravendb/src/Raven.Studio
 RUN dotnet ../../tools/TypingsGenerator/bin/Release/net10.0/TypingsGenerator.dll
 
@@ -29,7 +29,7 @@ COPY --from=ravendb-source /src/ravendb .
 RUN --mount=type=cache,id=shadowvpn2-ravendb-nuget,target=/root/.nuget/packages,sharing=locked \
     --mount=type=cache,id=shadowvpn2-ravendb-models,target=/src/ravendb/.cache,sharing=locked \
     dotnet publish src/Raven.Server/Raven.Server.csproj -c Release -r linux-x64 \
-    --self-contained false -p:RavenEnableAI=false -o /out/ravendb
+    --self-contained false -p:RavenEnableLocalEmbeddings=false -o /out/ravendb
 RUN rm -f /out/ravendb/libzstd.win.* /out/ravendb/libzstd.mac.* /out/ravendb/libzstd.arm.* \
     /out/ravendb/alpine-librdkafka.so /out/ravendb/centos8-librdkafka.so
 COPY --from=ravendb-studio /src/ravendb/src/Raven.Studio/wwwroot/dist/Raven.Studio.zip /out/ravendb/
