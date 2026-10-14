@@ -86,6 +86,8 @@ internal static class RavenServerRunner {
         foreach (var argument in commandLineArgs)
             processStartInfo.ArgumentList.Add(argument);
         RemoveEnvironmentVariables(processStartInfo);
+        processStartInfo.Environment["DOTNET_GCDynamicAdaptationMode"] = "1";
+        processStartInfo.Environment["DOTNET_GCRetainVM"] = "0";
 
         Process? process = null;
         try {
