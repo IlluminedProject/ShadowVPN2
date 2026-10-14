@@ -138,109 +138,23 @@
                             </div>
                             <details>
                                 <summary>AmneziaWG parameters</summary>
-                                <p class="text-body-secondary">H1-H4 and S1-S4 must match between all nodes.</p>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jc")">Junk Packet Count
-                                            (Jc)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-jc")" class="form-control"
-                                                     @bind-Value="awg.Jc"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jmin")">Junk Packet Min
-                                            Size (Jmin)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-jmin")" class="form-control"
-                                                     @bind-Value="awg.Jmin"/>
-                                    </div>
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-jmax")">Junk Packet Max
-                                            Size (Jmax)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-jmax")" class="form-control"
-                                                     @bind-Value="awg.Jmax"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s1")">Init Packet Junk
-                                            Size (S1)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-s1")" class="form-control"
-                                                     @bind-Value="awg.S1"/>
-                                    </div>
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h1")">Init Packet Magic
-                                            Header (H1)</label>
-                                        <InputText id="@($"protocol-{item.Id}-h1")" class="form-control"
-                                                   @bind-Value="awg.H1"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s2")">Response Packet
-                                            Junk Size (S2)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-s2")" class="form-control"
-                                                     @bind-Value="awg.S2"/>
-                                    </div>
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h2")">Response Packet
-                                            Magic Header (H2)</label>
-                                        <InputText id="@($"protocol-{item.Id}-h2")" class="form-control"
-                                                   @bind-Value="awg.H2"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s3")">Cookie Reply Packet
-                                            Junk Size (S3)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-s3")" class="form-control"
-                                                     @bind-Value="awg.S3"/>
-                                    </div>
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h3")">Cookie Reply Packet
-                                            Magic Header (H3)</label>
-                                        <InputText id="@($"protocol-{item.Id}-h3")" class="form-control"
-                                                   @bind-Value="awg.H3"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-s4")">Transport Packet
-                                            Junk Size (S4)</label>
-                                        <InputNumber id="@($"protocol-{item.Id}-s4")" class="form-control"
-                                                     @bind-Value="awg.S4"/>
-                                    </div>
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-h4")">Transport Packet
-                                            Magic Header (H4)</label>
-                                        <InputText id="@($"protocol-{item.Id}-h4")" class="form-control"
-                                                   @bind-Value="awg.H4"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i1")">Signature Packet
-                                            (I1)</label>
-                                        <InputText id="@($"protocol-{item.Id}-i1")" class="form-control font-monospace"
-                                                   @bind-Value="awg.I1"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i2")">Signature Packet
-                                            (I2)</label>
-                                        <InputText id="@($"protocol-{item.Id}-i2")" class="form-control font-monospace"
-                                                   @bind-Value="awg.I2"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i3")">Signature Packet
-                                            (I3)</label>
-                                        <InputText id="@($"protocol-{item.Id}-i3")" class="form-control font-monospace"
-                                                   @bind-Value="awg.I3"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i4")">Signature Packet
-                                            (I4)</label>
-                                        <InputText id="@($"protocol-{item.Id}-i4")" class="form-control font-monospace"
-                                                   @bind-Value="awg.I4"/>
-                                    </div>
-                                </div>
-                                <div class="settings-grid mt-3">
-                                    <div><label class="form-label" for="@($"protocol-{item.Id}-i5")">Signature Packet
-                                            (I5)</label>
-                                        <InputText id="@($"protocol-{item.Id}-i5")" class="form-control font-monospace"
-                                                   @bind-Value="awg.I5"/>
-                                    </div>
-                                </div>
+                                <AwgParameters IdPrefix="@($"protocol-{item.Id}")"
+                                               @bind-Jc="awg.Jc"
+                                               @bind-Jmin="awg.Jmin"
+                                               @bind-Jmax="awg.Jmax"
+                                               @bind-S1="awg.S1"
+                                               @bind-H1="awg.H1"
+                                               @bind-S2="awg.S2"
+                                               @bind-H2="awg.H2"
+                                               @bind-S3="awg.S3"
+                                               @bind-H3="awg.H3"
+                                               @bind-S4="awg.S4"
+                                               @bind-H4="awg.H4"
+                                               @bind-I1="awg.I1"
+                                               @bind-I2="awg.I2"
+                                               @bind-I3="awg.I3"
+                                               @bind-I4="awg.I4"
+                                               @bind-I5="awg.I5"/>
                             </details>
                         }
                         else if (item is NaiveProxyProtocolSettingsDto naiveProxy)

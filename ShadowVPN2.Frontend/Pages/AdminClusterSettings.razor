@@ -43,57 +43,23 @@ else
             </div>
             <section class="mt-4">
                 <h2>Obfuscation parameters</h2>
-                <p class="text-body-secondary">H1-H4 and S1-S4 must match between all nodes.</p>
-                <div class="settings-grid">
-                    <div><label class="form-label" for="mesh-h1">H1</label>
-                        <InputText id="mesh-h1" class="form-control" @bind-Value="_awg.H1"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-h2">H2</label>
-                        <InputText id="mesh-h2" class="form-control" @bind-Value="_awg.H2"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-h3">H3</label>
-                        <InputText id="mesh-h3" class="form-control" @bind-Value="_awg.H3"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-h4">H4</label>
-                        <InputText id="mesh-h4" class="form-control" @bind-Value="_awg.H4"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-jc">Jc</label>
-                        <InputNumber id="mesh-jc" class="form-control" @bind-Value="_awg.Jc"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-jmin">Jmin</label>
-                        <InputNumber id="mesh-jmin" class="form-control" @bind-Value="_awg.Jmin"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-jmax">Jmax</label>
-                        <InputNumber id="mesh-jmax" class="form-control" @bind-Value="_awg.Jmax"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-s1">S1</label>
-                        <InputNumber id="mesh-s1" class="form-control" @bind-Value="_awg.S1"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-s2">S2</label>
-                        <InputNumber id="mesh-s2" class="form-control" @bind-Value="_awg.S2"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-s3">S3</label>
-                        <InputNumber id="mesh-s3" class="form-control" @bind-Value="_awg.S3"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-s4">S4</label>
-                        <InputNumber id="mesh-s4" class="form-control" @bind-Value="_awg.S4"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-i1">I1</label>
-                        <InputText id="mesh-i1" class="form-control font-monospace" @bind-Value="_awg.I1"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-i2">I2</label>
-                        <InputText id="mesh-i2" class="form-control font-monospace" @bind-Value="_awg.I2"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-i3">I3</label>
-                        <InputText id="mesh-i3" class="form-control font-monospace" @bind-Value="_awg.I3"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-i4">I4</label>
-                        <InputText id="mesh-i4" class="form-control font-monospace" @bind-Value="_awg.I4"/>
-                    </div>
-                    <div><label class="form-label" for="mesh-i5">I5</label>
-                        <InputText id="mesh-i5" class="form-control font-monospace" @bind-Value="_awg.I5"/>
-                    </div>
-                </div>
+                <AwgParameters IdPrefix="mesh"
+                               @bind-Jc="_awg.Jc"
+                               @bind-Jmin="_awg.Jmin"
+                               @bind-Jmax="_awg.Jmax"
+                               @bind-S1="_awg.S1"
+                               @bind-H1="_awg.H1"
+                               @bind-S2="_awg.S2"
+                               @bind-H2="_awg.H2"
+                               @bind-S3="_awg.S3"
+                               @bind-H3="_awg.H3"
+                               @bind-S4="_awg.S4"
+                               @bind-H4="_awg.H4"
+                               @bind-I1="_awg.I1"
+                               @bind-I2="_awg.I2"
+                               @bind-I3="_awg.I3"
+                               @bind-I4="_awg.I4"
+                               @bind-I5="_awg.I5"/>
             </section>
             @if (!string.IsNullOrEmpty(_message))
             {

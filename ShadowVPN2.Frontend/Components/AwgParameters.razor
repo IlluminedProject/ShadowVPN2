@@ -1,0 +1,139 @@
+<p class="text-body-secondary">H1-H4 and S1-S4 must match between all nodes.</p>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-jc")">Junk Packet Count
+            (Jc)</label>
+        <InputNumber id="@($"{IdPrefix}-jc")" class="form-control"
+                     @bind-Value:get="Jc" @bind-Value:set="JcChanged"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-jmin")">Junk Packet Min
+            Size (Jmin)</label>
+        <InputNumber id="@($"{IdPrefix}-jmin")" class="form-control"
+                     @bind-Value:get="Jmin" @bind-Value:set="JminChanged"/>
+    </div>
+    <div><label class="form-label" for="@($"{IdPrefix}-jmax")">Junk Packet Max
+            Size (Jmax)</label>
+        <InputNumber id="@($"{IdPrefix}-jmax")" class="form-control"
+                     @bind-Value:get="Jmax" @bind-Value:set="JmaxChanged"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-s1")">Init Packet Junk
+            Size (S1)</label>
+        <InputNumber id="@($"{IdPrefix}-s1")" class="form-control"
+                     @bind-Value:get="S1" @bind-Value:set="S1Changed"/>
+    </div>
+    <div><label class="form-label" for="@($"{IdPrefix}-h1")">Init Packet Magic
+            Header (H1)</label>
+        <InputText id="@($"{IdPrefix}-h1")" class="form-control"
+                   @bind-Value:get="H1" @bind-Value:set="H1Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-s2")">Response Packet
+            Junk Size (S2)</label>
+        <InputNumber id="@($"{IdPrefix}-s2")" class="form-control"
+                     @bind-Value:get="S2" @bind-Value:set="S2Changed"/>
+    </div>
+    <div><label class="form-label" for="@($"{IdPrefix}-h2")">Response Packet
+            Magic Header (H2)</label>
+        <InputText id="@($"{IdPrefix}-h2")" class="form-control"
+                   @bind-Value:get="H2" @bind-Value:set="H2Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-s3")">Cookie Reply Packet
+            Junk Size (S3)</label>
+        <InputNumber id="@($"{IdPrefix}-s3")" class="form-control"
+                     @bind-Value:get="S3" @bind-Value:set="S3Changed"/>
+    </div>
+    <div><label class="form-label" for="@($"{IdPrefix}-h3")">Cookie Reply Packet
+            Magic Header (H3)</label>
+        <InputText id="@($"{IdPrefix}-h3")" class="form-control"
+                   @bind-Value:get="H3" @bind-Value:set="H3Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-s4")">Transport Packet
+            Junk Size (S4)</label>
+        <InputNumber id="@($"{IdPrefix}-s4")" class="form-control"
+                     @bind-Value:get="S4" @bind-Value:set="S4Changed"/>
+    </div>
+    <div><label class="form-label" for="@($"{IdPrefix}-h4")">Transport Packet
+            Magic Header (H4)</label>
+        <InputText id="@($"{IdPrefix}-h4")" class="form-control"
+                   @bind-Value:get="H4" @bind-Value:set="H4Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-i1")">Signature Packet
+            (I1)</label>
+        <InputText id="@($"{IdPrefix}-i1")" class="form-control font-monospace"
+                   @bind-Value:get="I1" @bind-Value:set="I1Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-i2")">Signature Packet
+            (I2)</label>
+        <InputText id="@($"{IdPrefix}-i2")" class="form-control font-monospace"
+                   @bind-Value:get="I2" @bind-Value:set="I2Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-i3")">Signature Packet
+            (I3)</label>
+        <InputText id="@($"{IdPrefix}-i3")" class="form-control font-monospace"
+                   @bind-Value:get="I3" @bind-Value:set="I3Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-i4")">Signature Packet
+            (I4)</label>
+        <InputText id="@($"{IdPrefix}-i4")" class="form-control font-monospace"
+                   @bind-Value:get="I4" @bind-Value:set="I4Changed"/>
+    </div>
+</div>
+<div class="settings-grid mt-3">
+    <div><label class="form-label" for="@($"{IdPrefix}-i5")">Signature Packet
+            (I5)</label>
+        <InputText id="@($"{IdPrefix}-i5")" class="form-control font-monospace"
+                   @bind-Value:get="I5" @bind-Value:set="I5Changed"/>
+    </div>
+</div>
+
+@code {
+    [Parameter] [EditorRequired] public string IdPrefix { get; set; } = string.Empty;
+    [Parameter] public int Jc { get; set; }
+    [Parameter] public EventCallback<int> JcChanged { get; set; }
+    [Parameter] public int Jmin { get; set; }
+    [Parameter] public EventCallback<int> JminChanged { get; set; }
+    [Parameter] public int Jmax { get; set; }
+    [Parameter] public EventCallback<int> JmaxChanged { get; set; }
+    [Parameter] public int S1 { get; set; }
+    [Parameter] public EventCallback<int> S1Changed { get; set; }
+    [Parameter] public string H1 { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> H1Changed { get; set; }
+    [Parameter] public int S2 { get; set; }
+    [Parameter] public EventCallback<int> S2Changed { get; set; }
+    [Parameter] public string H2 { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> H2Changed { get; set; }
+    [Parameter] public int S3 { get; set; }
+    [Parameter] public EventCallback<int> S3Changed { get; set; }
+    [Parameter] public string H3 { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> H3Changed { get; set; }
+    [Parameter] public int S4 { get; set; }
+    [Parameter] public EventCallback<int> S4Changed { get; set; }
+    [Parameter] public string H4 { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> H4Changed { get; set; }
+    [Parameter] public string? I1 { get; set; }
+    [Parameter] public EventCallback<string?> I1Changed { get; set; }
+    [Parameter] public string? I2 { get; set; }
+    [Parameter] public EventCallback<string?> I2Changed { get; set; }
+    [Parameter] public string? I3 { get; set; }
+    [Parameter] public EventCallback<string?> I3Changed { get; set; }
+    [Parameter] public string? I4 { get; set; }
+    [Parameter] public EventCallback<string?> I4Changed { get; set; }
+    [Parameter] public string? I5 { get; set; }
+    [Parameter] public EventCallback<string?> I5Changed { get; set; }
+}
