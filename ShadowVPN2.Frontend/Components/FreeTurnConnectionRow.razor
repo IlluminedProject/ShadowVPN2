@@ -1,6 +1,6 @@
 <div class="connection-row">
-    <span class="connection-row__name" title="@Transport.Peer">[FreeTurn / @Protocol] @ServerName <span
-            class="text-body-secondary">(@Transport.Peer)</span></span>
+    <span class="connection-row__protocol">FreeTurn / @Protocol</span>
+    <span class="connection-row__name" title="@ServerName">@ServerName</span>
     <ConnectionActions Link="@_link" Config="@_config" FileName="@FileName"
                        QrTitle="@(_config is null ? "FreeTurn link QR code" : "FreeTurn WireGuard config QR code")"/>
 </div>

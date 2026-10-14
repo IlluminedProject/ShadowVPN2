@@ -1,6 +1,6 @@
 const dialogs = new WeakMap();
 
-export function open(element, reference, busy) {
+export function open(element, reference, busy, lightDismiss = false) {
     const previousFocus = document.activeElement;
     const state = {busy, closing: false};
     const cancel = async event => {
@@ -13,6 +13,19 @@ export function open(element, reference, busy) {
             state.closing = false;
         }
     };
+    let startedOutside = false;
+    const outside = event => {
+        const bounds = element.getBoundingClientRect();
+        return event.target === element && (event.clientX < bounds.left || event.clientX > bounds.right ||
+            event.clientY < bounds.top || event.clientY > bounds.bottom);
+    };
+    const pointerDown = event => {
+        startedOutside = outside(event);
+    };
+    const click = event => {
+        if (lightDismiss && startedOutside && outside(event)) void cancel(event);
+        startedOutside = false;
+    };
     const restoreFocus = () => {
         if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
             previousFocus.focus({preventScroll: true});
@@ -24,6 +37,8 @@ export function open(element, reference, busy) {
         observer.disconnect();
         element.removeEventListener('cancel', cancel);
         element.removeEventListener('close', restoreFocus);
+        element.removeEventListener('pointerdown', pointerDown);
+        element.removeEventListener('click', click);
         if (element.open) element.close();
         restoreFocus();
         dialogs.delete(element);
@@ -31,6 +46,8 @@ export function open(element, reference, busy) {
     dialogs.set(element, {state, cleanup});
     element.addEventListener('cancel', cancel);
     element.addEventListener('close', restoreFocus);
+    element.addEventListener('pointerdown', pointerDown);
+    element.addEventListener('click', click);
     observer.observe(document.body, {childList: true, subtree: true});
     element.showModal();
 }

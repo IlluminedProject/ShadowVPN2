@@ -15,7 +15,7 @@
 </div>
 @if (_qr is not null)
 {
-    <AppDialog Title="@QrTitle" OnClose="CloseQr">
+    <AppDialog Title="@QrTitle" OnClose="CloseQr" LightDismiss="true">
         <ChildContent>
             <div class="app-dialog__body text-center">
                 <img src="@_qr" alt="@QrTitle" width="320" height="320" style="max-width:100%;height:auto"/>

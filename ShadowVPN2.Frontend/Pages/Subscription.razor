@@ -2,7 +2,6 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout PublicLayout
-@using QRCoder
 @implements IAsyncDisposable
 @inject ISubscriptionApplicationService SubscriptionApi
 @inject IJSRuntime JsRuntime
@@ -33,7 +32,6 @@
                         }
                     </ul>
                 </div>
-                <button class="btn btn-outline-secondary" type="button" @onclick="ShowQrCode">QR code</button>
             </div>
         }
     </div>
@@ -96,18 +94,6 @@
     }
 </div>
 
-@if (_qrCode is not null)
-{
-    <AppDialog Title="Subscription QR code" OnClose="CloseQrCode">
-        <ChildContent>
-            <div class="app-dialog__body text-center">
-                <img src="@_qrCode" alt="Subscription URL QR code" width="320" height="320"
-                     style="max-width:100%;height:auto"/>
-                <p class="text-body-secondary mt-3 mb-0">Scan with your VPN client to import the subscription.</p>
-            </div>
-        </ChildContent>
-    </AppDialog>
-}
 
 @code {
     [Parameter] public Guid SubscriptionId { get; set; }
@@ -117,7 +103,6 @@
     private bool _pinging;
     private readonly List<ServerState> _servers = [];
     private bool _hasChecked;
-    private string? _qrCode;
     private IJSObjectReference? _copyModule;
     private IJSObjectReference? _dropdownModule;
 
@@ -222,6 +207,7 @@
         }));
         _pinging = false;
         _hasChecked = true;
+        await InvokeAsync(StateHasChanged);
     }
 
 
@@ -234,17 +220,6 @@
     }
 
 
-    private void ShowQrCode()
-    {
-        using var data = QRCodeGenerator.GenerateQrCode(CreateSubscriptionUrl(null), QRCodeGenerator.ECCLevel.M);
-        using var code = new PngByteQRCode(data);
-        _qrCode = $"data:image/png;base64,{Convert.ToBase64String(code.GetGraphic(8))}";
-    }
-
-    private void CloseQrCode()
-    {
-        _qrCode = null;
-    }
 
 
     private static string PingText(ServerState server)

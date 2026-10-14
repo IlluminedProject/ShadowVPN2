@@ -232,13 +232,25 @@ h1:focus {
     border-bottom: 1px solid var(--bs-border-color);
 }
 
+.connection-list {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    column-gap: .75rem;
+}
+
 .connection-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
     align-items: center;
-    justify-content: space-between;
     gap: .75rem;
     padding: .5rem 0;
     border-bottom: 1px solid var(--bs-border-color);
+}
+
+.connection-row__protocol {
+    text-align: left;
+    white-space: nowrap;
 }
 
 .connection-row__name {

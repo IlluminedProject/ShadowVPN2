@@ -24,6 +24,7 @@
     [Parameter] public string? Description { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool LightDismiss { get; set; }
 
     private readonly string _titleId = $"dialog-title-{Guid.NewGuid():N}";
     private readonly string _descriptionId = $"dialog-description-{Guid.NewGuid():N}";
@@ -37,7 +38,7 @@
         {
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/app-dialog.js");
             _reference = DotNetObjectReference.Create(this);
-            await _module.InvokeVoidAsync("open", _element, _reference, Busy);
+            await _module.InvokeVoidAsync("open", _element, _reference, Busy, LightDismiss);
         }
         else if (_module is not null)
         {

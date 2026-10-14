@@ -1,5 +1,6 @@
 <div class="connection-row">
-    <span class="connection-row__name" title="@Endpoint.Address">[@Protocol] @Endpoint.Name</span>
+    <span class="connection-row__protocol">@DisplayProtocol</span>
+    <span class="connection-row__name" title="@Endpoint.Name">@Endpoint.Name</span>
     @switch (Endpoint.Connection)
     {
         case Hysteria2ConnectionInfo hysteria:
@@ -17,7 +18,7 @@
 </div>
 @foreach (var transport in Endpoint.Transports.OfType<FreeTurnConnectionInfo>())
 {
-    <FreeTurnConnectionRow Connection="Endpoint.Connection" Transport="transport" Protocol="@Protocol"
+    <FreeTurnConnectionRow Connection="Endpoint.Connection" Transport="transport" Protocol="@DisplayProtocol"
                            ServerName="@Endpoint.Name"
                            ClientName="@ClientName" FileName="@ConfigFileName(true)"/>
 }
@@ -27,9 +28,13 @@
     [Parameter][EditorRequired] public string Protocol { get; set; } = null!;
     [Parameter][EditorRequired] public string ClientName { get; set; } = null!;
 
+    private string DisplayProtocol => Endpoint.Connection is WireGuardConnectionInfo wireGuard
+        ? wireGuard.IsAmneziaWg ? "AWG" : "WG"
+        : Protocol;
+
     private string ConfigFileName(bool freeTurn)
     {
-        var value = $"shadowvpn-{ClientName}-{Protocol}-{Endpoint.Name}-{Endpoint.Address}{(freeTurn ? "-freeturn" : "")}";
+        var value = $"shadowvpn-{ClientName}-{Protocol}-{Endpoint.Name}-{(freeTurn ? "-freeturn" : "")}";
         var invalid = Path.GetInvalidFileNameChars();
         return new string(value.Select(c => char.IsControl(c) || invalid.Contains(c) || c is '/' or '\\' ? '-' : c).ToArray()).Trim(' ', '.') + ".conf";
     }
