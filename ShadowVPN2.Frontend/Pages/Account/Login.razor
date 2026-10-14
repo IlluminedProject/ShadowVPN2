@@ -69,7 +69,7 @@ else
                         <AntiforgeryToken/>
                         <input type="hidden" name="ReturnUrl" value="@ReturnUrl"/>
                         <input type="hidden" name="Email" value="@_model.Email"/>
-                        <button type="submit" data-passkey-login class="w-100 btn btn-outline-secondary">Log in with a
+                        <button type="submit" data-passkey-login class="w-100 btn btn-primary">Log in with a
                             passkey
                         </button>
                     </form>
@@ -78,7 +78,7 @@ else
                 {
                     @if (provider.UseDeviceFlow)
                     {
-                        <a class="btn btn-outline-secondary w-100"
+                        <a class="btn btn-primary w-100"
                            href="/api/auth/device/start-page?returnUrl=@Uri.EscapeDataString(ReturnUrl ?? "/")">Continue
                             with @provider.DisplayName</a>
                     }
@@ -88,7 +88,7 @@ else
                             <AntiforgeryToken/>
                             <input type="hidden" name="provider" value="@provider.Name"/>
                             <input type="hidden" name="returnUrl" value="@ReturnUrl"/>
-                            <button type="submit" class="btn btn-outline-secondary w-100">Continue
+                            <button type="submit" class="btn btn-primary w-100">Continue
                                 with @provider.DisplayName</button>
                         </form>
                     }
