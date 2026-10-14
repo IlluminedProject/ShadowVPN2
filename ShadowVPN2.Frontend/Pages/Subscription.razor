@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 @layout PublicLayout
+@using QRCoder
 @implements IAsyncDisposable
 @inject ISubscriptionApplicationService SubscriptionApi
 @inject IJSRuntime JsRuntime
@@ -9,8 +10,34 @@
 
 <PageTitle>Connection setup - ShadowVPN2</PageTitle>
 
-<div class="frontend-content">
-    <div class="page-header"><h1>@(_subscription?.ClientName ?? "Connection setup")</h1></div>
+<div class="frontend-content" id="subscription-page">
+    <div class="page-header d-flex align-items-center justify-content-between gap-3 flex-wrap">
+        <h1 class="mb-0">@(_subscription?.ClientName ?? "Connection setup")</h1>
+        @if (!_loading && _subscription is not null)
+        {
+            <div class="actions">
+                <div class="btn-group dropdown" id="subscription-dropdown">
+                    <button class="btn btn-outline-secondary" type="button"
+                            data-copy-text="@CreateSubscriptionUrl(null)">Copy URL
+                    </button>
+                    <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button"
+                            data-dropdown-trigger aria-expanded="false" aria-controls="subscription-options"
+                            aria-label="Choose subscription format"></button>
+                    <ul id="subscription-options" class="dropdown-menu" data-dropdown-popup>
+                        @foreach (var format in SubscriptionFormats)
+                        {
+                            <li>
+                                <button class="dropdown-item" type="button"
+                                        data-copy-text="@CreateSubscriptionUrl(format.Key)">@format.Value</button>
+                            </li>
+                        }
+                    </ul>
+                </div>
+                <button class="btn btn-outline-secondary" type="button" @onclick="ShowQrCode">QR code</button>
+            </div>
+        }
+    </div>
+    <div class="app-status text-danger" role="alert" data-copy-error hidden></div>
     @if (_loading)
     {
         <div class="d-flex align-items-center gap-2 text-secondary" role="status">
@@ -26,91 +53,33 @@
     else
     {
         <section class="mb-4">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-                <span class="fw-semibold">Subscription</span>
-                <div class="btn-group dropdown" id="subscription-dropdown">
-                    <button class="btn btn-outline-secondary" type="button"
-                            @onclick="() => CopySubscriptionUrlAsync()" disabled="@_copying">Copy subscription URL
-                    </button>
-                    <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" type="button"
-                            data-dropdown-trigger aria-expanded="false" aria-controls="subscription-options"
-                            aria-label="Choose subscription format" disabled="@_copying">
-                    </button>
-                    <ul id="subscription-options" class="dropdown-menu" data-dropdown-popup>
-                        @foreach (var format in SubscriptionFormats)
-                        {
-                            <li>
-                                <button class="dropdown-item" type="button" disabled="@_copying"
-                                        @onclick="() => CopySubscriptionUrlAsync(format.Key)">@format.Value</button>
-                            </li>
-                        }
-                    </ul>
-                </div>
-            </div>
-            @if (CopyError is not null && FeedbackKey?.StartsWith("subscription:") == true)
-            {
-                <div class="app-status text-danger" role="alert">@CopyError</div>
-            }
-        </section>
-        <section class="mb-4">
-            <h2>Available connection hosts</h2>
+            <h2>Servers</h2>
             @if (!_subscription.Protocols.Any())
             {
                 <p class="text-body-secondary">No connection protocols are enabled for this client.</p>
             }
 
-            @foreach (var protocol in _subscription.Protocols)
-            {
-                if (protocol.Endpoints.Count == 0)
-                    continue;
-
-                <h3>@protocol.Protocol</h3>
-                @foreach (var endpoint in protocol.Endpoints)
+            <div class="connection-list">
+                @foreach (var protocol in _subscription.Protocols)
                 {
-                    <section class="endpoint app-list-item">
-                        <div class="flex-grow-1">
-                            <h4 class="h6">@endpoint.Name</h4>
-                            <dl class="app-details mb-0">
-                                <dt>Address</dt>
-                                <dd class="font-monospace text-break">@endpoint.Address</dd>
-                            </dl>
-                            @if (CopyError is not null && (FeedbackKey == ConnectionKey(protocol, endpoint) || endpoint.Transports.OfType<FreeTurnConnectionInfo>().Any(transport => FeedbackKey == $"{endpoint.Name}:{transport.Peer}")))
-                            {
-                                <div class="app-status text-danger" role="alert">@CopyError</div>
-                            }
-                        </div>
-                        <div class="actions">
-                            @if (endpoint.Connection is WireGuardConnectionInfo wireGuard)
-                            {
-                                <a class="btn btn-outline-secondary" href="@CreateConfigDataUrl(wireGuard)"
-                                   download="@CreateConfigFileName(_subscription.ClientName, protocol.Protocol, endpoint.Name, wireGuard.ServerAddress)">
-                                    Download VPN config
-                                </a>
-                            }
-                            <button class="btn btn-outline-secondary" type="button"
-                                    @onclick="() => CopyConnectionAsync(protocol, endpoint)"
-                                    disabled="@_copying">@(_copying && FeedbackKey == ConnectionKey(protocol, endpoint) ? "Copying…" : "Copy connection")</button>
-                            @foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
-                            {
-                                <button class="btn btn-outline-secondary" type="button"
-                                        @onclick="() => CopyFreeTurnAsync(endpoint, transport)"
-                                        disabled="@_copying">@(_copying && FeedbackKey == $"{endpoint.Name}:{transport.Peer}" ? "Copying…" : "Copy FreeTurn link")</button>
-                            }
-                        </div>
-                    </section>
+                    @foreach (var endpoint in protocol.Endpoints)
+                    {
+                        <SubscriptionConnectionRow Endpoint="endpoint" Protocol="@protocol.Protocol"
+                                                   ClientName="@_subscription.ClientName"/>
+                    }
                 }
-            }
+            </div>
         </section>
 
         @if (_servers.Count > 0)
         {
             <section>
                 <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
-                    <h2 class="mb-0">Server latency</h2>
+                    <h2 class="mb-0">HTTPS latency</h2>
                     <button class="btn btn-outline-secondary" type="button" @onclick="PingServersAsync"
-                            disabled="@_pinging">@(_pinging ? "Checking…" : "Check again")</button>
+                            disabled="@_pinging">@(_pinging ? "Checking…" : _hasChecked ? "Check again" : "Check")</button>
                 </div>
-                <p class="text-body-secondary">Measured from your device.</p>
+                <p class="text-body-secondary">HTTPS response time from your device.</p>
                 <div class="app-list">
                     @foreach (var server in _servers)
                     {
@@ -127,6 +96,19 @@
     }
 </div>
 
+@if (_qrCode is not null)
+{
+    <AppDialog Title="Subscription QR code" OnClose="CloseQrCode">
+        <ChildContent>
+            <div class="app-dialog__body text-center">
+                <img src="@_qrCode" alt="Subscription URL QR code" width="320" height="320"
+                     style="max-width:100%;height:auto"/>
+                <p class="text-body-secondary mt-3 mb-0">Scan with your VPN client to import the subscription.</p>
+            </div>
+        </ChildContent>
+    </AppDialog>
+}
+
 @code {
     [Parameter] public Guid SubscriptionId { get; set; }
 
@@ -134,18 +116,18 @@
     private bool _loading = true;
     private bool _pinging;
     private readonly List<ServerState> _servers = [];
-    private string? FeedbackKey { get; set; }
-    private string? CopyError { get; set; }
-    private bool _copying;
+    private bool _hasChecked;
+    private string? _qrCode;
+    private IJSObjectReference? _copyModule;
     private IJSObjectReference? _dropdownModule;
 
     private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
         new Dictionary<string, string>
         {
-            ["Base64"] = "Copy Base64 URL",
-            ["Mihomo"] = "Copy Mihomo URL",
-            ["MihomoProvider"] = "Copy Mihomo provider URL",
-            ["FreeTurn"] = "Copy FreeTurn URL"
+            ["Base64"] = "Base64",
+            ["Mihomo"] = "Mihomo",
+            ["MihomoProvider"] = "Mihomo provider",
+            ["FreeTurn"] = "FreeTurn"
         };
 
     protected override async Task OnParametersSetAsync()
@@ -172,6 +154,8 @@
         {
             _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/dropdown.js");
             await _dropdownModule.InvokeVoidAsync("initialize", "subscription-dropdown");
+            _copyModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/subscription-copy.js");
+            await _copyModule.InvokeVoidAsync("initialize", "subscription-page");
         }
 
         if (firstRender && _servers.Count > 0)
@@ -185,6 +169,11 @@
         {
             await _dropdownModule.InvokeVoidAsync("dispose", "subscription-dropdown");
             await _dropdownModule.DisposeAsync();
+            if (_copyModule is not null)
+            {
+                await _copyModule.InvokeVoidAsync("dispose", "subscription-page");
+                await _copyModule.DisposeAsync();
+            }
         }
         catch (JSDisconnectedException)
         {
@@ -232,21 +221,9 @@
             }
         }));
         _pinging = false;
+        _hasChecked = true;
     }
 
-    private async Task CopyConnectionAsync(ProtocolSubscription protocol, SubscriptionEndpoint endpoint)
-    {
-        var shareUrl = endpoint.Connection switch
-        {
-            Hysteria2ConnectionInfo hysteria2 => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria2,
-                _subscription!.ClientName),
-            NaiveProxyConnectionInfo naiveProxy => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naiveProxy,
-                _subscription!.ClientName),
-            WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
-            _ => string.Empty
-        };
-        await CopyAsync(shareUrl, ConnectionKey(protocol, endpoint));
-    }
 
     private string CreateSubscriptionUrl(string? format)
     {
@@ -256,66 +233,19 @@
         return Navigation.ToAbsoluteUri(path).ToString();
     }
 
-    private Task CopySubscriptionUrlAsync(string? format = null)
+
+    private void ShowQrCode()
     {
-        return CopyAsync(CreateSubscriptionUrl(format), $"subscription:{format}");
+        using var data = QRCodeGenerator.GenerateQrCode(CreateSubscriptionUrl(null), QRCodeGenerator.ECCLevel.M);
+        using var code = new PngByteQRCode(data);
+        _qrCode = $"data:image/png;base64,{Convert.ToBase64String(code.GetGraphic(8))}";
     }
 
-    private async Task CopyFreeTurnAsync(SubscriptionEndpoint endpoint, FreeTurnConnectionInfo transport)
+    private void CloseQrCode()
     {
-        var localConnection = SubscriptionLinkBuilder.CreateLocalConnection(endpoint.Connection);
-        var wireGuardConfig = localConnection is WireGuardConnectionInfo wireGuard
-            ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)
-            : null;
-        var shareUrl = SubscriptionLinkBuilder.CreateFreeTurnShareUrl(transport, _subscription!.ClientName,
-            wireGuardConfig);
-        await CopyAsync(shareUrl, $"{endpoint.Name}:{transport.Peer}");
+        _qrCode = null;
     }
 
-    private async Task CopyAsync(string text, string key)
-    {
-        _copying = true;
-        CopyError = null;
-        FeedbackKey = key;
-        try
-        {
-            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
-            FeedbackKey = null;
-        }
-        catch (JSException)
-        {
-            CopyError = "Could not copy. Allow clipboard access and try again.";
-        }
-        finally
-        {
-            _copying = false;
-        }
-    }
-
-    private static string ConnectionKey(ProtocolSubscription protocol, SubscriptionEndpoint endpoint)
-    {
-        return $"{protocol.Protocol}:{endpoint.Address}";
-    }
-
-    private static string CreateConfigDataUrl(WireGuardConnectionInfo wireGuard)
-    {
-        return $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)))}";
-    }
-
-    private static string CreateConfigFileName(string clientName, string protocol, string endpointName,
-        HostName serverAddress)
-    {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var parts = new[] { "shadowvpn", clientName, protocol, endpointName, serverAddress.ToString() }
-            .Select(part => new string(part.Trim().Select(character => char.IsControl(character) ||
-                                                                       invalidChars.Contains(character) || character is '/' or '\\'
-                    ? '-'
-                    : character).ToArray())
-                .Trim(' ', '.', '-'))
-            .Where(part => part.Length > 0);
-        var name = string.Join('-', parts);
-        return $"{name[..Math.Min(name.Length, 180)]}.conf";
-    }
 
     private static string PingText(ServerState server)
     {
@@ -324,7 +254,7 @@
             : server.Latency switch
             {
                 null => "—",
-                -1 => "Unavailable",
+                -1 => "Check failed",
                 _ => $"{server.Latency} ms"
             };
     }

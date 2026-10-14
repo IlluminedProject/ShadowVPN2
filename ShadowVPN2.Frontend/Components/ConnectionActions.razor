@@ -1,0 +1,52 @@
+@using QRCoder
+<div class="connection-actions">
+    @if (Link is not null)
+    {
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="@Link" title="Copy link"
+                aria-label="Copy link"><span class="bi bi-copy" aria-hidden="true"></span></button>
+    }
+    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="ShowQr" title="@QrTitle"
+            aria-label="@QrTitle"><span class="bi bi-qr-code" aria-hidden="true"></span></button>
+    @if (Config is not null)
+    {
+        <a class="btn btn-sm btn-outline-secondary" href="@_downloadUrl" download="@FileName" title="Download config"
+           aria-label="Download config"><span class="bi bi-download" aria-hidden="true"></span></a>
+    }
+</div>
+@if (_qr is not null)
+{
+    <AppDialog Title="@QrTitle" OnClose="CloseQr">
+        <ChildContent>
+            <div class="app-dialog__body text-center">
+                <img src="@_qr" alt="@QrTitle" width="320" height="320" style="max-width:100%;height:auto"/>
+            </div>
+        </ChildContent>
+    </AppDialog>
+}
+
+@code {
+    [Parameter] public string? Link { get; set; }
+    [Parameter] public string? Config { get; set; }
+    [Parameter] public string? FileName { get; set; }
+    [Parameter] public string QrTitle { get; set; } = "Connection QR code";
+    private string? _downloadUrl;
+    private string? _qr;
+
+    protected override void OnParametersSet()
+    {
+        _downloadUrl = Config is null ? null : $"data:text/plain;charset=utf-8;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(Config))}";
+    }
+
+    private void ShowQr()
+    {
+        using var data = QRCodeGenerator.GenerateQrCode(Config ?? Link ?? throw new InvalidOperationException("Missing QR content"), QRCodeGenerator.ECCLevel.M);
+        using var code = new PngByteQRCode(data);
+        _qr = $"data:image/png;base64,{Convert.ToBase64String(code.GetGraphic(8))}";
+    }
+
+    private void CloseQr()
+    {
+        _qr = null;
+    }
+
+}

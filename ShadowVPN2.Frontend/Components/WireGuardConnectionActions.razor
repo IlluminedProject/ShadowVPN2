@@ -1,0 +1,12 @@
+<ConnectionActions Config="@_config" FileName="@FileName" QrTitle="WireGuard config QR code"/>
+
+@code {
+    [Parameter][EditorRequired] public WireGuardConnectionInfo Connection { get; set; } = null!;
+    [Parameter][EditorRequired] public string FileName { get; set; } = null!;
+    private string _config = string.Empty;
+    protected override void OnParametersSet()
+    {
+        _config = SubscriptionLinkBuilder.CreateWireGuardConfig(Connection);
+    }
+
+}

@@ -1,0 +1,25 @@
+<div class="connection-row">
+    <span class="connection-row__name" title="@Transport.Peer">[FreeTurn / @Protocol] @ServerName <span
+            class="text-body-secondary">(@Transport.Peer)</span></span>
+    <ConnectionActions Link="@_link" Config="@_config" FileName="@FileName"
+                       QrTitle="@(_config is null ? "FreeTurn link QR code" : "FreeTurn WireGuard config QR code")"/>
+</div>
+
+@code {
+    [Parameter][EditorRequired] public ProtocolConnectionInfo Connection { get; set; } = null!;
+    [Parameter][EditorRequired] public FreeTurnConnectionInfo Transport { get; set; } = null!;
+    [Parameter][EditorRequired] public string Protocol { get; set; } = null!;
+    [Parameter][EditorRequired] public string ServerName { get; set; } = null!;
+    [Parameter][EditorRequired] public string ClientName { get; set; } = null!;
+    [Parameter][EditorRequired] public string FileName { get; set; } = null!;
+    private string? _config;
+    private string _link = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        var local = SubscriptionLinkBuilder.CreateLocalConnection(Connection);
+        _config = local is WireGuardConnectionInfo wireGuard ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard) : null;
+        _link = SubscriptionLinkBuilder.CreateFreeTurnShareUrl(Transport, ClientName, _config);
+    }
+
+}

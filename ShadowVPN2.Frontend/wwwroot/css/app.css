@@ -232,6 +232,28 @@ h1:focus {
     border-bottom: 1px solid var(--bs-border-color);
 }
 
+.connection-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.connection-row__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.connection-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: .375rem;
+}
+
 .app-list-item > :first-child {
     min-width: 0;
     overflow-wrap: anywhere;

@@ -1,0 +1,12 @@
+<ConnectionActions Link="@_link"/>
+
+@code {
+    [Parameter][EditorRequired] public NaiveProxyConnectionInfo Connection { get; set; } = null!;
+    [Parameter][EditorRequired] public string ClientName { get; set; } = null!;
+    private string _link = string.Empty;
+    protected override void OnParametersSet()
+    {
+        _link = SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(Connection, ClientName);
+    }
+
+}

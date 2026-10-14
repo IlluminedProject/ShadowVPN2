@@ -1,0 +1,37 @@
+<div class="connection-row">
+    <span class="connection-row__name" title="@Endpoint.Address">[@Protocol] @Endpoint.Name</span>
+    @switch (Endpoint.Connection)
+    {
+        case Hysteria2ConnectionInfo hysteria:
+            <Hysteria2ConnectionActions Connection="hysteria" ClientName="@ClientName"/>
+            break;
+        case NaiveProxyConnectionInfo naive:
+            <NaiveProxyConnectionActions Connection="naive" ClientName="@ClientName"/>
+            break;
+        case WireGuardConnectionInfo wireGuard:
+            <WireGuardConnectionActions Connection="wireGuard" FileName="@ConfigFileName(false)"/>
+            break;
+        default:
+            throw new InvalidOperationException($"Unsupported connection type: {Endpoint.Connection.GetType().Name}");
+    }
+</div>
+@foreach (var transport in Endpoint.Transports.OfType<FreeTurnConnectionInfo>())
+{
+    <FreeTurnConnectionRow Connection="Endpoint.Connection" Transport="transport" Protocol="@Protocol"
+                           ServerName="@Endpoint.Name"
+                           ClientName="@ClientName" FileName="@ConfigFileName(true)"/>
+}
+
+@code {
+    [Parameter][EditorRequired] public SubscriptionEndpoint Endpoint { get; set; } = null!;
+    [Parameter][EditorRequired] public string Protocol { get; set; } = null!;
+    [Parameter][EditorRequired] public string ClientName { get; set; } = null!;
+
+    private string ConfigFileName(bool freeTurn)
+    {
+        var value = $"shadowvpn-{ClientName}-{Protocol}-{Endpoint.Name}-{Endpoint.Address}{(freeTurn ? "-freeturn" : "")}";
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string(value.Select(c => char.IsControl(c) || invalid.Contains(c) || c is '/' or '\\' ? '-' : c).ToArray()).Trim(' ', '.') + ".conf";
+    }
+
+}
