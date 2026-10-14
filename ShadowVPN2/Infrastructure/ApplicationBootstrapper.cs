@@ -33,9 +33,5 @@ public sealed class ApplicationBootstrapper(
 
         localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
         await PeerCertificateTrustService.RestoreRootStoreAsync();
-        if (!firstLaunch) {
-            logger.LogInformation("Starting saved mesh configuration before RavenDB cluster initialization");
-            singBoxProcessManager.Start();
-        }
     }
 }
