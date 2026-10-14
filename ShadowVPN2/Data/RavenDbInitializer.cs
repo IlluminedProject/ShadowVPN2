@@ -19,13 +19,13 @@ public class RavenDbInitializer {
         var meshTcpUrl = $"tcp://100.64.0.{nodeNumber + 10}:38888";
 
         var serverOptions = new ServerOptions {
-            ServerUrl = "https://0.0.0.0:8888",
+            ServerUrl = $"https://127.0.0.1:8888;{meshUrl}",
             DataDirectory = (DataUtils.DataFolder / "ravendb").ToString(),
             ServerDirectory = options.ServerDirectory,
             CommandLineArgs = [
                 $"--PublicServerUrl={meshUrl}",
                 $"--ServerUrl.Cluster={meshUrl}",
-                "--ServerUrl.Tcp=tcp://0.0.0.0:38888",
+                $"--ServerUrl.Tcp=tcp://127.0.0.1:38888;{meshTcpUrl}",
                 $"--PublicServerUrl.Tcp={meshTcpUrl}",
                 $"--PublicServerUrl.Tcp.Cluster={meshTcpUrl}"
             ]

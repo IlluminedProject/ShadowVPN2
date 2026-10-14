@@ -1,5 +1,5 @@
 ﻿FROM node:24-bookworm AS ravendb-source
-ARG RAVENDB_REVISION=9f93ca1db1165991eecc6d1e9115b9e73151dd8e
+ARG RAVENDB_REVISION=bc1c11e38741add45b138456628579fb60bde6c8
 WORKDIR /src/ravendb
 RUN test -n "$RAVENDB_REVISION" \
     && git init . \
