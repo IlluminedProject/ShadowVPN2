@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Infrastructure.Configurations;
 using TruePath.SystemIo;
@@ -25,6 +26,7 @@ public sealed class ApplicationBootstrapper(
             logger.LogInformation("Completing cluster join");
             await FirstLaunchExperienceHelpers.CompleteJoinAsync(join.Token, join.Response, join.ConnectedTo,
                 services.GetRequiredService<IDocumentStore>(), services);
+            await RunMigrationsAsync(false);
             return;
         }
 
@@ -33,5 +35,24 @@ public sealed class ApplicationBootstrapper(
 
         localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
         await PeerCertificateTrustService.RestoreRootStoreAsync();
+        await RunMigrationsAsync(!firstLaunch);
+    }
+
+    private async Task RunMigrationsAsync(bool startSavedMesh) {
+        var runner = services.GetRequiredService<RavenMigrationRunner>();
+        var cancellationToken = services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
+        if (!await runner.HasPendingMigrationsAsync(cancellationToken))
+            return;
+
+        if (startSavedMesh) {
+            logger.LogInformation("Starting saved mesh configuration before RavenDB migrations");
+            singBoxProcessManager.Start();
+            if (!singBoxProcessManager.IsRunning) {
+                throw new InvalidOperationException(
+                    "Cannot apply RavenDB migrations: the saved sing-box configuration is unavailable");
+            }
+        }
+
+        await runner.RunAsync(cancellationToken);
     }
 }

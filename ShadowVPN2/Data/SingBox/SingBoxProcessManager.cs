@@ -43,6 +43,12 @@ public class SingBoxProcessManager : IDisposable {
     public async Task ApplyConfigAsync(string configJson) {
         await _semaphore.WaitAsync();
         try {
+            if (_configPath.ExistsFile() &&
+                string.Equals(await _configPath.ReadAllTextAsync(), configJson, StringComparison.Ordinal)) {
+                _logger.LogDebug("Sing-box configuration is unchanged");
+                return;
+            }
+
             if (!_configDir.ExistsDirectory()) _configDir.CreateDirectory();
 
             var tempConfigPath = _configDir / "config_temp.json";

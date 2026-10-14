@@ -11,11 +11,27 @@ public sealed class RavenMigrationRunner(
     ILogger<RavenMigrationRunner> logger) {
     private const string StateDocumentId = "ShadowVPN2/Migrations/State";
 
+    public async Task<bool> HasPendingMigrationsAsync(CancellationToken cancellationToken = default) {
+        var orderedMigrations = migrations
+            .OrderBy(migration => migration.Version)
+            .ToArray();
+        ValidateMigrations(orderedMigrations);
+        if (orderedMigrations.Length == 0)
+            return false;
+
+        using var session = documentStore.OpenAsyncSession();
+        var state = await session.LoadAsync<RavenMigrationState>(StateDocumentId, cancellationToken)
+                    ?? new RavenMigrationState();
+        return GetPendingMigrations(orderedMigrations, state).Count != 0;
+    }
+
     public async Task RunAsync(CancellationToken cancellationToken = default) {
-        var orderedMigrations = migrations.OrderBy(migration => migration.Version).ToArray();
+        var orderedMigrations = migrations
+            .OrderBy(migration => migration.Version)
+            .ToArray();
         ValidateMigrations(orderedMigrations);
 
-        if (orderedMigrations.Length == 0)
+        if (orderedMigrations.Length == 0 || !await HasPendingMigrationsAsync(cancellationToken))
             return;
 
         await using var lease = await migrationLock.AcquireAsync(cancellationToken);
@@ -29,25 +45,8 @@ public sealed class RavenMigrationRunner(
         var state = await session.LoadAsync<RavenMigrationState>(StateDocumentId, linkedCancellation.Token);
         var isNewState = state is null;
         state ??= new RavenMigrationState();
-        if (state.Version > orderedMigrations[^1].Version) {
-            throw new InvalidOperationException(
-                $"The RavenDB schema is at version {state.Version}, newer than this application supports");
-        }
-
-        var appliedVersions = state.AppliedMigrations.Select(entry => entry.Version).ToHashSet();
-        var missingAppliedVersions = orderedMigrations
-            .FirstOrDefault(migration =>
-                migration.Version <= state.Version && !appliedVersions.Contains(migration.Version));
-        if (missingAppliedVersions is not null) {
-            throw new InvalidOperationException(
-                $"RavenDB migration history is inconsistent at version {missingAppliedVersions.Version}");
-        }
-
-        var pendingMigrations = orderedMigrations
-            .Where(migration => !appliedVersions.Contains(migration.Version))
-            .ToArray();
-
-        if (pendingMigrations.Length == 0) {
+        var pendingMigrations = GetPendingMigrations(orderedMigrations, state);
+        if (pendingMigrations.Count == 0) {
             logger.LogInformation("RavenDB migrations are up to date at version {Version}", state.Version);
             return;
         }
@@ -76,13 +75,36 @@ public sealed class RavenMigrationRunner(
 
             await session.SaveChangesAsync(linkedCancellation.Token);
             logger.LogInformation("Applied {MigrationCount} RavenDB migrations through version {Version}",
-                pendingMigrations.Length, state.Version);
+                pendingMigrations.Count, state.Version);
         }
         catch (Exception exception) {
             logger.LogError(exception,
                 "RavenDB migration failed; the cluster-wide transaction was rolled back and startup will stop");
             throw new InvalidOperationException("RavenDB migrations failed; application startup is aborted", exception);
         }
+    }
+
+    private static IReadOnlyList<IRavenMigration> GetPendingMigrations(
+        IReadOnlyList<IRavenMigration> orderedMigrations, RavenMigrationState state) {
+        if (state.Version > orderedMigrations[^1].Version) {
+            throw new InvalidOperationException(
+                $"The RavenDB schema is at version {state.Version}, newer than this application supports");
+        }
+
+        var appliedVersions = state.AppliedMigrations
+            .Select(entry => entry.Version)
+            .ToHashSet();
+        var missingAppliedVersion = orderedMigrations
+            .FirstOrDefault(migration =>
+                migration.Version <= state.Version && !appliedVersions.Contains(migration.Version));
+        if (missingAppliedVersion is not null) {
+            throw new InvalidOperationException(
+                $"RavenDB migration history is inconsistent at version {missingAppliedVersion.Version}");
+        }
+
+        return orderedMigrations
+            .Where(migration => !appliedVersions.Contains(migration.Version))
+            .ToArray();
     }
 
     private static void ValidateMigrations(IReadOnlyList<IRavenMigration> orderedMigrations) {

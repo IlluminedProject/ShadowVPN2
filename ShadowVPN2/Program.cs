@@ -1,5 +1,4 @@
 using Serilog;
-using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Frontend.Components;
 using ShadowVPN2.Hubs;
 using ShadowVPN2.Infrastructure;
@@ -27,8 +26,6 @@ try {
     var app = builder.Build();
 
     await app.Services.GetRequiredService<ApplicationBootstrapper>().InitializeAsync();
-    await app.Services.GetRequiredService<RavenMigrationRunner>()
-        .RunAsync(app.Lifetime.ApplicationStopping);
 
     app.UseSerilogRequestLogging();
 
