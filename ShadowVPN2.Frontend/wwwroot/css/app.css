@@ -38,6 +38,10 @@ h1:focus {
     gap: .5rem;
 }
 
+.btn-outline-secondary {
+    --bs-btn-color: var(--bs-body-color);
+}
+
 .btn-sm {
     min-height: 2rem;
 }
