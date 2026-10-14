@@ -53,7 +53,7 @@ try {
     app.MapStaticAssets();
     app.MapControllers();
     app.MapHub<NodeHub>("/api/node/hub");
-    app.MapHub<ClientHub>("/api/client/hub");
+    app.MapHub<ClientHub>("/api/devices/hub");
     app.MapRazorComponents<App>()
         .AddInteractiveServerRenderMode();
 

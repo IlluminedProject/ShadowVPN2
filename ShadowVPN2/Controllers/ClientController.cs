@@ -10,7 +10,7 @@ using ShadowVPN2.Infrastructure.Extensions;
 namespace ShadowVPN2.Controllers;
 
 [ApiController]
-[Route("api/client")]
+[Route("api/devices")]
 [Authorize]
 public class ClientController(
     ClientService clientService,

@@ -98,7 +98,10 @@
 </div>
 @if (_pendingRemoval is not null)
 {
-    <ConfirmDialog Title="Remove transport" Message="@($"Remove FreeTurn on port {_pendingRemoval.ListenPort}? Clients using this transport will lose that connection option when you save settings.")" ConfirmText="Remove transport" OnConfirm="ConfirmRemoveTransport" OnCancel="() => _pendingRemoval = null"/>
+    <ConfirmDialog Title="Remove transport"
+                   Message="@($"Remove FreeTurn on port {_pendingRemoval.ListenPort}? Devices using this transport will lose that connection option when you save settings.")"
+                   ConfirmText="Remove transport" OnConfirm="ConfirmRemoveTransport"
+                   OnCancel="() => _pendingRemoval = null"/>
 }
 
 @code {

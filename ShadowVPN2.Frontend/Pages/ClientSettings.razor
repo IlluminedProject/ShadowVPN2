@@ -1,4 +1,4 @@
-@page "/clients/settings/{*ClientId}"
+@page "/devices/settings/{*ClientId}"
 @using System.ComponentModel.DataAnnotations
 @using System.Net
 @rendermode InteractiveServer
@@ -6,28 +6,28 @@
 @inject IClientApplicationService ClientsApi
 @inject NavigationManager Navigation
 
-<PageTitle>Client settings - ShadowVPN2</PageTitle>
+<PageTitle>Device settings - ShadowVPN2</PageTitle>
 
 <div>
     <div class="page-header">
-        <h1>Client settings</h1>
-        <div class="actions"><a class="btn btn-outline-secondary" href="/clients">Back to VPN clients</a></div>
+        <h1>Device settings</h1>
+        <div class="actions"><a class="btn btn-outline-secondary" href="/devices">Back to VPN devices</a></div>
     </div>
 
     @if (_loading)
     {
         <div class="app-status text-body-secondary" role="status"><span class="spinner-border spinner-border-sm"
-                                                                        aria-hidden="true"></span> Loading client…
+                                                                        aria-hidden="true"></span> Loading device…
         </div>
     }
     else if (!_authenticated)
     {
-        <p>You need to sign in to manage VPN clients.</p>
+        <p>You need to sign in to manage VPN devices.</p>
         <a class="btn btn-primary" href="@LoginUrl">Sign in</a>
     }
     else if (_client is null)
     {
-        <div class="alert alert-danger" role="alert">Client not found or access denied.</div>
+        <div class="alert alert-danger" role="alert">Device not found or access denied.</div>
     }
     else
     {
@@ -39,7 +39,7 @@
                 <div class="alert alert-danger" role="alert">@_error</div>
             }
             <fieldset disabled="@_saving">
-                <legend class="visually-hidden">Client settings</legend>
+                <legend class="visually-hidden">Device settings</legend>
                 <div class="field">
                     <label class="form-label" for="client-name">Device name</label>
                     <InputText id="client-name" class="form-control" @bind-Value="_form.Name"
@@ -128,7 +128,7 @@
             if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
             else if (exception.StatusCode == HttpStatusCode.NotFound)
-                _error = "Could not load client settings.";
+                _error = "Could not load device settings.";
         }
         finally
         {
@@ -162,7 +162,7 @@
             if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
             else
-                _error = "Could not save client settings.";
+                _error = "Could not save device settings.";
         }
         finally
         {
