@@ -8,6 +8,7 @@ namespace ShadowVPN2.Data;
 public class ClientService(IDocumentStore documentStore, ILogger<ClientService> logger) : IDisposable {
     private readonly Lock _lock = new();
     private readonly HashSet<ClientSubscription> _subscriptions = new();
+    private readonly SemaphoreSlim _updatesGate = new(1, 1);
     private IDisposable? _changesSubscription;
     private CancellationTokenSource? _disposalCts;
 
@@ -174,26 +175,33 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
     public async Task<ClientSubscription> SubscribeAsync(ApplicationUser user, bool includeAllUsers = false,
         Func<IReadOnlyList<EntityClient>, Task>? onUpdate = null) {
-        var subscription = new ClientSubscription(this, user.Id!, user.UserNumber, includeAllUsers);
-        if (onUpdate != null) {
-            subscription.ClientsUpdated += onUpdate;
-        }
-
-        lock (_lock) {
-            _subscriptions.Add(subscription);
-
-            if (_disposalCts != null) {
-                _disposalCts.Cancel();
-                _disposalCts.Dispose();
-                _disposalCts = null;
+        await _updatesGate.WaitAsync();
+        try {
+            var subscription = new ClientSubscription(this, user.Id!, user.UserNumber, includeAllUsers);
+            subscription.SetCurrentClients(await GetClientsAsync(user, includeAllUsers));
+            if (onUpdate != null) {
+                subscription.ClientsUpdated += onUpdate;
             }
 
-            if (_subscriptions.Count == 1 && _changesSubscription == null) {
-                InitializeChangesSubscription();
-            }
-        }
+            lock (_lock) {
+                _subscriptions.Add(subscription);
 
-        return await Task.FromResult(subscription);
+                if (_disposalCts != null) {
+                    _disposalCts.Cancel();
+                    _disposalCts.Dispose();
+                    _disposalCts = null;
+                }
+
+                if (_subscriptions.Count == 1 && _changesSubscription == null) {
+                    InitializeChangesSubscription();
+                }
+            }
+
+            return subscription;
+        }
+        finally {
+            _updatesGate.Release();
+        }
     }
 
     private void Unsubscribe(ClientSubscription subscription) {
@@ -246,26 +254,31 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
     private void NotifyClientsChanged(int userNumber) {
         _ = Task.Run(async () => {
+            await _updatesGate.WaitAsync();
             try {
-                var clients = await GetClientsByUserNumberAsync(userNumber);
-
                 List<ClientSubscription> targets;
+
                 lock (_lock) {
                     targets = _subscriptions.Where(s => s.IncludeAllUsers || s.UserNumber == userNumber).ToList();
                 }
 
                 if (targets.Count > 0) {
-                    await Task.WhenAll(targets.Select(t => t.NotifyAsync(clients)));
+                    var clients = await GetClientsByUserNumberAsync(userNumber);
+                    await Task.WhenAll(targets.Select(t => t.NotifyAsync(userNumber, clients)));
                 }
             }
             catch (Exception ex) {
                 logger.LogError(ex, "Error notifying client changes for user {UserNumber}", userNumber);
+            }
+            finally {
+                _updatesGate.Release();
             }
         });
     }
 
     public class ClientSubscription(ClientService service, string userId, int userNumber, bool includeAllUsers)
         : IDisposable {
+        private IReadOnlyList<EntityClient> _clients = [];
         private bool _disposed;
         public string UserId { get; } = userId;
         public int UserNumber { get; } = userNumber;
@@ -280,15 +293,23 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
 
         public event Func<IReadOnlyList<EntityClient>, Task>? ClientsUpdated;
 
-        public async Task<IReadOnlyList<EntityClient>> GetCurrentClientsAsync() {
-            return IncludeAllUsers
-                ? await service.GetClientsAsync(new ApplicationUser { Id = UserId, UserNumber = UserNumber }, true)
-                : await service.GetClientsByUserNumberAsync(UserNumber);
+        public Task<IReadOnlyList<EntityClient>> GetCurrentClientsAsync() {
+            return Task.FromResult(_clients);
         }
 
-        public async Task NotifyAsync(IReadOnlyList<EntityClient> clients) {
-            if (!_disposed && ClientsUpdated != null) {
-                await ClientsUpdated.Invoke(clients);
+        internal void SetCurrentClients(IReadOnlyList<EntityClient> clients) {
+            _clients = clients;
+        }
+
+        public async Task NotifyAsync(int userNumber, IReadOnlyList<EntityClient> clients) {
+            if (!_disposed) {
+                var prefix = $"Clients/{userNumber}/";
+                _clients = IncludeAllUsers
+                    ? _clients.Where(c => !c.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        .Concat(clients).OrderByDescending(c => c.UserId == UserId).ThenBy(c => c.Id).ToArray()
+                    : clients;
+                if (ClientsUpdated != null)
+                    await ClientsUpdated.Invoke(_clients);
             }
         }
     }
