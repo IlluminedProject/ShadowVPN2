@@ -1,5 +1,6 @@
 using System.Text;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.WebUtilities;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Entities;
@@ -93,8 +94,17 @@ public sealed class SubscriptionFormatServiceTests {
         var encoded = new SubscriptionFormatService().Render(response, SubscriptionFormat.Base64);
         var link = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
 
-        link.Should().Be($"{scheme}://user%20name:pass%26word@[2001:db8::1]:8443/" +
-                         "?sni=shadowvpn.local&insecure=1&pinSHA256=AA%3ABB&name=device");
+        var uri = new Uri(link);
+        uri.Scheme.Should().Be(scheme);
+        uri.GetComponents(UriComponents.UserInfo, UriFormat.Unescaped).Should().Be("user name:pass&word");
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        query["sni"].ToString().Should().Be("shadowvpn.local");
+        query["insecure"].ToString().Should().Be("1");
+        query["pinSHA256"].ToString().Should().Be("AA:BB");
+        query["insecure-concurrency"].ToString().Should().Be("2");
+        query["uot"].ToString().Should().Be("1");
+        query["udp_over_tcp"].ToString().Should().Be("1");
+        query["name"].ToString().Should().Be("device");
     }
 
     [Theory]

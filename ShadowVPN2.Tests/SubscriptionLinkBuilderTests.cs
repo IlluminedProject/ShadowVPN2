@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.WebUtilities;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Subscriptions;
 using ShadowVPN2.Frontend.Api;
@@ -25,9 +26,17 @@ public sealed class SubscriptionLinkBuilderTests {
 
         var result = SubscriptionLinkBuilder.CreateHysteria2ShareUrl(connection, "my device");
 
-        result.Should().Be($"hysteria2://password%20with%20spaces@{uriHost}:443/?insecure=1" +
-                           "&pinSHA256=AA%3ABB&obfs=salamander&obfs-password=obfs%26key" +
-                           "&sni=sni.example.com&name=my%20device");
+        var uri = new Uri(result);
+        uri.GetComponents(UriComponents.UserInfo, UriFormat.UriEscaped).Should().Be("password%20with%20spaces");
+        uri.Authority.Should().Be($"{uriHost}:443");
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        query.ContainsKey("udp_over_tcp").Should().BeFalse();
+        query.ContainsKey("uot").Should().BeFalse();
+        query["pinSHA256"].ToString().Should().Be("AA:BB");
+        query["obfs"].ToString().Should().Be("salamander");
+        query["obfs-password"].ToString().Should().Be("obfs&key");
+        query["sni"].ToString().Should().Be("sni.example.com");
+        query["name"].ToString().Should().Be("my device");
     }
 
     [Fact]
@@ -41,7 +50,10 @@ public sealed class SubscriptionLinkBuilderTests {
         var link = SubscriptionLinkBuilder.CreateHysteria2ShareUrl(connection, "device");
         var local = (Hysteria2ConnectionInfo)SubscriptionLinkBuilder.CreateLocalConnection(connection);
 
-        link.Should().Contain("@[2001:db8::1]:20000/?insecure=1&mport=20000-30000&name=device");
+        var uri = new Uri(link);
+        uri.Port.Should().Be(20000);
+        QueryHelpers.ParseQuery(uri.Query)["mport"].ToString()
+            .Should().Be("20000-30000");
         local.PortBinding.Should().Be(new PortBinding(9000));
         connection.PortBinding.Should().Be(new PortBinding(20000, 30000));
     }
@@ -96,8 +108,15 @@ public sealed class SubscriptionLinkBuilderTests {
         var link = SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(connection, "device");
         var local = (NaiveProxyConnectionInfo)SubscriptionLinkBuilder.CreateLocalConnection(connection);
 
-        link.Should().Be($"{scheme}://user:password@[2001:db8::1]:443/?sni=sni.example.com" +
-                         "&pinSHA256=AA%3ABB&name=device");
+        var uri = new Uri(link);
+        uri.Scheme.Should().Be(scheme);
+        uri.Authority.Should().Be("[2001:db8::1]:443");
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        query["sni"].ToString().Should().Be("sni.example.com");
+        query["pinSHA256"].ToString().Should().Be("AA:BB");
+        query["insecure-concurrency"].ToString().Should().Be("2");
+        query["uot"].ToString().Should().Be("1");
+        query["udp_over_tcp"].ToString().Should().Be("1");
         local.ServerAddress.Should().Be(HostName.Parse("127.0.0.1"));
         local.ServerPort.Should().Be(9000);
         local.Quic.Should().Be(quic);

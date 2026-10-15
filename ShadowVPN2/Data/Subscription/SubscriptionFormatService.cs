@@ -125,6 +125,9 @@ public sealed class SubscriptionFormatService {
         AddQuery(builder, "sni", connection.Sni.ToString());
         AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
         AddQuery(builder, "pinSHA256", connection.PinSha256);
+        AddQuery(builder, "insecure-concurrency", "2");
+        AddQuery(builder, "uot", "1");
+        AddQuery(builder, "udp_over_tcp", "1");
         AddQuery(builder, "name", clientName);
         return builder.ToString().TrimEnd('&');
     }
