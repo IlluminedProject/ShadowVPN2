@@ -11,14 +11,14 @@ namespace ShadowVPN2.Tests;
 public sealed class FreeTurnTests {
     [Fact]
     public void Valid_transport_should_reference_protocol_and_have_distinct_ports() {
-        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = 51821 };
+        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = new PortBinding(51821) };
         var configuration = new EntityGlobalConfiguration {
             Protocols = [protocol],
             Transports = [
                 new FreeTurnTransportSettings {
                     Id = Guid.NewGuid(),
                     ProtocolId = protocol.Id,
-                    ListenPort = 56000,
+                    ListenPort = new PortBinding(56000),
                     ObfuscationKey = new string('a', 64)
                 }
             ]
@@ -32,12 +32,12 @@ public sealed class FreeTurnTests {
     [Fact]
     public void Invalid_transport_reference_should_be_rejected() {
         var configuration = new EntityGlobalConfiguration {
-            Protocols = [new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = 51821 }],
+            Protocols = [new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = new PortBinding(51821) }],
             Transports = [
                 new FreeTurnTransportSettings {
                     Id = Guid.NewGuid(),
                     ProtocolId = Guid.NewGuid(),
-                    ListenPort = 56000
+                    ListenPort = new PortBinding(56000)
                 }
             ]
         };
@@ -49,14 +49,14 @@ public sealed class FreeTurnTests {
 
     [Fact]
     public void Null_obfuscation_profile_should_not_require_a_key() {
-        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = 51821 };
+        var protocol = new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = new PortBinding(51821) };
         var configuration = new EntityGlobalConfiguration {
             Protocols = [protocol],
             Transports = [
                 new FreeTurnTransportSettings {
                     Id = Guid.NewGuid(),
                     ProtocolId = protocol.Id,
-                    ListenPort = 56000,
+                    ListenPort = new PortBinding(56000),
                     ObfuscationProfile = null,
                     ObfuscationKey = null
                 }

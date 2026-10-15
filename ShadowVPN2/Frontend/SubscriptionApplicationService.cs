@@ -56,7 +56,7 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
             },
             Hysteria2ConnectionInfo hysteria2 => new Contract.Hysteria2ConnectionInfo {
                 ServerAddress = hysteria2.ServerAddress,
-                ServerPort = hysteria2.ServerPort,
+                PortBinding = hysteria2.PortBinding,
                 Password = hysteria2.Password,
                 ObfsType = hysteria2.ObfsType,
                 ObfsPassword = hysteria2.ObfsPassword,

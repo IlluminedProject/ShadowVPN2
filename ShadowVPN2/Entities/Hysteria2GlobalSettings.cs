@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Entities;
 
@@ -9,7 +10,7 @@ public class Hysteria2GlobalSettings : ProtocolGlobalSettings, IProtocolDefiniti
         get => "Hysteria2";
     }
 
-    public override int ListenPort { get; set; } = 4443;
+    public override PortBinding ListenPort { get; set; } = new(4443);
     public string ObfsType { get; set; } = "salamander";
     public string ObfsPassword { get; set; } = GeneratePassword();
     public string TlsCertificatePem { get; set; } = "";

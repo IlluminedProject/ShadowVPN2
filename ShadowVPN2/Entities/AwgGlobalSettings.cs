@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Entities;
 
@@ -8,7 +9,7 @@ public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
         get => "WireGuard";
     }
 
-    public override int ListenPort { get; set; } = 51820;
+    public override PortBinding ListenPort { get; set; } = new(51820);
     public int Mtu { get; set; } = 1408;
     public string ServerAddress { get; set; } = "100.64.0.1/10";
     public string PrivateKey { get; set; } = GenerateKey();

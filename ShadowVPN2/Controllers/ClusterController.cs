@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Protocols;
@@ -42,7 +43,7 @@ public class ClusterController(
         CancellationToken cancellationToken) {
         await globalConfigurationService.UpdateAsync(configuration => {
             var awg = configuration.AwgSettings;
-            awg.ListenPort = request.ListenPort;
+            awg.ListenPort = new PortBinding(request.ListenPort);
             awg.H1 = request.H1;
             awg.H2 = request.H2;
             awg.H3 = request.H3;
@@ -107,7 +108,7 @@ public class ClusterController(
 
     private static AwgClusterSettings MapAwgSettings(AwgGlobalSettings awg) {
         return new AwgClusterSettings {
-            ListenPort = awg.ListenPort,
+            ListenPort = awg.ListenPort.ListenPort,
             H1 = awg.H1,
             H2 = awg.H2,
             H3 = awg.H3,

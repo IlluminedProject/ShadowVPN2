@@ -1,3 +1,4 @@
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Entities;
 
 namespace ShadowVPN2.Data.Protocols;
@@ -10,13 +11,15 @@ public static class GlobalConfigurationValidator {
         var protocols = configuration.Protocols ?? [];
         var transports = configuration.Transports ?? [];
 
-        var protocolIds = new HashSet<Guid>();
-        var protocolPorts = new HashSet<(ProtocolSocketKind Kind, int Port)>();
+        var protocolsById = new Dictionary<Guid, ProtocolGlobalSettings>();
+        var reservedPorts = new List<(ProtocolSocketKind Kind, PortBinding Binding)>();
         foreach (var protocol in protocols) {
-            if (protocol.Id == Guid.Empty || !protocolIds.Add(protocol.Id))
+            if (protocol.Id == Guid.Empty || !protocolsById.TryAdd(protocol.Id, protocol))
                 throw new ArgumentException("Protocol IDs must be unique and non-empty", nameof(configuration));
 
-            ValidatePort(protocol.ListenPort, $"protocol {protocol.Protocol}");
+            var binding = ValidateBinding(protocol.ListenPort, $"protocol {protocol.Protocol}");
+            if (protocol is not Hysteria2GlobalSettings && binding.PortRangeEnd.HasValue)
+                throw new ArgumentException("Only Hysteria2 protocols support port ranges", nameof(configuration));
             if (protocol is NaiveProxyGlobalSettings naiveProxy &&
                 (string.IsNullOrWhiteSpace(naiveProxy.TlsCertificatePem) ||
                  string.IsNullOrWhiteSpace(naiveProxy.TlsKeyPem))) {
@@ -25,35 +28,43 @@ public static class GlobalConfigurationValidator {
             }
 
             var socketKind = ProtocolDefinitionMetadata.GetSocketKind(protocol);
-            if (!protocolPorts.Add((socketKind, protocol.ListenPort))) {
-                throw new ArgumentException($"Protocol listen port {protocol.ListenPort} is used more than once",
+            foreach (var reserved in reservedPorts) {
+                if (reserved.Kind != socketKind || !binding.Overlaps(reserved.Binding))
+                    continue;
+
+                if (binding.ListenPort == reserved.Binding.ListenPort) {
+                    throw new ArgumentException($"Protocol listen port {binding.ListenPort} is used more than once",
+                        nameof(configuration));
+                }
+
+                throw new ArgumentException("Protocol port range conflicts with another protocol binding",
                     nameof(configuration));
             }
+
+            reservedPorts.Add((socketKind, binding));
         }
 
         var transportIds = new HashSet<Guid>();
-        var transportPorts = new HashSet<int>();
         foreach (var transport in transports) {
             if (transport.Id == Guid.Empty || !transportIds.Add(transport.Id))
                 throw new ArgumentException("Transport IDs must be unique and non-empty", nameof(configuration));
 
-            if (!protocolIds.Contains(transport.ProtocolId)) {
+            if (!protocolsById.TryGetValue(transport.ProtocolId, out var protocol)) {
                 throw new ArgumentException($"Transport {transport.Id} references an unknown protocol",
                     nameof(configuration));
             }
 
-            ValidatePort(transport.ListenPort, $"transport {transport.Id}");
-            if (!transportPorts.Add(transport.ListenPort)) {
-                throw new ArgumentException($"Transport listen port {transport.ListenPort} is used more than once",
-                    nameof(configuration));
+            var binding = ValidateBinding(transport.ListenPort, $"transport {transport.Id}");
+            var socketKind = GetTransportSocketKind(transport, protocol);
+            foreach (var reserved in reservedPorts) {
+                if (reserved.Kind == socketKind && binding.Overlaps(reserved.Binding)) {
+                    throw new ArgumentException(
+                        $"Transport listen port or range for {binding.ListenPort} conflicts with another port binding",
+                        nameof(configuration));
+                }
             }
 
-            if (transport is FreeTurnTransportSettings &&
-                protocolPorts.Contains((ProtocolSocketKind.Udp, transport.ListenPort))) {
-                throw new ArgumentException(
-                    $"Transport listen port {transport.ListenPort} conflicts with a protocol listen port",
-                    nameof(configuration));
-            }
+            reservedPorts.Add((socketKind, binding));
 
             if (transport is FreeTurnTransportSettings freeTurn)
                 ValidateFreeTurn(freeTurn);
@@ -61,11 +72,20 @@ public static class GlobalConfigurationValidator {
     }
 
     public static void ValidateMeshPort(EntityGlobalConfiguration configuration) {
-        var meshPort = configuration.AwgSettings.ListenPort;
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var meshPort = configuration.AwgSettings.ListenPort.ListenPort;
         ValidatePort(meshPort, "cluster mesh");
-        if ((configuration.Protocols ?? []).Any(protocol => protocol.ListenPort == meshPort &&
-                ProtocolDefinitionMetadata.GetSocketKind(protocol) == ProtocolSocketKind.Udp) ||
-            (configuration.Transports ?? []).OfType<FreeTurnTransportSettings>().Any(transport => transport.ListenPort == meshPort)) {
+        var protocols = configuration.Protocols ?? [];
+        if (protocols.Any(protocol =>
+                ProtocolDefinitionMetadata.GetSocketKind(protocol) == ProtocolSocketKind.Udp &&
+                protocol.ListenPort.Contains(meshPort)) ||
+            (configuration.Transports ?? []).Any(transport => {
+                var protocol = protocols.FirstOrDefault(candidate => candidate.Id == transport.ProtocolId);
+                return protocol is not null &&
+                       GetTransportSocketKind(transport, protocol) == ProtocolSocketKind.Udp &&
+                       transport.ListenPort.Contains(meshPort);
+            })) {
             throw new ArgumentException($"UDP listen port {meshPort} is reserved for cluster mesh",
                 nameof(configuration));
         }
@@ -84,6 +104,22 @@ public static class GlobalConfigurationValidator {
             throw new ArgumentException(
                 $"FreeTurn obfuscation key must be 64 hexadecimal characters, got {settings.ObfuscationKey ?? "null"}");
         }
+    }
+
+    private static ProtocolSocketKind GetTransportSocketKind(TransportSettings transport,
+        ProtocolGlobalSettings protocol) {
+        return transport switch {
+            FreeTurnTransportSettings => ProtocolDefinitionMetadata.GetSocketKind(protocol),
+            _ => throw new InvalidOperationException($"Unknown transport type {transport.GetType().Name}")
+        };
+    }
+
+    private static PortBinding ValidateBinding(PortBinding binding, string owner) {
+        ValidatePort(binding.ListenPort, owner);
+        if (binding.PortRangeEnd is { } end)
+            ValidatePort(end, $"{owner} port range end");
+
+        return binding;
     }
 
     private static void ValidatePort(int port, string owner) {

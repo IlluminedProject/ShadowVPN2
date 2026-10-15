@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using ShadowVPN2.Data.Certificates;
-using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -17,10 +16,10 @@ public class SingBoxService(
     ILogger<SingBoxService> logger,
     IDocumentStore documentStore,
     IEnumerable<ISingBoxConfigContributor> contributors,
-    ProtocolSettingsService protocolSettingsService,
     GlobalConfigurationService globalConfigurationService,
     ManagedCertificateService managedCertificateService,
-    SingBoxProcessManager singBoxProcessManager)
+    SingBoxProcessManager singBoxProcessManager,
+    PortRangeRedirectService portRangeRedirectService)
     : BackgroundService {
     public static readonly JsonSerializerOptions SerializerOptions = new() {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -28,6 +27,9 @@ public class SingBoxService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
+
+    private readonly SemaphoreSlim configurationGate = new(1, 1);
+    private bool stopping;
 
     public bool IsRunning {
         get => singBoxProcessManager.IsRunning;
@@ -45,14 +47,14 @@ public class SingBoxService(
             .ForDocumentsInCollection<EntityClient>()
             .Subscribe(new ActionObserver<DocumentChange>(change => {
                 logger.LogInformation("Clients collection changed, regenerating sing-box config");
-                _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
+                _ = RegenerateInBackgroundAsync();
             }));
 
         using var nodesSubscription = documentStore.Changes()
             .ForDocumentsInCollection<EntityClusterNode>()
             .Subscribe(new ActionObserver<DocumentChange>(change => {
                 logger.LogInformation("Nodes collection changed, regenerating sing-box config");
-                _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
+                _ = RegenerateInBackgroundAsync();
             }));
 
         while (!stoppingToken.IsCancellationRequested) {
@@ -65,7 +67,7 @@ public class SingBoxService(
 
     private void OnConfigurationChanged(object? sender, EntityGlobalConfiguration e) {
         logger.LogInformation("Global configuration changed, regenerating sing-box config");
-        _ = RegenerateAndApplyConfigAsync(CancellationToken.None);
+        _ = RegenerateInBackgroundAsync();
     }
 
     private Task OnCertificatesChanged() {
@@ -73,30 +75,54 @@ public class SingBoxService(
         return RegenerateAndApplyConfigAsync(CancellationToken.None);
     }
 
+    private async Task RegenerateInBackgroundAsync() {
+        try {
+            await RegenerateAndApplyConfigAsync(CancellationToken.None);
+        }
+        catch (Exception exception) {
+            logger.LogError(exception, "Failed to regenerate sing-box configuration and apply port range redirects");
+        }
+    }
+
     public async Task RegenerateAndApplyConfigAsync(CancellationToken ct) {
-        logger.LogInformation("Regenerating sing-box configuration");
+        await configurationGate.WaitAsync(ct);
+        try {
+            if (stopping) return;
+            logger.LogInformation("Regenerating sing-box configuration");
+            var configuration = await globalConfigurationService.GetAsync(ct);
+            var protocols = configuration.Protocols;
+            using var session = documentStore.OpenAsyncSession();
+            var clients = await session.Query<EntityClient>().ToListAsync(ct);
 
-        var protocols = await protocolSettingsService.GetConfigurationAsync();
+            var config = new SingBoxConfig();
+            config.Log.Level = "debug";
+            foreach (var contributor in contributors) await contributor.ContributeAsync(config, protocols, clients);
+            config.Inbounds.RemoveAll(static inbound => inbound is IConditionallyEnabledConfig {
+                IsActuallyEnabled: false
+            });
 
-        using var session = documentStore.OpenAsyncSession();
-        var clients = await session.Query<EntityClient>().ToListAsync(ct);
-
-        var config = new SingBoxConfig();
-        config.Log.Level = "debug";
-        foreach (var contributor in contributors) await contributor.ContributeAsync(config, protocols, clients);
-        config.Inbounds.RemoveAll(static inbound => inbound is IConditionallyEnabledConfig {
-            IsActuallyEnabled: false
-        });
-
-        var configJson = JsonSerializer.Serialize(config, SerializerOptions);
-        await singBoxProcessManager.ApplyConfigAsync(configJson);
+            var configJson = JsonSerializer.Serialize(config, SerializerOptions);
+            await singBoxProcessManager.ApplyConfigAsync(configJson);
+            await portRangeRedirectService.ApplyAsync(protocols, configuration.Transports, ct);
+        }
+        finally {
+            configurationGate.Release();
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken) {
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
-        singBoxProcessManager.Stop();
-        await base.StopAsync(cancellationToken);
+        await configurationGate.WaitAsync(cancellationToken);
+        try {
+            stopping = true;
+            singBoxProcessManager.Stop();
+            await portRangeRedirectService.RemoveAsync(cancellationToken);
+        }
+        finally {
+            configurationGate.Release();
+            await base.StopAsync(cancellationToken);
+        }
     }
 
     public override void Dispose() {

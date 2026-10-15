@@ -1,0 +1,29 @@
+@using System.Diagnostics.CodeAnalysis
+@inherits InputBase<PortBinding>
+
+<input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
+       aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
+       @bind="CurrentValueAsString"/>
+
+@code {
+    protected override string? FormatValueAsString(PortBinding value)
+    {
+        return value.ToString();
+    }
+
+    protected override bool TryParseValueFromString(string? value, out PortBinding result,
+        [NotNullWhen(false)] out string? validationErrorMessage)
+    {
+        if (PortBinding.TryParse(value, out var binding))
+        {
+            result = binding;
+            validationErrorMessage = null;
+            return true;
+        }
+
+        result = default;
+        validationErrorMessage = "Enter a port (4443) or range (4443-4450), from 1 to 65535.";
+        return false;
+    }
+
+}

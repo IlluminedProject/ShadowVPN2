@@ -148,8 +148,8 @@ public sealed class FreeTurnService(
 
     private string[] BuildArguments(FreeTurnTransportSettings transport, ProtocolGlobalSettings protocol) {
         var arguments = new List<string> {
-            "-listen", $"0.0.0.0:{transport.ListenPort}",
-            "-connect", $"127.0.0.1:{protocol.ListenPort}",
+            "-listen", $"0.0.0.0:{transport.ListenPort.ListenPort}",
+            "-connect", $"127.0.0.1:{protocol.ListenPort.ListenPort}",
             "-mode", ProtocolDefinitionMetadata.GetSocketKind(protocol).ToFreeTurnMode(),
             "-clients-file", _clientsFile
         };

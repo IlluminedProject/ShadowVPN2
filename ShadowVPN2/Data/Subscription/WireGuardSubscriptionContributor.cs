@@ -21,7 +21,7 @@ public sealed class WireGuardSubscriptionContributor(
         var mtu = client.WireGuard?.Mtu ?? wg.Mtu;
         return new WireGuardConnectionInfo {
             ServerAddress = host,
-            ServerPort = wg.ListenPort,
+            ServerPort = wg.ListenPort.ListenPort,
             PrivateKey = client.WireGuard!.PrivateKey!,
             AssignedIp = client.GetAssignedIp().ToString(),
             ServerPublicKey = serverPublicKey,

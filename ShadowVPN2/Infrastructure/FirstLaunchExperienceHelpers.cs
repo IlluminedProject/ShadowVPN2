@@ -177,7 +177,7 @@ public static class FirstLaunchExperienceHelpers {
             UseIntegratedTun = singBoxOptions.Value.Awg.UseIntegratedTun,
             Address = [$"{nodeIp}/24"],
             PrivateKey = awgPrivateKey,
-            ListenPort = awgSettings.ListenPort,
+            ListenPort = awgSettings.ListenPort.ListenPort,
             Jc = awgSettings.Jc,
             Jmin = awgSettings.Jmin,
             Jmax = awgSettings.Jmax,
@@ -207,7 +207,7 @@ public static class FirstLaunchExperienceHelpers {
                 PublicKey = peerInfo.PublicKey,
                 AllowedIps = [$"{peerInfo.MeshIp}/32"],
                 Address = peerAddress.Host.Value,
-                Port = awgSettings.ListenPort,
+                Port = awgSettings.ListenPort.ListenPort,
                 PersistentKeepaliveInterval = 25
             };
 

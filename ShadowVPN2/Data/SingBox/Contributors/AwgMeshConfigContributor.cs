@@ -36,7 +36,7 @@ public class AwgMeshConfigContributor(
             UseIntegratedTun = options.Value.Awg.UseIntegratedTun,
             Address = [$"{localNode.AwgMeshIp}/24"],
             PrivateKey = localConfiguration.Value.AwgPrivateKey,
-            ListenPort = awgSettings.ListenPort,
+            ListenPort = awgSettings.ListenPort.ListenPort,
             Jc = awgSettings.Jc,
             Jmin = awgSettings.Jmin,
             Jmax = awgSettings.Jmax,
@@ -66,7 +66,7 @@ public class AwgMeshConfigContributor(
             if (publicHost.HasValue) {
                 peer.Address = publicHost.Value.FormatForUri();
 
-                peer.Port = awgSettings.ListenPort;
+                peer.Port = awgSettings.ListenPort.ListenPort;
             }
 
             endpoint.Peers.Add(peer);

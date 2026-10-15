@@ -52,6 +52,14 @@ public sealed class SubscriptionFormatServiceTests {
 
         hysteriaLinks.Should().Contain("@[2001:db8::1]:443/");
         yaml.Should().Contain("server: \"2001:db8::1\"");
+        hysteria2.PortBinding = new PortBinding(20000, 30000);
+        var rangedLinks = Encoding.UTF8.GetString(Convert.FromBase64String(
+            service.Render(response, SubscriptionFormat.Base64)));
+        rangedLinks.Should().Contain("mport=20000-30000");
+        rangedLinks.Should().Contain("@[2001:db8::1]:20000/");
+        var rangedYaml = service.Render(response, SubscriptionFormat.MihomoProvider);
+        rangedYaml.Should().Contain("ports: \"20000-30000\"");
+        rangedYaml.Should().Contain("port: 20000");
 
         endpoint.Connection = new NaiveProxyConnectionInfo {
             ServerAddress = HostName.Parse("2001:db8::1"),
@@ -79,9 +87,8 @@ public sealed class SubscriptionFormatServiceTests {
                             IsMain = true,
                             Connection = new Hysteria2ConnectionInfo {
                                 ServerAddress = HostName.Parse("vpn.example.com"),
-                                ServerPort = 443,
+                                PortBinding = new PortBinding(443),
                                 Password = "password",
-                                Sni = HostName.Parse("vpn.example.com")
                             },
                             Transports = [
                                 new FreeTurnConnectionInfo {

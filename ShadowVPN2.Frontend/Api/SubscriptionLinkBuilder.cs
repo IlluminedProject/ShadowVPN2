@@ -51,7 +51,7 @@ public static class SubscriptionLinkBuilder {
         var builder = new StringBuilder("hysteria2://")
             .Append(Uri.EscapeDataString(connection.Password))
             .Append('@')
-            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort())
+            .Append(connection.ServerAddress.ToAddress(connection.PortBinding.ListenPort).FormatWithPort())
             .Append("/?insecure=1");
         AddQuery(builder, "pinSHA256", connection.PinSha256);
         if (connection.ObfsType is not null and not "none") {
@@ -60,6 +60,8 @@ public static class SubscriptionLinkBuilder {
         }
 
         AddQuery(builder, "sni", connection.Sni?.ToString());
+        AddQuery(builder, "mport",
+            connection.PortBinding.PortRangeEnd.HasValue ? connection.PortBinding.ToString() : null);
         AddQuery(builder, "name", clientName);
         return builder.ToString();
     }
@@ -113,7 +115,7 @@ public static class SubscriptionLinkBuilder {
                 Math.Min(wireGuard.Mtu, 1280)),
             Hysteria2ConnectionInfo hysteria2 => new Hysteria2ConnectionInfo {
                 ServerAddress = Loopback,
-                ServerPort = 9000,
+                PortBinding = new PortBinding(9000),
                 Password = hysteria2.Password,
                 ObfsType = hysteria2.ObfsType,
                 ObfsPassword = hysteria2.ObfsPassword,

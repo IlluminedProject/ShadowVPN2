@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Application;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Cluster;
@@ -120,7 +121,7 @@ public sealed class AdminSettingsService(
         await RequireManageAsync(cancellationToken);
         await globalConfigurationService.UpdateAsync(configuration => {
             var awg = configuration.AwgSettings;
-            awg.ListenPort = request.ListenPort;
+            awg.ListenPort = new PortBinding(request.ListenPort, awg.ListenPort.PortRangeEnd);
             awg.H1 = request.H1;
             awg.H2 = request.H2;
             awg.H3 = request.H3;
@@ -181,7 +182,7 @@ public sealed class AdminSettingsService(
 
     private static AwgClusterSettings MapAwgSettings(AwgGlobalSettings awg) {
         return new AwgClusterSettings {
-            ListenPort = awg.ListenPort, H1 = awg.H1, H2 = awg.H2, H3 = awg.H3, H4 = awg.H4,
+            ListenPort = awg.ListenPort.ListenPort, H1 = awg.H1, H2 = awg.H2, H3 = awg.H3, H4 = awg.H4,
             Jc = awg.Jc, Jmin = awg.Jmin, Jmax = awg.Jmax, S1 = awg.S1, S2 = awg.S2, S3 = awg.S3,
             S4 = awg.S4, I1 = awg.I1, I2 = awg.I2, I3 = awg.I3, I4 = awg.I4, I5 = awg.I5
         };
@@ -190,20 +191,20 @@ public sealed class AdminSettingsService(
     private static ProtocolSettingsDto MapProtocol(ProtocolGlobalSettings settings) {
         return settings switch {
             Hysteria2GlobalSettings hysteria2 => new Hysteria2ProtocolSettingsDto {
-                Id = hysteria2.Id, ListenPort = hysteria2.ListenPort, Enabled = hysteria2.Enabled,
+                Id = hysteria2.Id, PortBinding = hysteria2.ListenPort, Enabled = hysteria2.Enabled,
                 MainDomain = hysteria2.MainDomain, ObfsType = hysteria2.ObfsType,
                 ObfsPassword = hysteria2.ObfsPassword,
                 HasTlsCertificate = !string.IsNullOrEmpty(hysteria2.TlsCertificatePem) &&
                                     !string.IsNullOrEmpty(hysteria2.TlsKeyPem)
             },
             AwgGlobalSettings awg => new AwgProtocolSettingsDto {
-                Id = awg.Id, ListenPort = awg.ListenPort, Enabled = awg.Enabled, MainDomain = awg.MainDomain,
+                Id = awg.Id, ListenPort = awg.ListenPort.ListenPort, Enabled = awg.Enabled, MainDomain = awg.MainDomain,
                 H1 = awg.H1, H2 = awg.H2, H3 = awg.H3, H4 = awg.H4, Jc = awg.Jc, Jmin = awg.Jmin,
                 Jmax = awg.Jmax, S1 = awg.S1, S2 = awg.S2, S3 = awg.S3, S4 = awg.S4, I1 = awg.I1,
                 I2 = awg.I2, I3 = awg.I3, I4 = awg.I4, I5 = awg.I5
             },
             NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
-                Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort, Enabled = naiveProxy.Enabled,
+                Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort.ListenPort, Enabled = naiveProxy.Enabled,
                 MainDomain = naiveProxy.MainDomain,
                 HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
                                     !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
@@ -216,7 +217,7 @@ public sealed class AdminSettingsService(
         return transport switch {
             FreeTurnTransportSettings freeTurn => new FreeTurnTransportSettingsDto {
                 Id = freeTurn.Id, ProtocolId = freeTurn.ProtocolId, Enabled = freeTurn.Enabled,
-                ListenPort = freeTurn.ListenPort,
+                PortBinding = freeTurn.ListenPort,
                 ObfuscationProfile = freeTurn.ObfuscationProfile is null
                     ? null
                     : Enum.Parse<FreeTurnObfuscationProfileDto>(freeTurn.ObfuscationProfile.Value.ToString()),
@@ -235,7 +236,7 @@ public sealed class AdminSettingsService(
                 var current = existing as Hysteria2GlobalSettings;
                 var result = new Hysteria2GlobalSettings {
                     Id = hysteria2.Id,
-                    ListenPort = hysteria2.ListenPort,
+                    ListenPort = hysteria2.PortBinding,
                     Enabled = hysteria2.Enabled,
                     MainDomain = hysteria2.MainDomain,
                     ObfsType = hysteria2.ObfsType,
@@ -250,7 +251,7 @@ public sealed class AdminSettingsService(
             case AwgProtocolSettingsDto awg:
                 return new AwgGlobalSettings {
                     Id = awg.Id,
-                    ListenPort = awg.ListenPort,
+                    ListenPort = new PortBinding(awg.ListenPort),
                     Enabled = awg.Enabled,
                     MainDomain = awg.MainDomain,
                     PrivateKey = (existing as AwgGlobalSettings)?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,
@@ -276,7 +277,8 @@ public sealed class AdminSettingsService(
             case NaiveProxyProtocolSettingsDto naiveProxy: {
                 var current = existing as NaiveProxyGlobalSettings;
                 var result = new NaiveProxyGlobalSettings {
-                    Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort, Enabled = naiveProxy.Enabled,
+                    Id = naiveProxy.Id, ListenPort = new PortBinding(naiveProxy.ListenPort),
+                    Enabled = naiveProxy.Enabled,
                     MainDomain = naiveProxy.MainDomain,
                     TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
                     TlsKeyPem = current?.TlsKeyPem ?? string.Empty
@@ -295,7 +297,7 @@ public sealed class AdminSettingsService(
         return transport switch {
             FreeTurnTransportSettingsDto freeTurn => new FreeTurnTransportSettings {
                 Id = freeTurn.Id, ProtocolId = freeTurn.ProtocolId, Enabled = freeTurn.Enabled,
-                ListenPort = freeTurn.ListenPort,
+                ListenPort = freeTurn.PortBinding,
                 ObfuscationProfile = freeTurn.ObfuscationProfile is null
                     ? null
                     : Enum.Parse<FreeTurnObfuscationProfile>(freeTurn.ObfuscationProfile.Value.ToString()),

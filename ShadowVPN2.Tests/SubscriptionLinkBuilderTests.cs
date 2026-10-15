@@ -15,7 +15,7 @@ public sealed class SubscriptionLinkBuilderTests {
     public void CreateHysteria2ShareUrl_escapes_credentials_and_keeps_connection_options(string host, string uriHost) {
         var connection = new Hysteria2ConnectionInfo {
             ServerAddress = HostName.Parse(host),
-            ServerPort = 443,
+            PortBinding = new PortBinding(443),
             Password = "password with spaces",
             ObfsType = "salamander",
             ObfsPassword = "obfs&key",
@@ -28,6 +28,22 @@ public sealed class SubscriptionLinkBuilderTests {
         result.Should().Be($"hysteria2://password%20with%20spaces@{uriHost}:443/?insecure=1" +
                            "&pinSHA256=AA%3ABB&obfs=salamander&obfs-password=obfs%26key" +
                            "&sni=sni.example.com&name=my%20device");
+    }
+
+    [Fact]
+    public void CreateHysteria2ShareUrl_emits_port_hopping_and_local_copy_clears_it() {
+        var connection = new Hysteria2ConnectionInfo {
+            ServerAddress = HostName.Parse("2001:db8::1"),
+            PortBinding = new PortBinding(20000, 30000),
+            Password = "password"
+        };
+
+        var link = SubscriptionLinkBuilder.CreateHysteria2ShareUrl(connection, "device");
+        var local = (Hysteria2ConnectionInfo)SubscriptionLinkBuilder.CreateLocalConnection(connection);
+
+        link.Should().Contain("@[2001:db8::1]:20000/?insecure=1&mport=20000-30000&name=device");
+        local.PortBinding.Should().Be(new PortBinding(9000));
+        connection.PortBinding.Should().Be(new PortBinding(20000, 30000));
     }
 
     [Theory]
@@ -87,15 +103,14 @@ public sealed class SubscriptionLinkBuilderTests {
     }
 
     [Fact]
-    public void Subscription_hosts_round_trip_as_json_strings_with_separate_server_port() {
+    public void Subscription_hosts_round_trip_as_json_strings_with_port_binding() {
         var endpoint = new SubscriptionEndpoint {
             Name = "Main",
             Address = HostAddress.Parse("[2001:db8::1]:8443"),
             Connection = new Hysteria2ConnectionInfo {
                 ServerAddress = HostName.Parse("2001:db8::1"),
-                ServerPort = 443,
+                PortBinding = new PortBinding(443, 4450),
                 Password = "secret",
-                Sni = HostName.Parse("vpn.example.com")
             }
         };
 
@@ -107,11 +122,17 @@ public sealed class SubscriptionLinkBuilderTests {
 
         document.RootElement.GetProperty("Address").GetString().Should().Be("[2001:db8::1]:8443");
         connectionJson.GetProperty("ServerAddress").GetString().Should().Be("2001:db8::1");
-        connectionJson.GetProperty("ServerPort").GetInt32().Should().Be(443);
-        connectionJson.GetProperty("Sni").GetString().Should().Be("vpn.example.com");
+        var bindingJson = connectionJson.GetProperty("PortBinding");
+        bindingJson.GetProperty("ListenPort").GetInt32().Should().Be(443);
+        bindingJson.GetProperty("PortRangeEnd").GetInt32().Should().Be(4450);
+        bindingJson.TryGetProperty("PortRange", out _).Should().BeFalse();
+        connectionJson.TryGetProperty("ServerPort", out _).Should().BeFalse();
+        connectionJson.TryGetProperty("PortRange", out _).Should().BeFalse();
+        connectionJson.GetProperty("Sni").ValueKind.Should().Be(JsonValueKind.Null);
         restored.Address.Should().Be(endpoint.Address);
         restoredConnection.ServerAddress.Should().Be(((Hysteria2ConnectionInfo)endpoint.Connection).ServerAddress);
-        restoredConnection.Sni.Should().Be(HostName.Parse("vpn.example.com"));
+        restoredConnection.PortBinding.Should().Be(new PortBinding(443, 4450));
+        restoredConnection.Sni.Should().BeNull();
     }
 
     [Fact]

@@ -124,7 +124,7 @@ public class SubscriptionService(
         var transportConnections = directEndpoint.Transports.ToList();
         foreach (var freeTurn in transports.Where(transport => transport.ProtocolId == protocol.Id)) {
             var mode = ProtocolDefinitionMetadata.GetSocketKind(protocol);
-            var relayAddress = publicHost.Host.ToAddress(freeTurn.ListenPort);
+            var relayAddress = publicHost.Host.ToAddress(freeTurn.ListenPort.ListenPort);
             var transportInfo = new FreeTurnConnectionInfo {
                 Peer = relayAddress,
                 ObfuscationProfile = freeTurn.ObfuscationProfile,

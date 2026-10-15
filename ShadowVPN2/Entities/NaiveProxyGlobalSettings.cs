@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Entities;
 
@@ -9,7 +10,7 @@ public sealed class NaiveProxyGlobalSettings : ProtocolGlobalSettings, IProtocol
         get => "NaiveProxy";
     }
 
-    public override int ListenPort { get; set; } = 443;
+    public override PortBinding ListenPort { get; set; } = new(443);
     public string TlsCertificatePem { get; set; } = string.Empty;
     public string TlsKeyPem { get; set; } = string.Empty;
 

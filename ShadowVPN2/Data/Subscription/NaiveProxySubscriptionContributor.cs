@@ -33,7 +33,7 @@ public sealed class NaiveProxySubscriptionContributor(
               ?? throw new InvalidOperationException("NaiveProxy fallback certificate fingerprint is unavailable");
         return new NaiveProxyConnectionInfo {
             ServerAddress = host,
-            ServerPort = naiveSettings.ListenPort,
+            ServerPort = naiveSettings.ListenPort.ListenPort,
             Username = credentials.Username,
             Password = credentials.Password,
             Sni = hasTrustedCertificate ? tlsServerName : FallbackServerName,

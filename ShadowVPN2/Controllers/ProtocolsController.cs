@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
@@ -48,7 +49,7 @@ public class ProtocolsController(
         return settings switch {
             Hysteria2GlobalSettings hysteria2 => new Hysteria2ProtocolSettingsDto {
                 Id = hysteria2.Id,
-                ListenPort = hysteria2.ListenPort,
+                PortBinding = hysteria2.ListenPort,
                 Enabled = hysteria2.Enabled,
                 MainDomain = hysteria2.MainDomain,
                 ObfsType = hysteria2.ObfsType,
@@ -58,7 +59,7 @@ public class ProtocolsController(
             },
             AwgGlobalSettings awg => new AwgProtocolSettingsDto {
                 Id = awg.Id,
-                ListenPort = awg.ListenPort,
+                ListenPort = awg.ListenPort.ListenPort,
                 Enabled = awg.Enabled,
                 MainDomain = awg.MainDomain,
                 H1 = awg.H1,
@@ -80,7 +81,7 @@ public class ProtocolsController(
             },
             NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
                 Id = naiveProxy.Id,
-                ListenPort = naiveProxy.ListenPort,
+                ListenPort = naiveProxy.ListenPort.ListenPort,
                 Enabled = naiveProxy.Enabled,
                 MainDomain = naiveProxy.MainDomain,
                 HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
@@ -97,7 +98,7 @@ public class ProtocolsController(
                 var current = existing as Hysteria2GlobalSettings;
                 var result = new Hysteria2GlobalSettings {
                     Id = hysteria2.Id,
-                    ListenPort = hysteria2.ListenPort,
+                    ListenPort = hysteria2.PortBinding,
                     Enabled = hysteria2.Enabled,
                     MainDomain = hysteria2.MainDomain,
                     ObfsType = hysteria2.ObfsType,
@@ -113,7 +114,7 @@ public class ProtocolsController(
                 var current = existing as AwgGlobalSettings;
                 return new AwgGlobalSettings {
                     Id = awg.Id,
-                    ListenPort = awg.ListenPort,
+                    ListenPort = new PortBinding(awg.ListenPort),
                     Enabled = awg.Enabled,
                     MainDomain = awg.MainDomain,
                     PrivateKey = current?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,
@@ -141,7 +142,7 @@ public class ProtocolsController(
                 var current = existing as NaiveProxyGlobalSettings;
                 var result = new NaiveProxyGlobalSettings {
                     Id = naiveProxy.Id,
-                    ListenPort = naiveProxy.ListenPort,
+                    ListenPort = new PortBinding(naiveProxy.ListenPort),
                     Enabled = naiveProxy.Enabled,
                     MainDomain = naiveProxy.MainDomain,
                     TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
@@ -163,7 +164,7 @@ public class ProtocolsController(
                 Id = freeTurn.Id,
                 ProtocolId = freeTurn.ProtocolId,
                 Enabled = freeTurn.Enabled,
-                ListenPort = freeTurn.ListenPort,
+                PortBinding = freeTurn.ListenPort,
                 ObfuscationProfile = freeTurn.ObfuscationProfile is null
                     ? null
                     : Enum.Parse<FreeTurnObfuscationProfileDto>(freeTurn.ObfuscationProfile.Value.ToString()),
@@ -181,7 +182,7 @@ public class ProtocolsController(
                 Id = freeTurn.Id,
                 ProtocolId = freeTurn.ProtocolId,
                 Enabled = freeTurn.Enabled,
-                ListenPort = freeTurn.ListenPort,
+                ListenPort = freeTurn.PortBinding,
                 ObfuscationProfile = freeTurn.ObfuscationProfile is null
                     ? null
                     : Enum.Parse<FreeTurnObfuscationProfile>(freeTurn.ObfuscationProfile.Value.ToString()),

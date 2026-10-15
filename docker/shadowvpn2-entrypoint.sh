@@ -3,6 +3,7 @@ set -eu
 
 FORWARD_CHAIN=SHADOWVPN2_FORWARD
 NAT_CHAIN=SHADOWVPN2_NAT
+PORT_RANGE_CHAIN=SHADOWVPN2_PORTS
 VPN_INTERFACE=wg0
 STATE_DIR=/data/.shadowvpn2-network
 FORWARDING_STATE=$STATE_DIR/ipv4-forwarding
@@ -25,7 +26,9 @@ remove_jump() {
 cleanup() {
     remove_jump '' FORWARD "$FORWARD_CHAIN"
     remove_jump nat POSTROUTING "$NAT_CHAIN"
-
+    remove_jump nat PREROUTING "$PORT_RANGE_CHAIN"
+    iptables -w 5 -t nat -F "$PORT_RANGE_CHAIN" 2>/dev/null || true
+    iptables -w 5 -t nat -X "$PORT_RANGE_CHAIN" 2>/dev/null || true
     iptables -w 5 -F "$FORWARD_CHAIN" 2>/dev/null || true
     iptables -w 5 -X "$FORWARD_CHAIN" 2>/dev/null || true
     iptables -w 5 -t nat -F "$NAT_CHAIN" 2>/dev/null || true
@@ -96,8 +99,9 @@ forward_term() {
 
 trap forward_term TERM INT
 
-# gosu drops process capabilities; retain privileged-port binding on the executable.
+# gosu drops process capabilities; grant each executable only the capabilities it needs.
 setcap cap_net_bind_service=+ep "$(readlink -f "$(command -v dotnet)")"
+setcap cap_net_admin,cap_net_raw=+ep "$(readlink -f "$(command -v iptables)")"
 
 gosu "${APP_UID:-1654}" "$@" &
 child=$!

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Entities;
 
@@ -11,5 +12,5 @@ public abstract class TransportSettings {
 
     public bool Enabled { get; set; } = true;
 
-    public required int ListenPort { get; set; }
+    public required PortBinding ListenPort { get; set; }
 }

@@ -66,8 +66,9 @@ public sealed class SubscriptionFormatService {
     private static MihomoProxy? CreateProxy(SubscriptionEndpoint endpoint) {
         return endpoint.Connection switch {
             Hysteria2ConnectionInfo hysteria2 => new MihomoProxy(endpoint.Name + " · Hysteria2", "hysteria2") {
-                Server = hysteria2.ServerAddress.ToString(), Port = hysteria2.ServerPort,
+                Server = hysteria2.ServerAddress.ToString(), Port = hysteria2.PortBinding.ListenPort,
                 Values = new Dictionary<string, string?> {
+                    ["ports"] = hysteria2.PortBinding.PortRangeEnd.HasValue ? hysteria2.PortBinding.ToString() : null,
                     ["password"] = hysteria2.Password, ["sni"] = hysteria2.Sni?.ToString(),
                     ["skip-cert-verify"] = "false", ["fingerprint"] = hysteria2.PinSha256,
                     ["obfs"] = hysteria2.ObfsType is not null and not "none" ? hysteria2.ObfsType : null,

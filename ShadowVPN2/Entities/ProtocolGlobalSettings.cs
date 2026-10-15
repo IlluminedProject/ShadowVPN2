@@ -12,7 +12,7 @@ public abstract class ProtocolGlobalSettings {
 
     public abstract string Protocol { get; }
 
-    public abstract int ListenPort { get; set; }
+    public abstract PortBinding ListenPort { get; set; }
 
     public bool Enabled { get; set; }
 

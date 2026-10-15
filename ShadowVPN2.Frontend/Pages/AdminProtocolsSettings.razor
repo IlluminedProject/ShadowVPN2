@@ -73,10 +73,20 @@
             @foreach (var item in _request.Protocols.ToArray())
             {
                 <section @key="item" class="settings-item">
-                    <SettingsItemHeader Title="@ProtocolName(item)"
-                                        @bind-ListenPort="item.ListenPort"
-                                        @bind-Enabled="item.Enabled"
-                                        Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
+                    @switch (item)
+                    {
+                        case IPortBindingSettings bindingHeader:
+                            <SettingsItemHeader Title="@ProtocolName(item)" RangeAllowed="true"
+                                                @bind-PortBinding="bindingHeader.PortBinding"
+                                                @bind-Enabled="item.Enabled"
+                                                Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
+                            break;
+                        case IListenPortSettings portHeader:
+                            <SettingsItemHeader Title="@ProtocolName(item)" @bind-ListenPort="portHeader.ListenPort"
+                                                @bind-Enabled="item.Enabled"
+                                                Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
+                            break;
+                    }
                     <div class="settings-item-body">
                         <div class="field">
                             <label class="form-label" for="@($"protocol-{item.Id}-domain")">Main domain override
@@ -190,7 +200,7 @@
 @if (_pendingRemoval is not null)
 {
     <ConfirmDialog Title="Remove protocol"
-                   Message="@($"Remove {ProtocolName(_pendingRemoval)} on port {_pendingRemoval.ListenPort} and its transport overlays? The change takes effect when you save settings.")"
+                   Message="@($"Remove {ProtocolName(_pendingRemoval)} on port {ProtocolPort(_pendingRemoval)} and its transport overlays? The change takes effect when you save settings.")"
                    ConfirmText="Remove protocol" OnConfirm="ConfirmRemoveProtocol"
                    OnCancel="() => _pendingRemoval = null"/>
 }
@@ -275,11 +285,13 @@
 
     private void AddHysteria2()
     {
+        var port = NextPort(4443);
+        if (port is null) return;
         var settings = new Hysteria2ProtocolSettingsDto
         {
             Id = Guid.NewGuid(),
             Enabled = true,
-            ListenPort = NextPort(4443),
+            PortBinding = new PortBinding(port.Value),
             ObfsPassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant()
         };
         _request.Protocols.Add(settings);
@@ -287,31 +299,34 @@
 
     private void AddWireGuard()
     {
+        var port = NextPort(51820);
+        if (port is null) return;
         _request.Protocols.Add(new AwgProtocolSettingsDto
         {
                 Id = Guid.NewGuid(),
                 Enabled = true,
-                ListenPort = NextPort(51820)
+                ListenPort = port.Value
         });
     }
 
     private void AddNaiveProxy()
     {
+        var port = NextPort(443, false);
+        if (port is null) return;
         _request.Protocols.Add(new NaiveProxyProtocolSettingsDto
         {
                 Id = Guid.NewGuid(),
                 Enabled = true,
-                ListenPort = NextPort(443, reserveMesh: false)
+                ListenPort = port.Value
         });
     }
 
-    private int NextPort(int start, bool reserveMesh = true)
+    private int? NextPort(int start, bool reserveMesh = true)
     {
-        var used = _request.Protocols.Select(protocol => protocol.ListenPort).ToHashSet();
-        used.UnionWith(_request.Transports.Select(transport => transport.ListenPort));
-        if (reserveMesh) used.Add(_meshPort);
-        while (used.Contains(start)) start++;
-        return start;
+        var port = AvailablePortFinder.Find(start,
+            _request.Protocols, _request.Transports, reserveMesh ? _meshPort : null);
+        if (port is null) _error = "No free listen ports are available.";
+        return port;
     }
 
     private void RemoveProtocol(ProtocolSettingsDto protocol)
@@ -328,6 +343,16 @@
                 AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
                 NaiveProxyProtocolSettingsDto => "NaiveProxy",
                 _ => "Unknown"
+        };
+    }
+
+    private static string ProtocolPort(ProtocolSettingsDto protocol)
+    {
+        return protocol switch
+        {
+            IPortBindingSettings binding => binding.PortBinding.ToString(),
+            IListenPortSettings port => port.ListenPort.ToString(),
+            _ => string.Empty
         };
     }
 

@@ -43,10 +43,10 @@ public sealed class NaiveProxyConfigContributor(
             }
 
             config.Inbounds.Add(new NaiveProxyInboundConfig {
-                Tag = $"naive-{settings.ListenPort}",
+                Tag = $"naive-{settings.ListenPort.ListenPort}",
                 Network = "tcp",
                 Listen = "0.0.0.0",
-                ListenPort = settings.ListenPort,
+                ListenPort = settings.ListenPort.ListenPort,
                 Users = clients.Where(client => client.IsEnabled && client.NaiveProxy is not null)
                     .Select(client => new NaiveProxyUser {
                         Username = client.NaiveProxy!.Username,

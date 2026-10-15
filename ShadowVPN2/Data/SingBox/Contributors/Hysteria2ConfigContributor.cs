@@ -25,9 +25,9 @@ public class Hysteria2ConfigContributor(
         foreach (var h2 in h2Instances) {
             var managedCertificate = managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
             var inbound = new Hysteria2InboundConfig {
-                Tag = $"hysteria2-{h2.ListenPort}",
+                Tag = $"hysteria2-{h2.ListenPort.ListenPort}",
                 Listen = "0.0.0.0",
-                ListenPort = h2.ListenPort,
+                ListenPort = h2.ListenPort.ListenPort,
                 Users = users,
                 Obfs = h2.ObfsType != "none" && !string.IsNullOrWhiteSpace(h2.ObfsPassword)
                     ? new Hysteria2ObfsConfig {

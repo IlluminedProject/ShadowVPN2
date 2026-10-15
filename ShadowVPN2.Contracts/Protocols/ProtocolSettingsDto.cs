@@ -9,7 +9,6 @@ namespace ShadowVPN2.Contracts.Protocols;
 [JsonDerivedType(typeof(NaiveProxyProtocolSettingsDto), "naive")]
 public abstract class ProtocolSettingsDto {
     public Guid Id { get; set; }
-    public int ListenPort { get; set; }
     public bool Enabled { get; set; }
     public HostName? MainDomain { get; set; }
 }

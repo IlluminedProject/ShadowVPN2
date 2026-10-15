@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Contracts.Protocols;
 
-public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto {
+public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSettings {
     public string H1 { get; set; } = "1";
     public string H2 { get; set; } = "2";
     public string H3 { get; set; } = "3";
@@ -29,4 +29,6 @@ public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto {
                || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
                || !string.IsNullOrWhiteSpace(I5);
     }
+
+    public int ListenPort { get; set; }
 }

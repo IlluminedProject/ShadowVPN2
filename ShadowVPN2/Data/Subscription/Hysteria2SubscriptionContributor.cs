@@ -28,7 +28,7 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
             : null;
         return Task.FromResult<ProtocolConnectionInfo?>(new Hysteria2ConnectionInfo {
             ServerAddress = host,
-            ServerPort = h2.ListenPort,
+            PortBinding = h2.ListenPort,
             Password = password,
             ObfsType = h2.ObfsType,
             ObfsPassword = h2.ObfsPassword,

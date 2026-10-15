@@ -43,8 +43,8 @@
             @foreach (var transport in _request.Transports.OfType<FreeTurnTransportSettingsDto>().ToArray())
             {
                 <section @key="transport" class="settings-item">
-                    <SettingsItemHeader Title="FreeTurn"
-                                         @bind-ListenPort="transport.ListenPort"
+                    <SettingsItemHeader Title="FreeTurn" RangeAllowed="true"
+                                        @bind-PortBinding="transport.PortBinding"
                                          @bind-Enabled="transport.Enabled"
                                          Busy="_saving" OnRemove="() => RequestRemoveTransport(transport)"/>
                     <div class="settings-item-body">
@@ -99,7 +99,7 @@
 @if (_pendingRemoval is not null)
 {
     <ConfirmDialog Title="Remove transport"
-                   Message="@($"Remove FreeTurn on port {_pendingRemoval.ListenPort}? Devices using this transport will lose that connection option when you save settings.")"
+                   Message="@($"Remove FreeTurn on port {_pendingRemoval.PortBinding}? Devices using this transport will lose that connection option when you save settings.")"
                    ConfirmText="Remove transport" OnConfirm="ConfirmRemoveTransport"
                    OnCancel="() => _pendingRemoval = null"/>
 }
@@ -159,31 +159,32 @@
         if (_request.Protocols.Count == 0)
             return;
 
-        var used = _request.Protocols.Select(protocol => protocol.ListenPort)
-            .Concat(_request.Transports.Select(transport => transport.ListenPort)).ToHashSet();
-        used.Add(_meshPort);
-        var port = 56000;
-        while (used.Contains(port))
-            port++;
+        var port = AvailablePortFinder.Find(56000,
+            _request.Protocols, _request.Transports, _meshPort);
+        if (port is null)
+        {
+            _error = "No free listen ports are available.";
+            return;
+        }
 
         _request.Transports.Add(new FreeTurnTransportSettingsDto
         {
             Id = Guid.NewGuid(),
             ProtocolId = _request.Protocols[0].Id,
-            ListenPort = port,
+            PortBinding = new PortBinding(port.Value),
             ObfuscationKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()
         });
     }
 
     private static string ProtocolOptionName(ProtocolSettingsDto protocol)
     {
-        return $"{protocol switch
+        return protocol switch
         {
-            Hysteria2ProtocolSettingsDto => "Hysteria2",
-            AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
-            NaiveProxyProtocolSettingsDto => "NaiveProxy",
+            Hysteria2ProtocolSettingsDto hysteria => $"Hysteria2 : {hysteria.PortBinding}",
+            AwgProtocolSettingsDto awg => $"WireGuard / AmneziaWG : {awg.ListenPort}",
+            NaiveProxyProtocolSettingsDto naive => $"NaiveProxy : {naive.ListenPort}",
             _ => "Unknown"
-        }} : {protocol.ListenPort}";
+        };
     }
 
     private async Task SaveAsync()

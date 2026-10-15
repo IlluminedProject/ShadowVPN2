@@ -1,6 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Conventions;
+using Raven.Client.Json.Serialization.NewtonsoftJson;
 using Serilog;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -47,7 +48,14 @@ public class RavenDbInitializer {
         var databaseOptions = new DatabaseOptions(DatabaseName) {
             SkipCreatingDatabase = joinState.IsJoining,
             LocalServerUrl = new Uri("https://127.0.0.1:8888"),
-            Conventions = new DocumentConventions { DisableTopologyUpdates = true }
+            Conventions = new DocumentConventions {
+                DisableTopologyUpdates = true,
+                Serialization = new NewtonsoftJsonSerializationConventions {
+                    CustomizeJsonSerializer = serializer => {
+                        serializer.Converters.Add(new PortBindingRavenJsonConverter());
+                    }
+                }
+            }
         };
         var documentStore = EmbeddedServer.Instance.GetDocumentStore(databaseOptions);
 

@@ -11,11 +11,11 @@ public sealed class WireGuardAmneziaConfigContributor(WireGuardKeyService keySer
             EndpointConfig endpoint;
             if (settings.IsAmneziaWg) {
                 endpoint = new AwgEndpointConfig {
-                    Tag = $"wireguard-clients-{settings.ListenPort}",
+                    Tag = $"wireguard-clients-{settings.ListenPort.ListenPort}",
                     Mtu = settings.Mtu,
                     Address = [settings.ServerAddress],
                     PrivateKey = settings.PrivateKey,
-                    ListenPort = settings.ListenPort,
+                    ListenPort = settings.ListenPort.ListenPort,
                     Jc = settings.Jc,
                     Jmin = settings.Jmin,
                     Jmax = settings.Jmax,
@@ -36,11 +36,11 @@ public sealed class WireGuardAmneziaConfigContributor(WireGuardKeyService keySer
             }
             else {
                 endpoint = new WireGuardEndpointConfig {
-                    Tag = $"wireguard-clients-{settings.ListenPort}",
+                    Tag = $"wireguard-clients-{settings.ListenPort.ListenPort}",
                     Mtu = settings.Mtu,
                     Address = [settings.ServerAddress],
                     PrivateKey = settings.PrivateKey,
-                    ListenPort = settings.ListenPort
+                    ListenPort = settings.ListenPort.ListenPort
                 };
             }
 
