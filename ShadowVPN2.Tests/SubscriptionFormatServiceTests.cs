@@ -116,6 +116,68 @@ public sealed class SubscriptionFormatServiceTests {
         render.Should().Throw<ArgumentException>().WithMessage("*NaiveProxy QUIC*Base64 or JSON*");
     }
 
+    [Theory]
+    [InlineData(SubscriptionFormat.Base64)]
+    [InlineData(SubscriptionFormat.Mihomo)]
+    [InlineData(SubscriptionFormat.MihomoProvider)]
+    [InlineData(SubscriptionFormat.FreeTurn)]
+    public void Formats_keep_protocols_for_each_node_together(SubscriptionFormat format) {
+        SubscriptionEndpoint Endpoint(string name, string host, bool main = false) {
+            var endpoint = CreateResponse().Protocols[0].Endpoints[0];
+            endpoint.Name = name;
+            endpoint.IsMain = main;
+            endpoint.Address = HostAddress.Parse(host);
+            ((Hysteria2ConnectionInfo)endpoint.Connection).ServerAddress = HostName.Parse(host);
+            endpoint.Transports = [
+                new FreeTurnConnectionInfo {
+                    Peer = HostAddress.Parse(host + ":56000"),
+                    ObfuscationProfile = null,
+                    ObfuscationKey = null,
+                    TurnTransport = FreeTurnTurnTransport.Tcp,
+                    Mode = ProtocolSocketKind.Udp,
+                    Streams = 4,
+                    ClientId = "client"
+                }
+            ];
+            return endpoint;
+        }
+
+        var response = new SubscriptionResponse {
+            ClientName = "device",
+            Protocols = [
+                new ProtocolSubscription {
+                    Protocol = "first",
+                    Endpoints = [
+                        Endpoint("Zulu", "z.example"), Endpoint("Alpha", "a.example"),
+                        Endpoint("Main", "main.example", true)
+                    ]
+                },
+                new ProtocolSubscription {
+                    Protocol = "second",
+                    Endpoints = [
+                        Endpoint("Zulu", "z.example"), Endpoint("Alpha", "a.example"),
+                        Endpoint("Main", "main.example", true)
+                    ]
+                }
+            ]
+        };
+        var content = new SubscriptionFormatService().Render(response, format);
+        if (format == SubscriptionFormat.Base64)
+            content = Encoding.UTF8.GetString(Convert.FromBase64String(content));
+
+        var hosts = content.Split('\n')
+            .Where(line => format is SubscriptionFormat.Mihomo or SubscriptionFormat.MihomoProvider
+                ? line.TrimStart().StartsWith("server:")
+                : line.Length > 0)
+            .Select(line => format == SubscriptionFormat.FreeTurn
+                ? Encoding.UTF8.GetString(Convert.FromBase64String(
+                    line["freeturn://".Length..].Replace('-', '+').Replace('_', '/').PadRight(
+                        (line.Length - "freeturn://".Length + 3) / 4 * 4, '=')))
+                : line)
+            .Select(line => new[] { "main.example", "a.example", "z.example" }.Single(line.Contains));
+        hosts.Should().Equal("main.example", "main.example", "a.example", "a.example", "z.example", "z.example");
+    }
+
     private static SubscriptionResponse CreateResponse() {
         return new SubscriptionResponse {
             ClientName = "device",

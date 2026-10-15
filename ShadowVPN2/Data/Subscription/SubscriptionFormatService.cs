@@ -18,6 +18,9 @@ public sealed class SubscriptionFormatService {
         var links = subscription.Protocols
             .SelectMany(protocol => protocol.Endpoints.Select(endpoint =>
                 (protocol, endpoint, connection: endpoint.Connection)))
+            .OrderByDescending(item => item.endpoint.IsMain)
+            .ThenBy(item => item.endpoint.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)
             .SelectMany(item => item.connection switch {
                 Hysteria2ConnectionInfo hysteria2 => [hysteria2.CreateShareUrl(subscription.ClientName)],
                 NaiveProxyConnectionInfo naive => [CreateNaiveProxyShareUrl(naive, subscription.ClientName)],
@@ -32,6 +35,9 @@ public sealed class SubscriptionFormatService {
     private static string RenderFreeTurn(SubscriptionResponse subscription) {
         var links = subscription.Protocols
             .SelectMany(protocol => protocol.Endpoints)
+            .OrderByDescending(endpoint => endpoint.IsMain)
+            .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)
             .SelectMany(endpoint => endpoint.Transports.OfType<FreeTurnConnectionInfo>()
                 .Select(transport => transport.CreateShareUrl(subscription.ClientName)))
             .ToArray();
@@ -40,8 +46,11 @@ public sealed class SubscriptionFormatService {
 
     private static string RenderMihomo(SubscriptionResponse subscription, bool providerOnly) {
         var proxies = subscription.Protocols
-            .SelectMany(protocol => protocol.Endpoints.Select(endpoint =>
-                CreateProxy(endpoint)))
+            .SelectMany(protocol => protocol.Endpoints)
+            .OrderByDescending(endpoint => endpoint.IsMain)
+            .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)
+            .Select(CreateProxy)
             .Where(proxy => proxy is not null)
             .Cast<MihomoProxy>()
             .ToArray();

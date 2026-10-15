@@ -61,13 +61,14 @@
             }
 
             <div class="connection-list">
-                @foreach (var protocol in _subscription.Protocols)
+                @foreach (var item in _subscription.Protocols
+                                  .SelectMany(protocol => protocol.Endpoints.Select(endpoint => (protocol.Protocol, Endpoint: endpoint)))
+                                  .OrderByDescending(item => item.Endpoint.IsMain)
+                                  .ThenBy(item => item.Endpoint.Name, StringComparer.OrdinalIgnoreCase)
+                                  .ThenBy(item => item.Endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase))
                 {
-                    @foreach (var endpoint in protocol.Endpoints)
-                    {
-                        <SubscriptionConnectionRow Endpoint="endpoint" Protocol="@protocol.Protocol"
-                                                   ClientName="@_subscription.ClientName"/>
-                    }
+                    <SubscriptionConnectionRow Endpoint="item.Endpoint" Protocol="@item.Protocol"
+                                               ClientName="@_subscription.ClientName"/>
                 }
             </div>
         </section>
