@@ -74,6 +74,48 @@ public sealed class SubscriptionFormatServiceTests {
         naiveLinks.Should().Contain("naive+https://user:password@[2001:db8::1]:443/?sni=vpn.example.com");
     }
 
+    [Theory]
+    [InlineData(false, "naive+https")]
+    [InlineData(true, "naive+quic")]
+    public void Base64_naive_links_preserve_transport_credentials_and_tls_options(bool quic, string scheme) {
+        var response = CreateResponse();
+        response.Protocols[0].Endpoints[0].Connection = new NaiveProxyConnectionInfo {
+            ServerAddress = HostName.Parse("2001:db8::1"),
+            ServerPort = 8443,
+            Quic = quic,
+            Username = "user name",
+            Password = "pass&word",
+            Sni = HostName.Parse("shadowvpn.local"),
+            Insecure = true,
+            PinSha256 = "AA:BB"
+        };
+
+        var encoded = new SubscriptionFormatService().Render(response, SubscriptionFormat.Base64);
+        var link = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+
+        link.Should().Be($"{scheme}://user%20name:pass%26word@[2001:db8::1]:8443/" +
+                         "?sni=shadowvpn.local&insecure=1&pinSHA256=AA%3ABB&name=device");
+    }
+
+    [Theory]
+    [InlineData(SubscriptionFormat.Mihomo)]
+    [InlineData(SubscriptionFormat.MihomoProvider)]
+    public void Mihomo_rejects_naive_quic_instead_of_exporting_an_https_connection(SubscriptionFormat format) {
+        var response = CreateResponse();
+        response.Protocols[0].Endpoints[0].Connection = new NaiveProxyConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"),
+            ServerPort = 8443,
+            Quic = true,
+            Username = "user",
+            Password = "password",
+            Sni = HostName.Parse("vpn.example.com")
+        };
+
+        var render = () => new SubscriptionFormatService().Render(response, format);
+
+        render.Should().Throw<ArgumentException>().WithMessage("*NaiveProxy QUIC*Base64 or JSON*");
+    }
+
     private static SubscriptionResponse CreateResponse() {
         return new SubscriptionResponse {
             ClientName = "device",

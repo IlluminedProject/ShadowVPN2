@@ -209,6 +209,12 @@ public sealed class AdminSettingsService(
                 HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
                                     !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
             },
+            NaiveProxyQuicGlobalSettings naiveProxy => new NaiveProxyQuicProtocolSettingsDto {
+                Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort.ListenPort, Enabled = naiveProxy.Enabled,
+                MainDomain = naiveProxy.MainDomain,
+                HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
+                                    !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(settings), settings, null)
         };
     }
@@ -284,6 +290,20 @@ public sealed class AdminSettingsService(
                     TlsKeyPem = current?.TlsKeyPem ?? string.Empty
                 };
                 if (current is null || string.IsNullOrWhiteSpace(result.TlsCertificatePem) ||
+                    string.IsNullOrWhiteSpace(result.TlsKeyPem))
+                    result.GenerateSelfSignedCertificate();
+                return result;
+            }
+            case NaiveProxyQuicProtocolSettingsDto naiveProxy: {
+                var current = existing as NaiveProxyQuicGlobalSettings;
+                var result = new NaiveProxyQuicGlobalSettings {
+                    Id = naiveProxy.Id, ListenPort = new PortBinding(naiveProxy.ListenPort),
+                    Enabled = naiveProxy.Enabled,
+                    MainDomain = naiveProxy.MainDomain,
+                    TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
+                    TlsKeyPem = current?.TlsKeyPem ?? string.Empty
+                };
+                if (string.IsNullOrWhiteSpace(result.TlsCertificatePem) ||
                     string.IsNullOrWhiteSpace(result.TlsKeyPem))
                     result.GenerateSelfSignedCertificate();
                 return result;

@@ -70,6 +70,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<SubscriptionFormatService>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, Hysteria2SubscriptionContributor>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, NaiveProxySubscriptionContributor>();
+        builder.Services.AddSingleton<ISubscriptionConnectionContributor, NaiveProxyQuicSubscriptionContributor>();
         builder.Services.AddSingleton<ISubscriptionConnectionContributor, WireGuardSubscriptionContributor>();
         builder.Services.AddSingleton<ProtocolSettingsService>();
         builder.Services.AddSingleton<ProtocolDomainService>();

@@ -20,10 +20,14 @@ public static class GlobalConfigurationValidator {
             var binding = ValidateBinding(protocol.ListenPort, $"protocol {protocol.Protocol}");
             if (protocol is not Hysteria2GlobalSettings && binding.PortRangeEnd.HasValue)
                 throw new ArgumentException("Only Hysteria2 protocols support port ranges", nameof(configuration));
-            if (protocol is NaiveProxyGlobalSettings naiveProxy &&
-                (string.IsNullOrWhiteSpace(naiveProxy.TlsCertificatePem) ||
-                 string.IsNullOrWhiteSpace(naiveProxy.TlsKeyPem))) {
-                throw new ArgumentException("NaiveProxy requires a TLS certificate and private key",
+            if (protocol switch {
+                    NaiveProxyGlobalSettings naiveProxy => string.IsNullOrWhiteSpace(naiveProxy.TlsCertificatePem) ||
+                                                           string.IsNullOrWhiteSpace(naiveProxy.TlsKeyPem),
+                    NaiveProxyQuicGlobalSettings quic => string.IsNullOrWhiteSpace(quic.TlsCertificatePem) ||
+                                                         string.IsNullOrWhiteSpace(quic.TlsKeyPem),
+                    _ => false
+                }) {
+                throw new ArgumentException($"{protocol.Protocol} requires a TLS certificate and private key",
                     nameof(configuration));
             }
 

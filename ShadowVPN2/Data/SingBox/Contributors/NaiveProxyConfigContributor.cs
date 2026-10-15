@@ -14,12 +14,20 @@ public sealed class NaiveProxyConfigContributor(
     IOptions<LocalConfiguration> localConfiguration) : ISingBoxConfigContributor {
     public async Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
-        var settingsList = protocols.OfType<NaiveProxyGlobalSettings>().Where(settings => settings.Enabled).ToArray();
+        var settingsList = protocols.Where(settings => settings.Enabled &&
+                                                       settings is NaiveProxyGlobalSettings
+                                                           or NaiveProxyQuicGlobalSettings).ToArray();
         if (settingsList.Length == 0) return;
 
         var globalConfiguration = await globalConfigurationService.GetAsync();
         var managedCertificate = managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
         foreach (var settings in settingsList) {
+            var (fallbackCertificatePem, fallbackKeyPem) = settings switch {
+                NaiveProxyGlobalSettings naive => (naive.TlsCertificatePem, naive.TlsKeyPem),
+                NaiveProxyQuicGlobalSettings quic => (quic.TlsCertificatePem, quic.TlsKeyPem),
+                _ => throw new InvalidOperationException($"Unsupported NaiveProxy settings {settings.GetType().Name}")
+            };
+            var quicEnabled = settings is NaiveProxyQuicGlobalSettings;
             var configuredDomain = settings.MainDomain ?? globalConfiguration.MainDomain;
             HostName? certificateDomain = configuredDomain is { } domain &&
                                           managedCertificate?.Domains.Contains(domain) == true
@@ -37,14 +45,14 @@ public sealed class NaiveProxyConfigContributor(
                 serverName = certificateDomain.ToString()!;
             }
             else {
-                certificatePem = settings.TlsCertificatePem;
-                privateKeyPem = settings.TlsKeyPem;
+                certificatePem = fallbackCertificatePem;
+                privateKeyPem = fallbackKeyPem;
                 serverName = "shadowvpn.local";
             }
 
             config.Inbounds.Add(new NaiveProxyInboundConfig {
-                Tag = $"naive-{settings.ListenPort.ListenPort}",
-                Network = "tcp",
+                Tag = $"{(quicEnabled ? "naive-quic" : "naive")}-{settings.ListenPort.ListenPort}",
+                Network = quicEnabled ? "udp" : "tcp",
                 Listen = "0.0.0.0",
                 ListenPort = settings.ListenPort.ListenPort,
                 Users = clients.Where(client => client.IsEnabled && client.NaiveProxy is not null)

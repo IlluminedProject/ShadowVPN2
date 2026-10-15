@@ -79,11 +79,14 @@ public sealed class SubscriptionLinkBuilderTests {
         payload.RootElement.TryGetProperty("wg", out _).Should().BeFalse();
     }
 
-    [Fact]
-    public void CreateNaiveProxyShareUrl_brackets_ipv6_and_local_copy_preserves_tls_options() {
+    [Theory]
+    [InlineData(false, "naive+https")]
+    [InlineData(true, "naive+quic")]
+    public void CreateNaiveProxyShareUrl_brackets_ipv6_and_local_copy_preserves_tls_options(bool quic, string scheme) {
         var connection = new NaiveProxyConnectionInfo {
             ServerAddress = HostName.Parse("2001:db8::1"),
             ServerPort = 443,
+            Quic = quic,
             Username = "user",
             Password = "password",
             Sni = HostName.Parse("sni.example.com"),
@@ -93,13 +96,45 @@ public sealed class SubscriptionLinkBuilderTests {
         var link = SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(connection, "device");
         var local = (NaiveProxyConnectionInfo)SubscriptionLinkBuilder.CreateLocalConnection(connection);
 
-        link.Should().Be("naive+https://user:password@[2001:db8::1]:443/?sni=sni.example.com" +
+        link.Should().Be($"{scheme}://user:password@[2001:db8::1]:443/?sni=sni.example.com" +
                          "&pinSHA256=AA%3ABB&name=device");
         local.ServerAddress.Should().Be(HostName.Parse("127.0.0.1"));
         local.ServerPort.Should().Be(9000);
+        local.Quic.Should().Be(quic);
         local.Sni.Should().Be(connection.Sni);
         local.PinSha256.Should().Be(connection.PinSha256);
         connection.ServerAddress.Should().Be(HostName.Parse("2001:db8::1"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Naive_subscription_connection_round_trips_quic_flag(bool quic) {
+        ProtocolConnectionInfo connection = new NaiveProxyConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"),
+            ServerPort = 8443,
+            Quic = quic,
+            Username = "user",
+            Password = "password",
+            Sni = HostName.Parse("sni.example.com")
+        };
+
+        var json = JsonSerializer.Serialize(connection);
+        var restored = JsonSerializer.Deserialize<ProtocolConnectionInfo>(json);
+
+        restored.Should().BeOfType<NaiveProxyConnectionInfo>().Which.Quic.Should().Be(quic);
+    }
+
+    [Fact]
+    public void Existing_naive_subscription_connection_defaults_to_https() {
+        const string json = """
+                            {"type":"naive","ServerAddress":"vpn.example.com","ServerPort":443,
+                             "Username":"user","Password":"password","Sni":"vpn.example.com"}
+                            """;
+
+        var restored = JsonSerializer.Deserialize<ProtocolConnectionInfo>(json);
+
+        restored.Should().BeOfType<NaiveProxyConnectionInfo>().Which.Quic.Should().BeFalse();
     }
 
     [Fact]

@@ -67,7 +67,7 @@ public static class SubscriptionLinkBuilder {
     }
 
     public static string CreateNaiveProxyShareUrl(NaiveProxyConnectionInfo connection, string clientName) {
-        var builder = new StringBuilder("naive+https://")
+        var builder = new StringBuilder(connection.Quic ? "naive+quic://" : "naive+https://")
             .Append(Uri.EscapeDataString(connection.Username))
             .Append(':')
             .Append(Uri.EscapeDataString(connection.Password))
@@ -125,6 +125,7 @@ public static class SubscriptionLinkBuilder {
             NaiveProxyConnectionInfo naiveProxy => new NaiveProxyConnectionInfo {
                 ServerAddress = Loopback,
                 ServerPort = 9000,
+                Quic = naiveProxy.Quic,
                 Username = naiveProxy.Username,
                 Password = naiveProxy.Password,
                 Sni = naiveProxy.Sni,

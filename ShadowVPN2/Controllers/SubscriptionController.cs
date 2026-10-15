@@ -102,6 +102,7 @@ public class SubscriptionController(
             NaiveProxyConnectionInfo naiveProxy => new SubscriptionContract.NaiveProxyConnectionInfo {
                 ServerAddress = naiveProxy.ServerAddress,
                 ServerPort = naiveProxy.ServerPort,
+                Quic = naiveProxy.Quic,
                 Username = naiveProxy.Username,
                 Password = naiveProxy.Password,
                 Sni = naiveProxy.Sni,

@@ -183,6 +183,7 @@
             Hysteria2ProtocolSettingsDto hysteria => $"Hysteria2 : {hysteria.PortBinding}",
             AwgProtocolSettingsDto awg => $"WireGuard / AmneziaWG : {awg.ListenPort}",
             NaiveProxyProtocolSettingsDto naive => $"NaiveProxy : {naive.ListenPort}",
+            NaiveProxyQuicProtocolSettingsDto naive => $"NaiveProxy HTTP/3 (UDP) : {naive.ListenPort}",
             _ => "Unknown"
         };
     }

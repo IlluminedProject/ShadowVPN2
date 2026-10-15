@@ -65,6 +65,7 @@ public sealed class SubscriptionFormatService {
 
     private static MihomoProxy? CreateProxy(SubscriptionEndpoint endpoint) {
         return endpoint.Connection switch {
+            NaiveProxyConnectionInfo { Quic: true } => null,
             Hysteria2ConnectionInfo hysteria2 => new MihomoProxy(endpoint.Name + " · Hysteria2", "hysteria2") {
                 Server = hysteria2.ServerAddress.ToString(), Port = hysteria2.PortBinding.ListenPort,
                 Values = new Dictionary<string, string?> {
@@ -108,7 +109,7 @@ public sealed class SubscriptionFormatService {
     }
 
     private static string CreateNaiveProxyShareUrl(NaiveProxyConnectionInfo connection, string clientName) {
-        var builder = new StringBuilder("naive+https://")
+        var builder = new StringBuilder(connection.Quic ? "naive+quic://" : "naive+https://")
             .Append(Uri.EscapeDataString(connection.Username)).Append(':')
             .Append(Uri.EscapeDataString(connection.Password)).Append('@')
             .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()).Append("/?");

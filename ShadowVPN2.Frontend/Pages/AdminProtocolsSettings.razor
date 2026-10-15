@@ -30,6 +30,10 @@
                 <li>
                     <button class="dropdown-item" type="button" @onclick="AddNaiveProxy">NaiveProxy</button>
                 </li>
+                <li>
+                    <button class="dropdown-item" type="button" @onclick="AddNaiveProxyQuic">NaiveProxy · HTTP/3 (UDP)
+                    </button>
+                </li>
             </ul>
         </div>
     </div>
@@ -83,6 +87,7 @@
                             break;
                         case IListenPortSettings portHeader:
                             <SettingsItemHeader Title="@ProtocolName(item)" @bind-ListenPort="portHeader.ListenPort"
+                                                AllowUnsetPort="@(item is NaiveProxyQuicProtocolSettingsDto)"
                                                 @bind-Enabled="item.Enabled"
                                                 Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
                             break;
@@ -179,6 +184,20 @@
                                     @onclick="() => RegenerateCertificateAsync(naiveProxy.Id)"
                                     disabled="@(_saving || !naiveProxy.HasTlsCertificate)">
                                 @(_regenerating == naiveProxy.Id ? "Regenerating…" : "Regenerate fallback certificate")
+                            </button>
+                        }
+                        else if (item is NaiveProxyQuicProtocolSettingsDto naiveQuic)
+                        {
+                            <p class="text-body-secondary">HTTP/3 over UDP. A matching managed certificate is validated
+                                normally; otherwise subscriptions use a pinned self-signed certificate.</p>
+                            <dl class="app-details field">
+                                <dt>Fallback certificate</dt>
+                                <dd>@(naiveQuic.HasTlsCertificate ? "Generated" : "Will be generated on save")</dd>
+                            </dl>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    @onclick="() => RegenerateCertificateAsync(naiveQuic.Id)"
+                                    disabled="@(_saving || !naiveQuic.HasTlsCertificate)">
+                                @(_regenerating == naiveQuic.Id ? "Regenerating…" : "Regenerate fallback certificate")
                             </button>
                         }
                     </div>
@@ -321,6 +340,15 @@
         });
     }
 
+    private void AddNaiveProxyQuic()
+    {
+        _request.Protocols.Add(new NaiveProxyQuicProtocolSettingsDto
+        {
+            Id = Guid.NewGuid(),
+            Enabled = true
+        });
+    }
+
     private int? NextPort(int start, bool reserveMesh = true)
     {
         var port = AvailablePortFinder.Find(start,
@@ -342,6 +370,7 @@
                 Hysteria2ProtocolSettingsDto => "Hysteria2",
                 AwgProtocolSettingsDto => "WireGuard / AmneziaWG",
                 NaiveProxyProtocolSettingsDto => "NaiveProxy",
+                NaiveProxyQuicProtocolSettingsDto => "NaiveProxy · HTTP/3 (UDP)",
                 _ => "Unknown"
         };
     }

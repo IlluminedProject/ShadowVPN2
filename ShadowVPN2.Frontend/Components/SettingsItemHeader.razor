@@ -16,6 +16,12 @@
                                   title="Port (4443) or range (4443-4450)"/>
                 <ValidationMessage For="() => PortBinding"/>
             }
+            else if (AllowUnsetPort)
+            {
+                <label class="visually-hidden" for="@_portId">Port for @Title</label>
+                <InputNumber id="@_portId" class="form-control form-control-sm" @bind-Value="OptionalPort"
+                             disabled="@Busy" min="1" max="65535" required placeholder="Port"/>
+            }
             else
             {
                 <label class="visually-hidden" for="@_portId">Port for @Title</label>
@@ -35,6 +41,13 @@
     [Parameter] [EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter] public bool RangeAllowed { get; set; }
     [Parameter] public int ListenPort { get; set; }
+    [Parameter] public bool AllowUnsetPort { get; set; }
+
+    private int? OptionalPort
+    {
+        get => ListenPort == 0 ? null : ListenPort;
+        set => ListenPortChanged.InvokeAsync(value ?? 0);
+    }
     [Parameter] public EventCallback<int> ListenPortChanged { get; set; }
     [Parameter] public PortBinding PortBinding { get; set; }
     [Parameter] public EventCallback<PortBinding> PortBindingChanged { get; set; }
