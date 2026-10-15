@@ -19,7 +19,7 @@ public class SingBoxService(
     GlobalConfigurationService globalConfigurationService,
     ManagedCertificateService managedCertificateService,
     SingBoxProcessManager singBoxProcessManager,
-    PortRangeRedirectService portRangeRedirectService)
+    IEnumerable<ISingBoxExtension> extensions)
     : BackgroundService {
     public static readonly JsonSerializerOptions SerializerOptions = new() {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -29,7 +29,8 @@ public class SingBoxService(
     };
 
     private readonly SemaphoreSlim configurationGate = new(1, 1);
-    private bool stopping;
+    private readonly ISingBoxExtension[] extensions = extensions.ToArray();
+    private volatile bool stopping;
 
     public bool IsRunning {
         get => singBoxProcessManager.IsRunning;
@@ -57,7 +58,7 @@ public class SingBoxService(
                 _ = RegenerateInBackgroundAsync();
             }));
 
-        while (!stoppingToken.IsCancellationRequested) {
+        while (!stopping && !stoppingToken.IsCancellationRequested) {
             singBoxProcessManager.Start();
             await singBoxProcessManager.WaitForExitAsync(stoppingToken);
             // TODO Proper delays and exit handling
@@ -80,7 +81,7 @@ public class SingBoxService(
             await RegenerateAndApplyConfigAsync(CancellationToken.None);
         }
         catch (Exception exception) {
-            logger.LogError(exception, "Failed to regenerate sing-box configuration and apply port range redirects");
+            logger.LogError(exception, "Failed to regenerate and apply sing-box configuration");
         }
     }
 
@@ -97,13 +98,12 @@ public class SingBoxService(
             var config = new SingBoxConfig();
             config.Log.Level = "debug";
             foreach (var contributor in contributors) await contributor.ContributeAsync(config, protocols, clients);
-            config.Inbounds.RemoveAll(static inbound => inbound is IConditionallyEnabledConfig {
-                IsActuallyEnabled: false
-            });
+            var context = new SingBoxContext(config, clients, protocols, configuration.Transports);
+            foreach (var extension in extensions) await extension.ConfigureAsync(context, ct);
 
             var configJson = JsonSerializer.Serialize(config, SerializerOptions);
             await singBoxProcessManager.ApplyConfigAsync(configJson);
-            await portRangeRedirectService.ApplyAsync(protocols, configuration.Transports, ct);
+            foreach (var extension in extensions) await extension.ApplyAsync(context, ct);
         }
         finally {
             configurationGate.Release();
@@ -111,17 +111,16 @@ public class SingBoxService(
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken) {
+        stopping = true;
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
-        await configurationGate.WaitAsync(cancellationToken);
+        await configurationGate.WaitAsync(CancellationToken.None);
+        configurationGate.Release();
         try {
-            stopping = true;
-            singBoxProcessManager.Stop();
-            await portRangeRedirectService.RemoveAsync(cancellationToken);
+            await base.StopAsync(cancellationToken);
         }
         finally {
-            configurationGate.Release();
-            await base.StopAsync(cancellationToken);
+            singBoxProcessManager.Stop();
         }
     }
 

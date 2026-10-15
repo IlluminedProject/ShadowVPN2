@@ -7,12 +7,20 @@ using ShadowVPN2.Entities;
 namespace ShadowVPN2.Data.SingBox;
 
 /// <summary>Owns the IPv4 NAT rules that redirect public port ranges to one backend listener.</summary>
-public sealed class PortRangeRedirectService(ILogger<PortRangeRedirectService> logger) {
+public sealed class PortRangeRedirectService(ILogger<PortRangeRedirectService> logger) : ISingBoxExtension {
     private const string Chain = "SHADOWVPN2_PORTS";
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool hasOwnedRules;
 
-    public async Task ApplyAsync(IReadOnlyList<ProtocolGlobalSettings> protocols,
+    public Task ApplyAsync(SingBoxContext context, CancellationToken cancellationToken) {
+        return ApplyAsync(context.Protocols, context.Transports, cancellationToken);
+    }
+
+    public ValueTask DisposeAsync() {
+        return new ValueTask(RemoveAsync(CancellationToken.None));
+    }
+
+    private async Task ApplyAsync(IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<TransportSettings> transports, CancellationToken cancellationToken = default) {
         var enabledProtocols = protocols.Where(static settings => settings.Enabled)
             .ToDictionary(static settings => settings.Id);
@@ -75,7 +83,7 @@ public sealed class PortRangeRedirectService(ILogger<PortRangeRedirectService> l
         }
     }
 
-    public async Task RemoveAsync(CancellationToken cancellationToken = default) {
+    private async Task RemoveAsync(CancellationToken cancellationToken = default) {
         await gate.WaitAsync(cancellationToken);
         try {
             if (hasOwnedRules) await RemoveRulesAsync(cancellationToken);

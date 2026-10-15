@@ -80,7 +80,8 @@ public static class ApplicationServices {
         builder.Services.AddSingleton(_ => new LookupClient(new LookupClientOptions { ThrowDnsErrors = true }));
         builder.Services.AddSingleton<DomainValidationService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
-        builder.Services.AddSingleton<PortRangeRedirectService>();
+        builder.Services.AddSingleton<ISingBoxExtension, RemoveEmptyInboundsExtension>();
+        builder.Services.AddSingleton<ISingBoxExtension, PortRangeRedirectService>();
         builder.Services.AddSingleton<SingBoxService>();
         builder.Services.AddSingleton<FreeTurnClientIdService>();
         builder.Services.AddSingleton<FreeTurnService>();

@@ -23,7 +23,7 @@ try {
 
     builder.AddApplicationServices();
 
-    var app = builder.Build();
+    await using var app = builder.Build();
 
     await app.Services.GetRequiredService<ApplicationBootstrapper>().InitializeAsync();
 
