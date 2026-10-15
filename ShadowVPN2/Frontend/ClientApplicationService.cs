@@ -70,15 +70,31 @@ public sealed class ClientApplicationService(
 
         var userIds = clients.Select(client => client.UserId).Distinct().ToArray();
         var result = new Dictionary<string, string>();
+        var owners = new Dictionary<string, ApplicationUser>();
         foreach (var userId in userIds) {
             var owner = await userManager.FindByIdAsync(userId);
-            result[userId] = GetOwnerDisplayName(owner);
+            if (owner is not null)
+                owners[userId] = owner;
+        }
+
+        var duplicateNames = owners.Values
+            .Where(owner => !string.IsNullOrWhiteSpace(owner.DisplayName))
+            .GroupBy(owner => owner.DisplayName!, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Skip(1).Any())
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var userId in userIds) {
+            owners.TryGetValue(userId, out var owner);
+            var name = GetOwnerDisplayName(owner);
+            result[userId] = owner?.DisplayName is not null && duplicateNames.Contains(owner.DisplayName)
+                ? $"{name} ({owner.UserName})"
+                : name;
         }
 
         return result;
     }
 
     private static string GetOwnerDisplayName(ApplicationUser? user) {
-        return user?.UserName ?? user?.Email ?? user?.Id ?? "Unknown user";
+        return string.IsNullOrWhiteSpace(user?.DisplayName) ? $"User #{user?.UserNumber}" : user.DisplayName;
     }
 }

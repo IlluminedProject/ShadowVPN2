@@ -137,8 +137,22 @@ public class AuthController(
 
         var safeReturnUrl = SafeReturnUrl(returnUrl);
         var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false, true);
-        if (result.Succeeded)
+        var displayName = info.Principal.FindFirstValue("preferred_username");
+        if (string.IsNullOrWhiteSpace(displayName))
+            displayName = info.Principal.FindFirstValue("name") ?? info.Principal.FindFirstValue(ClaimTypes.Name);
+        if (result.Succeeded) {
+            var existingUser = await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+            if (existingUser is not null && string.IsNullOrWhiteSpace(existingUser.DisplayName) &&
+                !string.IsNullOrWhiteSpace(displayName)) {
+                existingUser.DisplayName = displayName.Trim();
+                var updateResult = await userManager.UpdateAsync(existingUser);
+                if (!updateResult.Succeeded)
+                    return Results.Redirect("/Account/Login?error=external");
+            }
+
             return Results.LocalRedirect(safeReturnUrl);
+        }
+
         if (result.IsLockedOut)
             return Results.Redirect("/Account/Lockout");
 
@@ -148,6 +162,13 @@ public class AuthController(
 
         var user = await userManager.FindByEmailAsync(email);
         if (user is not null) {
+            if (string.IsNullOrWhiteSpace(user.DisplayName) && !string.IsNullOrWhiteSpace(displayName)) {
+                user.DisplayName = displayName.Trim();
+                var updateResult = await userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                    return Results.Redirect("/Account/Login?error=external");
+            }
+
             var loginResult = await userManager.AddLoginAsync(user,
                 new UserLoginInfo(info.LoginProvider, info.ProviderKey, info.ProviderDisplayName));
             if (!loginResult.Succeeded)
@@ -163,7 +184,10 @@ public class AuthController(
 
         var userNumber = (int)await documentStore.Maintenance.SendAsync(
             new NextIdentityForOperation("UserNumbers"));
-        user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true, UserNumber = userNumber };
+        user = new ApplicationUser {
+            UserName = email, Email = email, EmailConfirmed = true, UserNumber = userNumber,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim()
+        };
         var createResult = await userManager.CreateAsync(user);
         if (!createResult.Succeeded)
             return Results.Redirect("/Account/Login?error=external");

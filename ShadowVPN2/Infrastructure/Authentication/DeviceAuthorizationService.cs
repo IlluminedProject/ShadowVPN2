@@ -194,6 +194,7 @@ public sealed class DeviceAuthorizationService(
                     UserName = transaction.Email!,
                     Email = transaction.Email,
                     UserNumber = userNumber,
+                    DisplayName = transaction.DisplayName,
                     EmailConfirmed = true
                 };
                 var createResult = await userManager.CreateAsync(user);
@@ -214,6 +215,15 @@ public sealed class DeviceAuthorizationService(
                 user.UserNumber = (int)await documentStore.Maintenance.SendAsync(
                     new NextIdentityForOperation("UserNumbers"),
                     cancellationToken);
+                var updateResult = await userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded) {
+                    return await FailCompletionAsync(transaction,
+                        string.Join(", ", updateResult.Errors.Select(x => x.Description)), cancellationToken);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(user.DisplayName) && !string.IsNullOrWhiteSpace(transaction.DisplayName)) {
+                user.DisplayName = transaction.DisplayName;
                 var updateResult = await userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded) {
                     return await FailCompletionAsync(transaction,
@@ -311,7 +321,10 @@ public sealed class DeviceAuthorizationService(
             var principal = result.Principal;
             var providerKey = principal.FindFirstValue(Claims.Subject);
             var email = principal.FindFirstValue(Claims.Email) ?? principal.FindFirstValue(ClaimTypes.Email);
-            var displayName = principal.Identity?.Name ?? email;
+            var displayName = principal.FindFirstValue("preferred_username");
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = principal.FindFirstValue(Claims.Name) ?? principal.FindFirstValue(ClaimTypes.Name);
+            displayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
             if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email)) {
                 await FailProcessingAsync(transactionId, "The provider did not return the required identity claims.");
                 return;

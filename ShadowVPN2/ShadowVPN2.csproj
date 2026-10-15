@@ -42,4 +42,8 @@
     <None Remove="Data\ravendb\Databases\ShadowVPN\headers.two"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Data\Migrations\AddUserDisplayNameMigration.cs"/>
+  </ItemGroup>
+
 </Project>
