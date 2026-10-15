@@ -78,16 +78,20 @@ public sealed class ClientApplicationService(
         }
 
         var duplicateNames = owners.Values
-            .Where(owner => !string.IsNullOrWhiteSpace(owner.DisplayName))
-            .GroupBy(owner => owner.DisplayName!, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(owner => GetOwnerDisplayName(owner), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Skip(1).Any())
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var userId in userIds) {
             owners.TryGetValue(userId, out var owner);
             var name = GetOwnerDisplayName(owner);
-            result[userId] = owner?.DisplayName is not null && duplicateNames.Contains(owner.DisplayName)
-                ? $"{name} ({owner.UserName})"
+            var qualifier = string.Equals(name, owner?.UserName, StringComparison.OrdinalIgnoreCase)
+                ? owner?.Email
+                : owner?.UserName;
+            if (string.IsNullOrWhiteSpace(qualifier))
+                qualifier = owner?.Email;
+            result[userId] = duplicateNames.Contains(name) && !string.IsNullOrWhiteSpace(qualifier)
+                ? $"{name} ({qualifier})"
                 : name;
         }
 
@@ -95,6 +99,8 @@ public sealed class ClientApplicationService(
     }
 
     private static string GetOwnerDisplayName(ApplicationUser? user) {
-        return string.IsNullOrWhiteSpace(user?.DisplayName) ? $"User #{user?.UserNumber}" : user.DisplayName;
+        return !string.IsNullOrWhiteSpace(user?.DisplayName) ? user.DisplayName
+            : !string.IsNullOrWhiteSpace(user?.UserName) ? user.UserName
+            : user?.Email ?? $"User #{user?.UserNumber}";
     }
 }
