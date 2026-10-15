@@ -11,8 +11,6 @@ public static class AppRoles {
         new Dictionary<string, IReadOnlyList<string>> {
             [Administrator] = AppPermissions.All,
 
-            [User] = [
-                AppPermissions.Nodes.View
-            ]
+            [User] = []
         };
 }

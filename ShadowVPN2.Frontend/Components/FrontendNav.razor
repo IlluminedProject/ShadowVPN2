@@ -1,12 +1,12 @@
 <header class="frontend-nav">
     <a class="text-body text-decoration-none" href="/"><strong>ShadowVPN2</strong></a>
     <nav class="actions" aria-label="Main navigation">
-        <AuthorizeView Policy="Nodes.View">
-            <NavLink class="btn btn-outline-secondary" href="/" Match="NavLinkMatch.All">Nodes</NavLink>
-        </AuthorizeView>
         <AuthorizeView>
             <Authorized>
-                <NavLink class="btn btn-outline-secondary" href="/devices">Devices</NavLink>
+                <NavLink class="btn btn-outline-secondary" href="/" Match="NavLinkMatch.All">Devices</NavLink>
+                <AuthorizeView Policy="Nodes.View" Context="nodesContext">
+                    <NavLink class="btn btn-outline-secondary" href="/nodes">Nodes</NavLink>
+                </AuthorizeView>
                 <AuthorizeView Policy="Settings.View" Context="settingsContext">
                     <NavLink class="btn btn-outline-secondary" href="/admin/settings">Settings</NavLink>
                 </AuthorizeView>
