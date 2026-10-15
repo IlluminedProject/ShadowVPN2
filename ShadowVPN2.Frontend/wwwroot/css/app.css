@@ -265,9 +265,24 @@ h1:focus {
 }
 
 .connection-actions {
-    display: flex;
-    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 2rem);
     gap: .375rem;
+}
+
+.connection-actions__copy {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.connection-actions__qr {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.connection-actions__download {
+    grid-column: 3;
+    grid-row: 1;
 }
 
 .app-list-item > :first-child {

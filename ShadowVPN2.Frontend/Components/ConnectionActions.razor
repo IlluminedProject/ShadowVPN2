@@ -2,14 +2,17 @@
 <div class="connection-actions">
     @if (Link is not null)
     {
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-copy-text="@Link" title="Copy link"
+        <button class="btn btn-sm btn-outline-secondary connection-actions__copy" type="button" data-copy-text="@Link"
+                title="Copy link"
                 aria-label="Copy link"><span class="bi bi-copy" aria-hidden="true"></span></button>
     }
-    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="ShowQr" title="@QrTitle"
+    <button class="btn btn-sm btn-outline-secondary connection-actions__qr" type="button" @onclick="ShowQr"
+            title="@QrTitle"
             aria-label="@QrTitle"><span class="bi bi-qr-code" aria-hidden="true"></span></button>
     @if (Config is not null)
     {
-        <a class="btn btn-sm btn-outline-secondary" href="@_downloadUrl" download="@FileName" title="Download config"
+        <a class="btn btn-sm btn-outline-secondary connection-actions__download" href="@_downloadUrl"
+           download="@FileName" title="Download config"
            aria-label="Download config"><span class="bi bi-download" aria-hidden="true"></span></a>
     }
 </div>
