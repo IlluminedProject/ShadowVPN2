@@ -7,7 +7,7 @@ public sealed class NaiveProxyInboundConfig : InboundConfig, IConditionallyEnabl
 
     [JsonPropertyName("users")] public List<NaiveProxyUser> Users { get; set; } = [];
 
-    [JsonPropertyName("tls")] public InboundTlsConfig Tls { get; set; } = new();
+    [JsonPropertyName("tls")] public InboundTlsConfig? Tls { get; set; } = new();
 
     bool IConditionallyEnabledConfig.IsActuallyEnabled {
         get => Users.Count > 0;

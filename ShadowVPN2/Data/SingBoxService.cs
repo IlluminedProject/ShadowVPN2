@@ -19,7 +19,8 @@ public class SingBoxService(
     GlobalConfigurationService globalConfigurationService,
     ManagedCertificateService managedCertificateService,
     SingBoxProcessManager singBoxProcessManager,
-    IEnumerable<ISingBoxExtension> extensions)
+    IEnumerable<ISingBoxExtension> extensions,
+    IHostApplicationLifetime applicationLifetime)
     : BackgroundService {
     public static readonly JsonSerializerOptions SerializerOptions = new() {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -38,6 +39,9 @@ public class SingBoxService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         logger.LogInformation("SingBoxService starting");
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = applicationLifetime.ApplicationStarted.Register(() => started.TrySetResult());
+        await started.Task.WaitAsync(stoppingToken);
         await RegenerateAndApplyConfigAsync(stoppingToken);
 
         // Subscribe to changes

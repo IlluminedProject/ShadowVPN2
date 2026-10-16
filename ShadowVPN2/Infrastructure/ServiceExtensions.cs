@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography.X509Certificates;
+﻿using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -12,6 +13,7 @@ using Raven.Identity;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
@@ -133,9 +135,13 @@ public static class ServiceExtensions {
                 listenOptions.Use(next =>
                     new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
                 listenOptions.UseHttps(httpsOptions => {
-                    httpsOptions.ServerCertificateSelector = (_, serverName) =>
+                    httpsOptions.ServerCertificateSelector = (connection, serverName) =>
                         services.GetRequiredService<ManagedCertificateService>()
                             .GetCertificate(HostName.ParseOptional(serverName)) ??
+                        (connection?.LocalEndPoint is IPEndPoint endpoint
+                            ? services.GetRequiredService<NaiveProxySharedPortExtension>()
+                                .GetFallbackCertificate(endpoint.Port)
+                            : null) ??
                         X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null,
                             X509KeyStorageFlags.Exportable);
                 });

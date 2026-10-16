@@ -27,6 +27,8 @@ try {
 
     await app.Services.GetRequiredService<ApplicationBootstrapper>().InitializeAsync();
 
+    app.UseMiddleware<NaiveProxyMiddleware>();
+
     app.UseSerilogRequestLogging();
 
     // Configure the HTTP request pipeline.
