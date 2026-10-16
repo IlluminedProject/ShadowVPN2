@@ -212,4 +212,28 @@ public sealed class SubscriptionLinkBuilderTests {
         local.ServerPublicKey.Should().Be(connection.ServerPublicKey);
         connection.Mtu.Should().Be(1408);
     }
+
+    [Theory]
+    [InlineData(false, "wireguard://")]
+    [InlineData(true, "awg://")]
+    public void CreateWireGuardShareUrl_uses_client_scheme_for_wg_variant(bool amnezia, string scheme) {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"),
+            ServerPort = 51820,
+            PrivateKey = "private-key",
+            AssignedIp = "10.0.0.2",
+            ServerPublicKey = "public-key",
+            Mtu = 1408,
+            IsAmneziaWg = amnezia,
+            H1 = "1", H2 = "2", H3 = "3", H4 = "4"
+        };
+
+        var link = SubscriptionLinkBuilder.CreateWireGuardShareUrl(connection);
+
+        link.Should().StartWith(scheme);
+        var config = Encoding.UTF8.GetString(Convert.FromBase64String(link[scheme.Length..]));
+        config.Should().Contain("PrivateKey = private-key");
+        if (amnezia)
+            config.Should().Contain("Jc = 0");
+    }
 }

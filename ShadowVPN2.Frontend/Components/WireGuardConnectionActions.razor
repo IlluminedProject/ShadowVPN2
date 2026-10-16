@@ -1,4 +1,5 @@
-<ConnectionActions Config="@_config" FileName="@FileName" QrTitle="WireGuard config QR code"/>
+<ConnectionActions Link="SubscriptionLinkBuilder.CreateWireGuardShareUrl(Connection)" Config="@_config"
+                   FileName="@FileName" QrTitle="WireGuard config QR code"/>
 
 @code {
     [Parameter][EditorRequired] public WireGuardConnectionInfo Connection { get; set; } = null!;

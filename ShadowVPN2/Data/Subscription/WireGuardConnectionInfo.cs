@@ -70,7 +70,8 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
     }
 
     public string CreateShareUrl() {
-        return $"wireguard://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateConfig()))}";
+        var scheme = IsAmneziaWg ? "awg" : "wireguard";
+        return $"{scheme}://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateConfig()))}";
     }
 
     public WireGuardConnectionInfo WithEndpoint(HostName serverAddress, int serverPort, int mtu) {
