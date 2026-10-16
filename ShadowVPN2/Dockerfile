@@ -45,7 +45,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 FROM runtime-dependencies AS binaries
 COPY --chmod=755 --from=singbox-build /out/sing-box /usr/local/bin/sing-box
-RUN setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
 
 FROM runtime-dependencies AS runtime-base
 COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
@@ -53,6 +52,7 @@ COPY --chmod=755 docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entry
 
 # Install the pinned amnezia-box build with the AWG system TUN fix.
 COPY --from=binaries /usr/local/bin/sing-box /usr/local/bin/sing-box
+RUN setcap cap_net_admin,cap_net_raw,cap_net_bind_service=+ep /usr/local/bin/sing-box
 COPY --from=singbox-build /out/libcronet.so /usr/local/bin/libcronet.so
 
 COPY --chmod=755 tools/free-turn-proxy /usr/local/bin/free-turn-proxy
@@ -91,7 +91,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap2-bin iproute2 iptables \
     gosu \
     && rm -rf /var/lib/apt/lists/* \
-    && setcap cap_net_admin,cap_net_raw=+ep /usr/local/bin/sing-box
+    && setcap cap_net_admin,cap_net_raw,cap_net_bind_service=+ep /usr/local/bin/sing-box
 RUN mkdir -p /data && chmod o+x /root
 WORKDIR /src/ShadowVPN2
 ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
