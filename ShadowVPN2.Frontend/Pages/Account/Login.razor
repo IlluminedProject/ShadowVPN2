@@ -4,6 +4,7 @@
 @layout AccountLayout
 @attribute [AllowAnonymous]
 @inject IAuthApplicationService AuthApplicationService
+@inject NavigationManager Navigation
 @inject ILogger<Login> Logger
 
 <PageTitle>Log in</PageTitle>
@@ -125,7 +126,7 @@ else
     {
         try
         {
-            var options = await AuthApplicationService.GetOptionsAsync();
+        var options = await AuthApplicationService.GetOptionsAsync(new Uri(Navigation.Uri).Host);
             _providers.AddRange(options.ExternalProviders);
             _localLoginEnabled = options.LocalLoginEnabled;
         }

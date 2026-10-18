@@ -52,10 +52,19 @@ else
                         <InputText id="display-name" class="form-control"
                                    @bind-Value="_request.OidcSettings!.DisplayName"/>
                     </div>
-                    <div class="form-check form-switch field">
-                        <InputCheckbox id="device-flow" class="form-check-input"
-                                       @bind-Value="_request.OidcSettings!.DeviceFlowEnabled"/>
-                        <label class="form-check-label" for="device-flow">Enable device flow</label>
+                    <div class="field">
+                        <label class="form-label" for="device-flow">Device flow</label>
+                        <InputSelect id="device-flow" class="form-select"
+                                     @bind-Value="_request.OidcSettings!.DeviceFlowMode"
+                                     aria-describedby="device-flow-hint">
+                            <option value="@DeviceFlowMode.Never">Never</option>
+                            <option value="@DeviceFlowMode.NonMainDomain">Only outside the main domain</option>
+                            <option value="@DeviceFlowMode.Always">Always</option>
+                        </InputSelect>
+                        <div id="device-flow-hint" class="form-text">
+                            Outside the main domain, the login button uses device flow. If no main domain is configured,
+                            this applies to every address. Direct OIDC sign-in remains available in every mode.
+                        </div>
                     </div>
                     <div class="field">
                         <label class="form-label" for="authority">Issuer URL</label>
@@ -77,7 +86,7 @@ else
                         <label class="form-label" for="scopes">Scopes</label>
                         <InputText id="scopes" class="form-control" @bind-Value="_request.OidcSettings!.Scopes"/>
                     </div>
-                    @if (!_request.OidcSettings.DeviceFlowEnabled)
+                    @if (_request.OidcSettings.DeviceFlowMode != DeviceFlowMode.Always)
                     {
                         <dl class="app-details">
                             <dt>Redirect URI</dt>
@@ -117,7 +126,11 @@ else
     private bool _busy;
     private string? _error;
     private string? _message;
-    private string RedirectUri => NavigationManager.ToAbsoluteUri("/signin-OIDC").ToString();
+private string? _mainDomain;
+private string RedirectUri => _request.OidcSettings?.DeviceFlowMode == DeviceFlowMode.NonMainDomain
+? _mainDomain is null ? "Configure the main domain to use ordinary OIDC sign-in."
+: $"https://{_mainDomain}/signin-OIDC"
+: NavigationManager.ToAbsoluteUri("/signin-OIDC").ToString();
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -126,6 +139,7 @@ else
         try
         {
             var response = await AdminApi.GetAuthSettingsAsync();
+        _mainDomain = response.MainDomain?.FormatForUri();
             _request.EnableLocalLogin = response.EnableLocalLogin;
             _request.SelfRegistrationEnabled = response.SelfRegistrationEnabled;
             _request.EnableOidc = response.EnableOidc;

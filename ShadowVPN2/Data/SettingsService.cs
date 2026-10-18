@@ -62,7 +62,7 @@ public class SettingsService(
                 current.Authority = request.OidcSettings.Authority;
                 current.ClientId = request.OidcSettings.ClientId;
                 current.Scopes = request.OidcSettings.Scopes;
-                current.DeviceFlowEnabled = request.OidcSettings.DeviceFlowEnabled;
+                current.DeviceFlowMode = request.OidcSettings.DeviceFlowMode;
                 if (!string.IsNullOrWhiteSpace(request.OidcSettings.ClientSecret))
                     current.ClientSecret = request.OidcSettings.ClientSecret;
                 current.IsEnabled = true;

@@ -38,6 +38,7 @@ public static class ApplicationServices {
         builder.SetupRavenDb();
         builder.Services.AddSingleton<RavenMigrationLock>();
         builder.Services.AddSingleton<RavenMigrationRunner>();
+        builder.Services.AddRavenMigration<DeviceFlowModeMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();

@@ -33,6 +33,7 @@ public sealed class AdminSettingsService(
             EnableLocalLogin = local?.IsEnabled == true,
             SelfRegistrationEnabled = config.SelfRegistrationEnabled,
             EnableOidc = oidc?.IsEnabled == true,
+            MainDomain = config.MainDomain,
             OidcSettings = oidc is null
                 ? null
                 : new OidcAuthSettings {
@@ -40,7 +41,7 @@ public sealed class AdminSettingsService(
                     Authority = oidc.Authority,
                     ClientId = oidc.ClientId,
                     ClientSecret = string.Empty,
-                    DeviceFlowEnabled = oidc.DeviceFlowEnabled,
+                    DeviceFlowMode = oidc.DeviceFlowMode,
                     Scopes = oidc.Scopes
                 }
         };

@@ -25,7 +25,7 @@ public class AuthController(
     [HttpGet("options")]
     [AllowAnonymous]
     public async Task<AuthOptionsResponse> GetOptions(CancellationToken cancellationToken) {
-        return await authApplicationService.GetOptionsAsync(cancellationToken);
+        return await authApplicationService.GetOptionsAsync(HttpContext.Request.Host.Host, cancellationToken);
     }
 
     [HttpPost("login")]

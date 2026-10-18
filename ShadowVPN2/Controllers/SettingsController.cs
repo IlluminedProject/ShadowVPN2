@@ -20,6 +20,7 @@ public class SettingsController(SettingsService settingsService) : ControllerBas
             EnableLocalLogin = local?.IsEnabled == true,
             SelfRegistrationEnabled = config.SelfRegistrationEnabled,
             EnableOidc = oidc?.IsEnabled == true,
+            MainDomain = config.MainDomain,
             OidcSettings = oidc == null
                 ? null
                 : new OidcAuthSettings {
@@ -27,7 +28,7 @@ public class SettingsController(SettingsService settingsService) : ControllerBas
                     Authority = oidc.Authority,
                     ClientId = oidc.ClientId,
                     ClientSecret = string.Empty,
-                    DeviceFlowEnabled = oidc.DeviceFlowEnabled,
+                    DeviceFlowMode = oidc.DeviceFlowMode,
                     Scopes = oidc.Scopes
                 }
         };

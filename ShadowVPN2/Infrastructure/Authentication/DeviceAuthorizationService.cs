@@ -7,6 +7,7 @@ using OpenIddict.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.Identities;
 using Raven.Client.Exceptions;
+using ShadowVPN2.Contracts.Auth;
 using ShadowVPN2.Data;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Auth;
@@ -440,7 +441,8 @@ public sealed class DeviceAuthorizationService(
     }
 
     private static OidcAuthProvider GetProvider(EntityGlobalConfiguration config) {
-        return config.Providers.OfType<OidcAuthProvider>().FirstOrDefault(x => x.IsEnabled && x.DeviceFlowEnabled)
+        return config.Providers.OfType<OidcAuthProvider>().FirstOrDefault(x => x.IsEnabled &&
+            x.DeviceFlowMode is DeviceFlowMode.NonMainDomain or DeviceFlowMode.Always)
                ?? throw new InvalidOperationException("Device authorization is not enabled.");
     }
 
