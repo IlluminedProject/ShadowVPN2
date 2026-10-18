@@ -1,5 +1,6 @@
 using DnsClient;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
@@ -50,6 +51,11 @@ public static class ApplicationServices {
         });
         builder.Services.AddScoped<FrontendUserContext>();
         builder.Services.AddScoped<IAuthApplicationService, AuthApplicationService>();
+        builder.Services.AddScoped<DeviceAuthorizationApplicationService>();
+        builder.Services.AddScoped<IDeviceAuthorizationApplicationService>(sp =>
+            sp.GetRequiredService<DeviceAuthorizationApplicationService>());
+        builder.Services.AddScoped<CircuitHandler>(sp =>
+            sp.GetRequiredService<DeviceAuthorizationApplicationService>());
         builder.Services.AddScoped<IClientApplicationService, ClientApplicationService>();
         builder.Services.AddScoped<IClientUpdatesService, ClientUpdatesService>();
         builder.Services.AddScoped<ISetupApplicationService, SetupApplicationService>();

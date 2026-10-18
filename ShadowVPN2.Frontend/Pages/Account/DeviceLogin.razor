@@ -1,7 +1,6 @@
 @page "/Account/DeviceLogin"
 @layout AccountLayout
 @attribute [AllowAnonymous]
-@using System.Text.Json
 @implements IAsyncDisposable
 
 <PageTitle>Device login</PageTitle>
@@ -32,7 +31,7 @@
 </div>
 
 @code {
-    [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private IDeviceAuthorizationApplicationService DeviceAuthorization { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILogger<DeviceLogin> Logger { get; set; } = default!;
 
@@ -44,34 +43,40 @@
     private string? _error;
     private CancellationTokenSource? _cancellation;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender)
+            return;
+
         if (string.IsNullOrWhiteSpace(TransactionId))
         {
             _error = "The device authorization transaction is missing.";
             _message = _error;
+            await InvokeAsync(StateHasChanged);
             return;
         }
 
         try
         {
-            _authorization = await Http.GetFromJsonAsync<DeviceAuthorizationStartResponse>(
-                $"/api/auth/device/details/{Uri.EscapeDataString(TransactionId)}");
+            _authorization = await DeviceAuthorization.GetDetailsAsync(TransactionId);
             if (_authorization is null)
             {
                 _error = "Device authorization details are unavailable. Return to login to try again.";
                 _message = _error;
+                await InvokeAsync(StateHasChanged);
                 return;
             }
             _message = "Waiting for confirmation...";
             _cancellation = new CancellationTokenSource();
             _ = PollAsync(_cancellation.Token);
+            await InvokeAsync(StateHasChanged);
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        catch (Exception exception) when (exception is ApplicationServiceException or UnauthorizedAccessException)
         {
             Logger.LogError(exception, "Unable to prepare device authorization");
             _error = "Device authorization could not be prepared. Return to login to try again.";
             _message = _error;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -81,9 +86,7 @@
         {
             try
             {
-                var response = await Http.PostAsync(
-                    $"/api/auth/device/poll/{Uri.EscapeDataString(TransactionId!)}", null, cancellationToken);
-                var status = await response.Content.ReadFromJsonAsync<DeviceAuthorizationPollResponse>(cancellationToken);
+                var status = await DeviceAuthorization.PollAsync(TransactionId!, cancellationToken);
                 if (status?.Status == "completed")
                 {
                     await InvokeAsync(() => Navigation.NavigateTo(
@@ -114,7 +117,7 @@
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
             }
-            catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+            catch (Exception exception) when (exception is ApplicationServiceException or UnauthorizedAccessException)
             {
                 Logger.LogError(exception, "Unable to complete device authorization");
                 _error = "Device authorization could not be completed. Return to login to try again.";
