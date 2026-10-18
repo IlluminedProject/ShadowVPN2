@@ -2,7 +2,9 @@ using System.Security.Cryptography.X509Certificates;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Conventions;
 using Raven.Client.Json.Serialization.NewtonsoftJson;
+using Raven.Client.Util;
 using Serilog;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.RavenEmbedded;
@@ -31,12 +33,15 @@ public class RavenDbInitializer {
                 $"--PublicServerUrl.Tcp.Cluster={meshTcpUrl}"
             ]
         };
-        if (joinState.IsJoining) {
-            serverOptions.BootstrapAdminCertificateThumbprints = joinState.TemporaryTrustPeers.Select(peer => {
+        var trustedPeers = joinState.IsJoining
+            ? joinState.TemporaryTrustPeers
+            : AsyncHelpers.RunSync(() => PeerCertificateTrustService.LoadAsync());
+        serverOptions.BootstrapAdminCertificateThumbprints = [
+            .. trustedPeers.Select(peer => {
                 using var certificate = X509Certificate2.CreateFromPem(peer.CertificatePem);
                 return certificate.Thumbprint;
-            }).ToArray();
-        }
+            })
+        ];
 
         serverOptions.Secured(certificatePath);
 
