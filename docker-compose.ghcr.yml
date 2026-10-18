@@ -12,6 +12,9 @@ services:
             - /dev/net/tun:/dev/net/tun
         volumes:
             - shadowvpn2-data:/data
+        env_file:
+            -   path: .env
+                required: false
         environment:
             ASPNETCORE_ENVIRONMENT: Production
             ASPNETCORE_URLS: https://+:${SHADOWVPN_WEB_PORT:-5172}
