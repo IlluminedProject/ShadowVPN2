@@ -11,5 +11,6 @@ namespace ShadowVPN2.Contracts.Protocols;
 public abstract class ProtocolSettingsDto {
     public Guid Id { get; set; }
     public bool Enabled { get; set; }
+    public bool PublishDirectConnection { get; set; } = true;
     public HostName? MainDomain { get; set; }
 }

@@ -49,8 +49,9 @@ public class SubscriptionService(
                     true,
                     "Main");
                 if (mainEndpoint is not null) {
-                    endpoints.Add(mainEndpoint);
                     AddTransportConnections(mainEndpoint, settings, freeTurnTransports, client, mainHost);
+                    if (mainEndpoint.PublishDirectConnection || mainEndpoint.Transports.Count > 0)
+                        endpoints.Add(mainEndpoint);
                 }
             }
 
@@ -75,8 +76,9 @@ public class SubscriptionService(
                     false,
                     string.IsNullOrWhiteSpace(node.Name) ? host.ToString() : node.Name);
                 if (nodeEndpoint is not null) {
-                    endpoints.Add(nodeEndpoint);
                     AddTransportConnections(nodeEndpoint, settings, freeTurnTransports, client, host);
+                    if (nodeEndpoint.PublishDirectConnection || nodeEndpoint.Transports.Count > 0)
+                        endpoints.Add(nodeEndpoint);
                 }
             }
 
@@ -111,6 +113,7 @@ public class SubscriptionService(
             Name = name,
             Address = address,
             IsMain = isMain,
+            PublishDirectConnection = settings.PublishDirectConnection,
             Connection = connection
         };
     }

@@ -83,12 +83,14 @@
                             <SettingsItemHeader Title="@ProtocolName(item)" RangeAllowed="true"
                                                 @bind-PortBinding="bindingHeader.PortBinding"
                                                 @bind-Enabled="item.Enabled"
+                                                @bind-PublishDirectConnection="item.PublishDirectConnection"
                                                 Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
                             break;
                         case IListenPortSettings portHeader:
                             <SettingsItemHeader Title="@ProtocolName(item)" @bind-ListenPort="portHeader.ListenPort"
                                                 AllowUnsetPort="@(item is NaiveProxyQuicProtocolSettingsDto)"
                                                 @bind-Enabled="item.Enabled"
+                                                @bind-PublishDirectConnection="item.PublishDirectConnection"
                                                 Busy="_saving" OnRemove="() => RequestRemoveProtocol(item)"/>
                             break;
                     }

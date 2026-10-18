@@ -17,5 +17,7 @@ public abstract class ProtocolGlobalSettings {
 
     public bool Enabled { get; set; }
 
+    public bool PublishDirectConnection { get; set; } = true;
+
     public HostName? MainDomain { get; set; }
 }

@@ -16,8 +16,9 @@ public sealed class SubscriptionFormatService {
 
     private static string RenderBase64(SubscriptionResponse subscription) {
         var links = subscription.Protocols
-            .SelectMany(protocol => protocol.Endpoints.Select(endpoint =>
-                (protocol, endpoint, connection: endpoint.Connection)))
+            .SelectMany(protocol => protocol.Endpoints
+            .Where(endpoint => endpoint.PublishDirectConnection)
+            .Select(endpoint =>                (protocol, endpoint, connection: endpoint.Connection)))
             .OrderByDescending(item => item.endpoint.IsMain)
             .ThenBy(item => item.endpoint.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)
@@ -47,6 +48,7 @@ public sealed class SubscriptionFormatService {
     private static string RenderMihomo(SubscriptionResponse subscription, bool providerOnly) {
         var proxies = subscription.Protocols
             .SelectMany(protocol => protocol.Endpoints)
+            .Where(endpoint => endpoint.PublishDirectConnection)
             .OrderByDescending(endpoint => endpoint.IsMain)
             .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)

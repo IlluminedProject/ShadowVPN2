@@ -201,6 +201,11 @@ h1:focus {
     flex-shrink: 0;
 }
 
+.settings-item-publication {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
 .settings-item-heading > .form-switch, .settings-item-heading > button {
     flex-shrink: 0;
 }

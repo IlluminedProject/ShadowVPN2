@@ -1,3 +1,5 @@
+@if (Endpoint.PublishDirectConnection)
+{
 <div class="connection-row">
     <span class="connection-row__protocol">@DisplayProtocol</span>
     <span class="connection-row__name" title="@Endpoint.Name">@Endpoint.Name</span>
@@ -16,6 +18,7 @@
             throw new InvalidOperationException($"Unsupported connection type: {Endpoint.Connection.GetType().Name}");
     }
 </div>
+}
 @foreach (var transport in Endpoint.Transports.OfType<FreeTurnConnectionInfo>())
 {
     <FreeTurnConnectionRow Connection="Endpoint.Connection" Transport="transport" Protocol="@DisplayProtocol"

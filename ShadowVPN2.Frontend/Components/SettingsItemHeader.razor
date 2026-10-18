@@ -7,6 +7,12 @@
             <label class="visually-hidden" for="@_enabledId">Enable @Title</label>
         </div>
         <h2>@Title</h2>
+        <div class="settings-item-publication form-switch" title="Publish direct connection in subscriptions">
+            <InputCheckbox id="@_publishDirectId" class="form-check-input" @bind-Value:get="PublishDirectConnection"
+                           @bind-Value:set="PublishDirectConnectionChanged" disabled="@Busy"/>
+            <label class="visually-hidden" for="@_publishDirectId">Publish direct @Title connection in
+                subscriptions</label>
+        </div>
         <div class="settings-item-port">
             @if (RangeAllowed)
             {
@@ -52,9 +58,12 @@
     [Parameter] public PortBinding PortBinding { get; set; }
     [Parameter] public EventCallback<PortBinding> PortBindingChanged { get; set; }
     [Parameter] public bool Enabled { get; set; }
+[Parameter] public bool PublishDirectConnection { get; set; } = true;
+[Parameter] public EventCallback<bool> PublishDirectConnectionChanged { get; set; }
     [Parameter] public EventCallback<bool> EnabledChanged { get; set; }
     [Parameter] public EventCallback OnRemove { get; set; }
     [Parameter] public bool Busy { get; set; }
     private readonly string _enabledId = $"enabled-{Guid.NewGuid():N}";
+private readonly string _publishDirectId = $"publish-direct-{Guid.NewGuid():N}";
     private readonly string _portId = $"port-{Guid.NewGuid():N}";
 }

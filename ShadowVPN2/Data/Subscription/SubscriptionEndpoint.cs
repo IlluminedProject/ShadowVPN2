@@ -6,6 +6,7 @@ public class SubscriptionEndpoint {
     public required string Name { get; set; }
     public required HostAddress Address { get; set; }
     public bool IsMain { get; set; }
+    public bool PublishDirectConnection { get; set; } = true;
     public required ProtocolConnectionInfo Connection { get; set; }
     public IReadOnlyList<TransportConnectionInfo> Transports { get; set; } = [];
 }

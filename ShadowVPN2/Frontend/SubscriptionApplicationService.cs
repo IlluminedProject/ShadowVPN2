@@ -20,6 +20,7 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
                     Name = endpoint.Name,
                     Address = endpoint.Address,
                     IsMain = endpoint.IsMain,
+                    PublishDirectConnection = endpoint.PublishDirectConnection,
                     Connection = MapConnection(endpoint.Connection),
                     Transports = endpoint.Transports.Select(MapTransport).ToArray()
                 }).ToArray()

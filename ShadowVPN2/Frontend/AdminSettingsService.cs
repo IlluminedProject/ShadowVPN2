@@ -193,6 +193,7 @@ public sealed class AdminSettingsService(
         return settings switch {
             Hysteria2GlobalSettings hysteria2 => new Hysteria2ProtocolSettingsDto {
                 Id = hysteria2.Id, PortBinding = hysteria2.ListenPort, Enabled = hysteria2.Enabled,
+                PublishDirectConnection = hysteria2.PublishDirectConnection,
                 MainDomain = hysteria2.MainDomain, ObfsType = hysteria2.ObfsType,
                 ObfsPassword = hysteria2.ObfsPassword,
                 HasTlsCertificate = !string.IsNullOrEmpty(hysteria2.TlsCertificatePem) &&
@@ -200,18 +201,21 @@ public sealed class AdminSettingsService(
             },
             AwgGlobalSettings awg => new AwgProtocolSettingsDto {
                 Id = awg.Id, ListenPort = awg.ListenPort.ListenPort, Enabled = awg.Enabled, MainDomain = awg.MainDomain,
+                PublishDirectConnection = awg.PublishDirectConnection,
                 H1 = awg.H1, H2 = awg.H2, H3 = awg.H3, H4 = awg.H4, Jc = awg.Jc, Jmin = awg.Jmin,
                 Jmax = awg.Jmax, S1 = awg.S1, S2 = awg.S2, S3 = awg.S3, S4 = awg.S4, I1 = awg.I1,
                 I2 = awg.I2, I3 = awg.I3, I4 = awg.I4, I5 = awg.I5
             },
             NaiveProxyGlobalSettings naiveProxy => new NaiveProxyProtocolSettingsDto {
                 Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort.ListenPort, Enabled = naiveProxy.Enabled,
+                PublishDirectConnection = naiveProxy.PublishDirectConnection,
                 MainDomain = naiveProxy.MainDomain,
                 HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
                                     !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
             },
             NaiveProxyQuicGlobalSettings naiveProxy => new NaiveProxyQuicProtocolSettingsDto {
                 Id = naiveProxy.Id, ListenPort = naiveProxy.ListenPort.ListenPort, Enabled = naiveProxy.Enabled,
+                PublishDirectConnection = naiveProxy.PublishDirectConnection,
                 MainDomain = naiveProxy.MainDomain,
                 HasTlsCertificate = !string.IsNullOrEmpty(naiveProxy.TlsCertificatePem) &&
                                     !string.IsNullOrEmpty(naiveProxy.TlsKeyPem)
@@ -245,6 +249,7 @@ public sealed class AdminSettingsService(
                     Id = hysteria2.Id,
                     ListenPort = hysteria2.PortBinding,
                     Enabled = hysteria2.Enabled,
+                    PublishDirectConnection = hysteria2.PublishDirectConnection,
                     MainDomain = hysteria2.MainDomain,
                     ObfsType = hysteria2.ObfsType,
                     ObfsPassword = hysteria2.ObfsPassword,
@@ -260,6 +265,7 @@ public sealed class AdminSettingsService(
                     Id = awg.Id,
                     ListenPort = new PortBinding(awg.ListenPort),
                     Enabled = awg.Enabled,
+                    PublishDirectConnection = awg.PublishDirectConnection,
                     MainDomain = awg.MainDomain,
                     PrivateKey = (existing as AwgGlobalSettings)?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,
                     ServerAddress = (existing as AwgGlobalSettings)?.ServerAddress ?? "100.64.0.1/10",
@@ -286,6 +292,7 @@ public sealed class AdminSettingsService(
                 var result = new NaiveProxyGlobalSettings {
                     Id = naiveProxy.Id, ListenPort = new PortBinding(naiveProxy.ListenPort),
                     Enabled = naiveProxy.Enabled,
+                    PublishDirectConnection = naiveProxy.PublishDirectConnection,
                     MainDomain = naiveProxy.MainDomain,
                     TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
                     TlsKeyPem = current?.TlsKeyPem ?? string.Empty
@@ -300,6 +307,7 @@ public sealed class AdminSettingsService(
                 var result = new NaiveProxyQuicGlobalSettings {
                     Id = naiveProxy.Id, ListenPort = new PortBinding(naiveProxy.ListenPort),
                     Enabled = naiveProxy.Enabled,
+                    PublishDirectConnection = naiveProxy.PublishDirectConnection,
                     MainDomain = naiveProxy.MainDomain,
                     TlsCertificatePem = current?.TlsCertificatePem ?? string.Empty,
                     TlsKeyPem = current?.TlsKeyPem ?? string.Empty
