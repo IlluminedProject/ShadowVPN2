@@ -39,19 +39,19 @@ public sealed class ApplicationBootstrapper(
     }
 
     private async Task RunMigrationsAsync(bool startSavedMesh) {
+        if (startSavedMesh) {
+            logger.LogInformation("Starting saved mesh configuration before RavenDB initialization");
+            singBoxProcessManager.Start();
+            if (!singBoxProcessManager.IsRunning) {
+                throw new InvalidOperationException(
+                    "Cannot initialize RavenDB: the saved sing-box configuration is unavailable");
+            }
+        }
+
         var runner = services.GetRequiredService<RavenMigrationRunner>();
         var cancellationToken = services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
         if (!await runner.HasPendingMigrationsAsync(cancellationToken))
             return;
-
-        if (startSavedMesh) {
-            logger.LogInformation("Starting saved mesh configuration before RavenDB migrations");
-            singBoxProcessManager.Start();
-            if (!singBoxProcessManager.IsRunning) {
-                throw new InvalidOperationException(
-                    "Cannot apply RavenDB migrations: the saved sing-box configuration is unavailable");
-            }
-        }
 
         await runner.RunAsync(cancellationToken);
     }
