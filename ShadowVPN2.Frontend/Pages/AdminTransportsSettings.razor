@@ -1,16 +1,15 @@
-@page "/admin/settings/transports"
+@page "/admin/transports"
 @using System.Net
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
 
-<PageTitle>Transport settings - ShadowVPN2</PageTitle>
+<PageTitle>Transports - ShadowVPN2</PageTitle>
 
 <div>
-    <AdminSettingsNav/>
     <div class="page-header">
         <div>
-            <h1>Transport settings</h1>
+            <h1>Transports</h1>
             <p class="text-body-secondary mb-0">Configure FreeTurn transport overlays for the enabled protocols.</p>
         </div>
         <button class="btn btn-outline-secondary" type="button" @onclick="AddFreeTurn" disabled="@(_loading || !_loaded || _saving || _request.Protocols.Count == 0)">

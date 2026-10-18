@@ -1,4 +1,4 @@
-@page "/admin/settings/protocols"
+@page "/admin/protocols"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
@@ -6,14 +6,13 @@
 @using System.Net
 @implements IAsyncDisposable
 
-<PageTitle>Protocol settings - ShadowVPN2</PageTitle>
+<PageTitle>Protocols - ShadowVPN2</PageTitle>
 
 <div>
-    <AdminSettingsNav/>
     <div class="page-header">
         <div>
-            <h1>Protocol settings</h1>
-            <p class="text-body-secondary mb-0">Configure VPN protocols and transport overlays.</p>
+            <h1>Protocols</h1>
+            <p class="text-body-secondary mb-0">Configure VPN protocols.</p>
         </div>
         <div class="dropdown" id="protocol-dropdown">
             <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-dropdown-trigger
