@@ -26,6 +26,7 @@ public static class ApplicationServices {
         builder.Services.AddOptions<SingBoxOptions>().BindConfiguration("SingBox");
         builder.Services.AddOptions<FreeTurnOptions>().BindConfiguration("FreeTurn");
         builder.Services.AddOptions<LocalConfiguration>();
+        builder.Services.AddOptions<UpdaterOptions>().BindConfiguration("Updater");
         builder.Services.AddSingleton<JoinStartupState>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
         builder.Services.AddSingleton<ManagedCertificateService>();
@@ -101,6 +102,8 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
+        builder.Services.AddSingleton<ClusterUpdateService>();
+        builder.Services.AddHostedService<ClusterUpdateCoordinator>();
         builder.Services.AddSingleton<PeerCertificateTrustService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<PeerCertificateTrustService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SingBoxService>());

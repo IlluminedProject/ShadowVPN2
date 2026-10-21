@@ -12,6 +12,7 @@ services:
             - /dev/net/tun:/dev/net/tun
         volumes:
             - shadowvpn2-data:/data
+            - shadowvpn2-updater:/run/shadowvpn2
         env_file:
             -   path: .env
                 required: false
@@ -25,6 +26,19 @@ services:
             start_period: 15s
             retries: 3
 
+    updater:
+        image: ghcr.io/illuminedproject/shadowvpn2-updater:${UPDATER_IMAGE_TAG:-latest}
+        container_name: shadowvpn2-updater
+        restart: unless-stopped
+        environment:
+            Updater__SocketPath: /run/shadowvpn2/updater.sock
+            Updater__ContainerName: shadowvpn2
+        volumes:
+            - shadowvpn2-updater:/run/shadowvpn2
+            - /var/run/docker.sock:/var/run/docker.sock
+
 volumes:
     shadowvpn2-data:
+        driver: local
+    shadowvpn2-updater:
         driver: local
