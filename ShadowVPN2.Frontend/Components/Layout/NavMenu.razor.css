@@ -83,3 +83,11 @@
         overflow-y: auto;
     }
 }
+
+.nav-scrollable > nav {
+    min-height: 100%;
+}
+
+.nav-scrollable ::deep .sidebar-version {
+    margin-top: auto;
+}

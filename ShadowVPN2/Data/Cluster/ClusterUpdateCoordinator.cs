@@ -23,6 +23,7 @@ public sealed class ClusterUpdateCoordinator(
             do {
                 try {
                     await ReconcileAsync(stoppingToken);
+                    await updateService.ArchiveCompletedAsync(stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
                     break;
@@ -41,7 +42,21 @@ public sealed class ClusterUpdateCoordinator(
     private async Task ReconcileAsync(CancellationToken cancellationToken) {
         var localTag = ClusterService.GetNodeTag(localConfiguration.Value.NodeNumber);
         var update = await updateService.GetAsync(cancellationToken);
-        if (update is not { Status: "Running" } || update.CurrentNodeTag != localTag)
+        if (update is null) return;
+        if (update.Status == "Preparing") {
+            var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
+            if (localNode?.Status == "Preparing") {
+                var prepared = await SendAsync("prepare", update, cancellationToken);
+                if (Matches(update, prepared) && prepared.Status is "Prepared" or "Succeeded" or "Failed") {
+                    await updateService.PrepareLocalAsync(localTag, update.Id,
+                        prepared.Status is "Prepared" or "Succeeded", prepared.Error, cancellationToken);
+                }
+            }
+
+            return;
+        }
+
+        if (update.Status != "Running" || update.CurrentNodeTag != localTag)
             return;
 
         var status = await SendAsync("status", update, cancellationToken);
@@ -62,7 +77,7 @@ public sealed class ClusterUpdateCoordinator(
             return;
         if (await CompleteAsync(claimed, localTag, status, cancellationToken))
             return;
-        if (Matches(claimed, status))
+        if (Matches(claimed, status) && status.Status != "Prepared")
             return;
         if (status.Status == "Running") {
             logger.LogWarning(

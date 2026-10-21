@@ -35,6 +35,29 @@ public sealed class ContainerUpdater(
         return docker.SendAsync($"containers/{Uri.EscapeDataString(id)}/{action}", body, token);
     }
 
+    public async Task<ContainerImageInfo> GetImageInfoAsync(CancellationToken cancellationToken) {
+        var container = await docker.InspectAsync(ContainerName, cancellationToken) ??
+                        throw new InvalidOperationException("The ShadowVPN2 container could not be found");
+        var image = await docker.InspectImageAsync(container["Image"]!.GetValue<string>(), cancellationToken);
+        return new ContainerImageInfo {
+            ImageRepository = GetImageRepository(container["Config"]!["Image"]!.GetValue<string>()),
+            RepoDigests = image["RepoDigests"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? [],
+            Os = image["Os"]?.GetValue<string>(),
+            Architecture = image["Architecture"]?.GetValue<string>(),
+            Variant = image["Variant"]?.GetValue<string>()
+        };
+    }
+
+    public async Task PrepareAsync(string digest, CancellationToken cancellationToken) {
+        if (!ImageDigest.IsValid(digest))
+            throw new ArgumentException("A canonical sha256 image digest is required", nameof(digest));
+        var original = await docker.InspectAsync(ContainerName, cancellationToken) ??
+                       throw new InvalidOperationException("The ShadowVPN2 container could not be found");
+        var image = $"{GetImageRepository(original["Config"]!["Image"]!.GetValue<string>())}@{digest}";
+        await docker.PullAsync(image, cancellationToken);
+    }
+
+
     public async Task UpdateAsync(string digest, CancellationToken cancellationToken) {
         await _gate.WaitAsync(cancellationToken);
         try { await UpdateCoreAsync(digest, cancellationToken); }

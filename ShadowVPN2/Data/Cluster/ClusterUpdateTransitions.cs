@@ -5,16 +5,20 @@ namespace ShadowVPN2.Data.Cluster;
 public static class ClusterUpdateTransitions {
     public static bool IsClaimable(ClusterUpdateState state, string localNodeTag) {
         return state.Status == ClusterUpdateStatus.Running &&
+               (state.Nodes.All(node => node.Status is ClusterUpdateNodeStatus.Pending
+                    or ClusterUpdateNodeStatus.Claimed or ClusterUpdateNodeStatus.Completed) ||
+                state.Nodes.All(node => node.Status is ClusterUpdateNodeStatus.Prepared
+                    or ClusterUpdateNodeStatus.Claimed or ClusterUpdateNodeStatus.Completed)) &&
                state.CurrentNodeIndex < state.Nodes.Count &&
                state.Nodes[state.CurrentNodeIndex].NodeTag == localNodeTag &&
                state.Nodes[state.CurrentNodeIndex].Status is ClusterUpdateNodeStatus.Pending
-                   or ClusterUpdateNodeStatus.Claimed;
+                   or ClusterUpdateNodeStatus.Prepared or ClusterUpdateNodeStatus.Claimed;
     }
 
     public static ClusterUpdateState Claim(ClusterUpdateState state) {
         var claimed = Copy(state);
         var node = claimed.Nodes[claimed.CurrentNodeIndex];
-        if (node.Status == ClusterUpdateNodeStatus.Pending) {
+        if (node.Status is ClusterUpdateNodeStatus.Pending or ClusterUpdateNodeStatus.Prepared) {
             node.Status = ClusterUpdateNodeStatus.Claimed;
             node.ClaimedAt = DateTimeOffset.UtcNow;
             claimed.UpdatedAt = node.ClaimedAt.Value;

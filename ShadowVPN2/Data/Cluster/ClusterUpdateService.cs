@@ -8,6 +8,7 @@ namespace ShadowVPN2.Data.Cluster;
 
 public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     private const string StateKey = "ShadowVPN2/ClusterUpdate/State";
+    private const string HistoryPrefix = "ShadowVPN2/ClusterUpdate/History/";
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
     public async Task<ClusterUpdateResponse> StartAsync(StartClusterUpdateRequest request,
@@ -32,14 +33,17 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
 
         var current = await documentStore.Operations.SendAsync(
             new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-        if (current?.Value?.Status == ClusterUpdateStatus.Running)
+        if (current?.Value?.Status is ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing)
             throw new InvalidOperationException("A cluster update is already active");
+        if (current?.Value is { } previous)
+            await RecordHistoryAsync(previous, cancellationToken);
 
         var state = new ClusterUpdateState {
             Id = Guid.NewGuid(),
             ImageDigest = request.ImageDigest,
-            Nodes = orderedMembers.Select(tag => new ClusterUpdateNodeState { NodeTag = tag }).ToList(),
-            Status = ClusterUpdateStatus.Running,
+            Nodes = orderedMembers.Select(tag => new ClusterUpdateNodeState
+                { NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing }).ToList(),
+            Status = ClusterUpdateStatus.Preparing,
             StartedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -54,7 +58,74 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     public async Task<ClusterUpdateResponse?> GetAsync(CancellationToken cancellationToken) {
         var result = await documentStore.Operations.SendAsync(
             new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-        return result?.Value is { } state ? Map(state) : null;
+        if (result?.Value is not { } state) return null;
+        return Map(state);
+    }
+
+    public async Task<IReadOnlyList<ApplicationUpdateHistoryResponse>> GetHistoryAsync(
+        CancellationToken cancellationToken) {
+        var history = new List<ApplicationUpdateHistoryResponse>();
+        for (var start = 0;; start += 128) {
+            var page = await documentStore.Operations.SendAsync(
+                new GetCompareExchangeValuesOperation<ApplicationUpdateHistoryResponse>(HistoryPrefix, start, 128),
+                token: cancellationToken);
+            history.AddRange(page.Values.Select(x => x.Value));
+            if (page.Count < 128) break;
+        }
+
+        return history.OrderByDescending(x => x.StartedAt).ToArray();
+    }
+
+    public async Task ArchiveCompletedAsync(CancellationToken cancellationToken) {
+        var current = await documentStore.Operations.SendAsync(
+            new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
+        if (current?.Value is { } state)
+            await RecordHistoryAsync(state, cancellationToken);
+    }
+
+
+    private async Task RecordHistoryAsync(ClusterUpdateState state, CancellationToken cancellationToken) {
+        if (state.Status is ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing) return;
+        var key = HistoryPrefix + state.Id;
+        var existing = await documentStore.Operations.SendAsync(
+            new GetCompareExchangeValueOperation<ApplicationUpdateHistoryResponse>(key), token: cancellationToken);
+        if (existing?.Value is not null) return;
+        var entry = new ApplicationUpdateHistoryResponse {
+            Id = state.Id, ImageDigest = state.ImageDigest, Status = state.Status.ToString(),
+            StartedAt = state.StartedAt, CompletedAt = state.UpdatedAt
+        };
+        await documentStore.Operations.SendAsync(
+            new PutCompareExchangeValueOperation<ApplicationUpdateHistoryResponse>(key, entry, 0),
+            token: cancellationToken);
+    }
+
+    public async Task<ClusterUpdateResponse?> PrepareLocalAsync(string localTag, Guid updateId, bool succeeded,
+        string? error, CancellationToken cancellationToken) {
+        while (true) {
+            var current = await documentStore.Operations.SendAsync(
+                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
+            if (current?.Value is not { } state || state.Id != updateId ||
+                state.Status != ClusterUpdateStatus.Preparing)
+                return null;
+            var node = state.Nodes.FirstOrDefault(x => x.NodeTag == localTag);
+            if (node is null) return null;
+            var updated = Copy(state);
+            var updatedNode = updated.Nodes.First(x => x.NodeTag == localTag);
+            updatedNode.Status = succeeded ? ClusterUpdateNodeStatus.Prepared : ClusterUpdateNodeStatus.Failed;
+            updatedNode.Error = succeeded ? null : error ?? "Image preparation failed";
+            updated.UpdatedAt = DateTimeOffset.UtcNow;
+            if (!succeeded) {
+                updated.Status = ClusterUpdateStatus.Failed;
+                updated.Error = updatedNode.Error;
+            }
+            else if (updated.Nodes.All(x => x.Status == ClusterUpdateNodeStatus.Prepared))
+                updated.Status = ClusterUpdateStatus.Running;
+
+            var result = await documentStore.Operations.SendAsync(
+                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
+                token: cancellationToken);
+            if (result.Successful) return Map(updated);
+        }
     }
 
     public async Task<ClusterUpdateResponse?> ClaimLocalAsync(string localTag, ClusterTopologyResponse topology,
@@ -100,8 +171,9 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             var result = await documentStore.Operations.SendAsync(
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
                 token: cancellationToken);
-            if (result.Successful)
+            if (result.Successful) {
                 return Map(updated);
+            }
         }
     }
 
@@ -111,7 +183,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                 new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
             if (current?.Value is not { } state || state.Id != id)
                 throw new KeyNotFoundException("Cluster update not found");
-            if (state.Status != ClusterUpdateStatus.Running)
+            if (state.Status is not (ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing))
                 return Map(state);
             if (state.Nodes.Any(node => node.Status == ClusterUpdateNodeStatus.Claimed))
                 throw new InvalidOperationException("Cannot cancel while a node update is in progress");
@@ -122,8 +194,9 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             var result = await documentStore.Operations.SendAsync(
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, cancelled, current.Index),
                 token: cancellationToken);
-            if (result.Successful)
+            if (result.Successful) {
                 return Map(cancelled);
+            }
         }
     }
 

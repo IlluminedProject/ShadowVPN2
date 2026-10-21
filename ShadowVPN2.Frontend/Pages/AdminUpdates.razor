@@ -1,0 +1,277 @@
+@page "/admin/updates"
+@using System.Net
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "Settings.View")]
+@inject IApplicationUpdateService Updates
+
+<PageTitle>Updates - ShadowVPN2</PageTitle>
+
+<AdminSettingsNav/>
+<div class="page-header"><h1>Application updates</h1></div>
+
+@if (_loading)
+{
+    <div class="app-status text-body-secondary" role="status">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Checking for updates…
+    </div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger" role="alert">@_error</div>
+    }
+
+    <section class="settings-frame" aria-labelledby="availability-heading">
+        <h2 id="availability-heading">Update availability</h2>
+        @if (_availability is null)
+        {
+            <p class="text-body-secondary">Update availability could not be loaded.</p>
+        }
+        else if (!_availability.Enabled)
+        {
+            <p class="text-body-secondary">Updates are disabled for this installation.</p>
+            @if (!string.IsNullOrWhiteSpace(_availability.Error))
+            {
+                <p class="text-body-secondary">@_availability.Error</p>
+            }
+        }
+        else
+        {
+            <dl class="app-details">
+                <dt>Configured image</dt>
+                <dd><code class="text-break">@(_availability.ImageReference ?? "Not configured")</code></dd>
+                <dt>Current digest</dt>
+                <dd><code class="text-break">@(_availability.CurrentDigest ?? "Unknown")</code></dd>
+                <dt>Available digest</dt>
+                <dd><code class="text-break">@(_availability.AvailableDigest ?? "None")</code></dd>
+                <dt>Last checked</dt>
+                <dd>@FormatTimestamp(_availability.CheckedAt)</dd>
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(_availability.Error))
+            {
+                <div class="alert alert-warning" role="status">@_availability.Error</div>
+            }
+            else if (_availability.UpdateAvailable)
+            {
+                <div class="alert alert-warning" role="status">A newer image is available.</div>
+            }
+            else
+            {
+                <p class="text-body-secondary">This installation is up to date.</p>
+            }
+        }
+    </section>
+
+    <section class="settings-frame mt-4" aria-labelledby="operation-heading">
+        <h2 id="operation-heading">Cluster update</h2>
+        @if (_status is null)
+        {
+            <p class="text-body-secondary">No cluster update has been started.</p>
+        }
+        else
+        {
+            <dl class="app-details">
+                <dt>Operation</dt>
+                <dd><code>@_status.Id</code></dd>
+                <dt>Image digest</dt>
+                <dd><code class="text-break">@_status.ImageDigest</code></dd>
+                <dt>Status</dt>
+                <dd><span class="badge text-bg-secondary">@_status.Status</span></dd>
+                @if (!string.IsNullOrWhiteSpace(_status.CurrentNodeTag))
+                {
+                    <dt>Current node</dt>
+                    <dd>@_status.CurrentNodeTag</dd>
+                }
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(_status.Error))
+            {
+                <div class="alert alert-danger" role="alert">@_status.Error</div>
+            }
+
+            <h3 class="h5 mt-4">Nodes</h3>
+            @if (_status.Nodes.Count == 0)
+            {
+                <p class="text-body-secondary">No node status is available.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                        <tr>
+                            <th scope="col">Node</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Error</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var node in _status.Nodes)
+                        {
+                            <tr>
+                                <th scope="row">@node.NodeTag</th>
+                                <td>@node.Status</td>
+                                <td>@(node.Error ?? "")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+
+        <AuthorizeView Policy="Settings.Manage">
+            <Authorized>
+                @if (_availability?.UpdateAvailable == true)
+                {
+                    <div class="form-check mt-4">
+                        <input id="backward-compatible" class="form-check-input" type="checkbox"
+                               @bind="_backwardCompatible" disabled="@_busy"/>
+                        <label class="form-check-label" for="backward-compatible">
+                            I confirm this update is backward compatible with all connected nodes. The image will be
+                            prepared on every node before any restart.
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" type="button" @onclick="StartAsync"
+                                disabled="@(_busy || !_backwardCompatible || IsActive(_status))">
+                            @(_busy ? "Starting…" : "Start update")
+                        </button>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+    </section>
+}
+
+@code {
+    private readonly CancellationTokenSource _cancellation = new();
+    private UpdateAvailabilityResponse? _availability;
+    private ClusterUpdateResponse? _status;
+    private Task? _polling;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _backwardCompatible;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAvailabilityAsync();
+        await LoadStatusAsync();
+        _loading = false;
+        if (IsActive(_status))
+            StartPolling();
+    }
+
+    private async Task LoadAvailabilityAsync()
+    {
+        try
+        {
+            _availability = await Updates.CheckAsync(_cancellation.Token);
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view update status."
+                : "Could not check for application updates.";
+        }
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        try
+        {
+            _status = await Updates.GetStatusAsync(_cancellation.Token);
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view update status."
+                : "Could not load cluster update status.";
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _status = await Updates.StartAsync(_backwardCompatible, _cancellation.Token);
+            _backwardCompatible = false;
+            StartPolling();
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to start an update."
+                : "Could not start the cluster update.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void StartPolling()
+    {
+        if (_polling is null || _polling.IsCompleted)
+            _polling = PollAsync(_cancellation.Token);
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (IsActive(_status) && !cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                _status = await Updates.GetStatusAsync(cancellationToken);
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _availability = await Updates.CheckAsync(cancellationToken);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ApplicationServiceException ex)
+        {
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view update status."
+                : "Could not refresh cluster update status.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool IsActive(ClusterUpdateResponse? status)
+    {
+        return status?.Status.Equals("Running", StringComparison.OrdinalIgnoreCase) == true ||
+               status?.Status.Equals("Preparing", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp)
+    {
+        return timestamp?.ToLocalTime().ToString("g") ?? "Not checked";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await _cancellation.CancelAsync();
+            if (_polling is not null)
+                await _polling;
+        }
+        finally
+        {
+            _cancellation.Dispose();
+        }
+    }
+
+}

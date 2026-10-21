@@ -22,6 +22,44 @@ public sealed class ClusterUpdateTransitionsTests {
     }
 
     [Fact]
+    public void New_rollout_cannot_claim_a_node_before_all_nodes_are_prepared() {
+        var state = CreateState("NAA", "NAB");
+        state.Status = ClusterUpdateStatus.Running;
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Prepared;
+        state.Nodes[1].Status = ClusterUpdateNodeStatus.Preparing;
+
+        ClusterUpdateTransitions.IsClaimable(state, "NAA").Should().BeFalse();
+        ClusterUpdateTransitions.IsClaimable(state, "NAB").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Rollout_can_claim_prepared_node_after_global_prepare_barrier() {
+        var state = CreateState("NAA", "NAB");
+        state.Status = ClusterUpdateStatus.Running;
+        state.Nodes.ForEach(node => node.Status = ClusterUpdateNodeStatus.Prepared);
+
+        ClusterUpdateTransitions.IsClaimable(state, "NAA").Should().BeTrue();
+        ClusterUpdateTransitions.IsClaimable(state, "NAB").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Legacy_rollout_can_resume_after_claim_and_completion() {
+        var state = CreateState("NAA", "NAB");
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Completed;
+        state.CurrentNodeIndex = 1;
+
+        ClusterUpdateTransitions.IsClaimable(state, "NAB").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Legacy_rollout_can_retry_current_claim() {
+        var state = CreateState("NAA", "NAB");
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Claimed;
+
+        ClusterUpdateTransitions.IsClaimable(state, "NAA").Should().BeTrue();
+    }
+
+    [Fact]
     public void Complete_advances_only_when_new_image_digest_matches_target() {
         var state = CreateState("NAA", "NAB");
         state.Nodes[0].Status = ClusterUpdateNodeStatus.Claimed;

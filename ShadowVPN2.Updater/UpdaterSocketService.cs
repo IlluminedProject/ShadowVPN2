@@ -95,10 +95,12 @@ public sealed class UpdaterSocketService(
                                   ?? throw new JsonException("An updater request is required");
                     response = request.Operation switch {
                         "status" => Volatile.Read(ref _state),
+                        "prepare" => await PrepareAsync(request, timeout.Token),
                         "start" => await StartAsync(request, stoppingToken),
+                        "info" => await GetImageInfoAsync(timeout.Token),
                         _ => new UpdaterSocketResponse {
                             UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
-                            Error = "Operation must be start or status"
+                            Error = "Operation must be prepare, start, status or info"
                         }
                     };
                 }
@@ -119,6 +121,59 @@ public sealed class UpdaterSocketService(
         }
     }
 
+    private async Task<UpdaterSocketResponse> GetImageInfoAsync(CancellationToken cancellationToken) {
+        try {
+            return new UpdaterSocketResponse {
+                Status = "Succeeded", ImageInfo = await containerUpdater.GetImageInfoAsync(cancellationToken)
+            };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) {
+            logger.LogWarning(exception, "Could not inspect the running application image");
+            return new UpdaterSocketResponse {
+                Status = "Failed", Error = "The updater could not inspect the running application image"
+            };
+        }
+    }
+
+    private async Task<UpdaterSocketResponse> PrepareAsync(UpdaterSocketRequest request,
+        CancellationToken cancellationToken) {
+        if (request.UpdateId == Guid.Empty || !ImageDigest.IsValid(request.ImageDigest)) {
+            return new UpdaterSocketResponse {
+                UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
+                Error = "A nonempty update ID and canonical sha256 image digest are required"
+            };
+        }
+
+        await _startGate.WaitAsync(cancellationToken);
+        try {
+            var current = Volatile.Read(ref _state);
+            if (current.UpdateId == request.UpdateId && current.ImageDigest == request.ImageDigest &&
+                current.Status == "Prepared")
+                return current;
+            if (current.Status == "Running") {
+                return current with {
+                    UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
+                    Error = "Another update is running"
+                };
+            }
+
+            await containerUpdater.PrepareAsync(request.ImageDigest, cancellationToken);
+            var prepared = new UpdaterSocketResponse
+                { UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Prepared" };
+            await PersistStateAsync(prepared, cancellationToken);
+            Volatile.Write(ref _state, prepared);
+            return prepared;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) {
+            logger.LogWarning(exception, "Could not prepare image {ImageDigest}", request.ImageDigest);
+            return new UpdaterSocketResponse {
+                UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
+                Error = exception.Message
+            };
+        }
+        finally { _startGate.Release(); }
+    }
+
     private async Task<UpdaterSocketResponse> StartAsync(UpdaterSocketRequest request,
         CancellationToken stoppingToken) {
         if (request.UpdateId == Guid.Empty || !ImageDigest.IsValid(request.ImageDigest)) {
@@ -131,14 +186,13 @@ public sealed class UpdaterSocketService(
         await _startGate.WaitAsync(stoppingToken);
         try {
             var current = Volatile.Read(ref _state);
-            if (current.UpdateId == request.UpdateId) {
-                return current.ImageDigest == request.ImageDigest
-                    ? current
-                    : current with { Error = "The update ID is already associated with another image digest" };
+            if (current.UpdateId != request.UpdateId || current.ImageDigest != request.ImageDigest ||
+                current.Status != "Prepared") {
+                return new UpdaterSocketResponse {
+                    UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
+                    Error = "The requested image was not prepared for this update"
+                };
             }
-
-            if (current.Status == "Running")
-                return current with { Error = "Another update is running" };
 
             var running = new UpdaterSocketResponse {
                 UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Running"
@@ -199,7 +253,7 @@ public sealed class UpdaterSocketService(
                         cancellationToken)
                     ?? throw new InvalidDataException("Updater state is empty");
         if (state.UpdateId == Guid.Empty || !ImageDigest.IsValid(state.ImageDigest) ||
-            state.Status is not ("Running" or "Succeeded" or "Failed"))
+            state.Status is not ("Prepared" or "Running" or "Succeeded" or "Failed"))
             throw new InvalidDataException("Updater state contains an invalid operation");
         Volatile.Write(ref _state, state);
     }

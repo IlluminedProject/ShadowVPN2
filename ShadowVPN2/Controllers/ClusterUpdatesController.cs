@@ -31,6 +31,31 @@ public sealed class ClusterUpdatesController(
         return await updateService.GetAsync(cancellationToken);
     }
 
+    [HttpGet("availability")]
+    [Authorize(Policy = AppPermissions.Settings.View)]
+    public Task<UpdateAvailabilityResponse> Availability(
+        [FromServices] ApplicationUpdateService applicationUpdates, CancellationToken cancellationToken) {
+        return applicationUpdates.CheckAsync(cancellationToken);
+    }
+
+    [HttpGet("history")]
+    [Authorize(Policy = AppPermissions.Settings.View)]
+    public Task<IReadOnlyList<ApplicationUpdateHistoryResponse>> History(CancellationToken cancellationToken) {
+        return updateService.GetHistoryAsync(cancellationToken);
+    }
+
+    [HttpPost("start-available")]
+    [Authorize(Policy = AppPermissions.Settings.Manage)]
+    public async Task<ActionResult<ClusterUpdateResponse>> StartAvailable(
+        [FromBody] StartAvailableUpdateRequest request,
+        [FromServices] ApplicationUpdateService applicationUpdates, CancellationToken cancellationToken) {
+        try { return await applicationUpdates.StartAsync(request.BackwardCompatible, cancellationToken); }
+        catch (InvalidOperationException exception) {
+            return Conflict(new ProblemDetails
+                { Title = "Application update could not be started", Detail = exception.Message });
+        }
+    }
+
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Policy = AppPermissions.Settings.Manage)]
     public async Task<ClusterUpdateResponse> Cancel(Guid id, CancellationToken cancellationToken) {

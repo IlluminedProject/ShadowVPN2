@@ -36,6 +36,11 @@ public sealed class DockerApiClient : IDisposable {
         return await ReadAsync(response, token);
     }
 
+    public async Task<JsonObject> InspectImageAsync(string id, CancellationToken token) {
+        using var response = await _http.GetAsync($"images/{Uri.EscapeDataString(id)}/json", token);
+        return await ReadAsync(response, token);
+    }
+
     public async Task<JsonObject> SendAsync(string path, JsonObject? body, CancellationToken token) {
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         if (body is not null)

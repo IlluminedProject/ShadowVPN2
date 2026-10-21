@@ -1,8 +1,10 @@
 namespace ShadowVPN2.Data.Cluster;
 
 public enum ClusterUpdateNodeStatus {
-    Pending,
-    Claimed,
-    Completed,
-    Failed
+    Pending = 0,
+    Claimed = 1,
+    Completed = 2,
+    Failed = 3,
+    Preparing = 4,
+    Prepared = 5
 }

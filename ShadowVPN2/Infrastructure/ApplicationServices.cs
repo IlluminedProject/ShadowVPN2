@@ -13,6 +13,7 @@ using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
+using ApplicationUpdateService = ShadowVPN2.Frontend.ApplicationUpdateService;
 
 namespace ShadowVPN2.Infrastructure;
 
@@ -65,6 +66,7 @@ public static class ApplicationServices {
         builder.Services.AddScoped<IClusterApplicationService, ClusterApplicationService>();
         builder.Services.AddScoped<ISubscriptionApplicationService, SubscriptionApplicationService>();
         builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
+        builder.Services.AddScoped<IApplicationUpdateService, ApplicationUpdateService>();
         builder.Services.AddSingleton<GlobalConfigurationService>();
         builder.Services.AddSingleton<WireGuardKeyService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<GlobalConfigurationService>());
@@ -103,6 +105,9 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddSingleton<ClusterUpdateService>();
+        builder.Services.AddSingleton<RegistryImageClient>();
+        builder.Services.AddSingleton<UpdaterImageClient>();
+        builder.Services.AddSingleton<Data.Cluster.ApplicationUpdateService>();
         builder.Services.AddHostedService<ClusterUpdateCoordinator>();
         builder.Services.AddSingleton<PeerCertificateTrustService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<PeerCertificateTrustService>());
