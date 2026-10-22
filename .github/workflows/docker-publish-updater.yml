@@ -33,8 +33,8 @@ jobs:
             -   name: Determine image name
                 id: image
                 env:
-                    REPOSITORY: ${{ github.repository }}
-                run: echo "name=ghcr.io/${REPOSITORY,,}/shadowvpn2-updater" >> "$GITHUB_OUTPUT"
+                    REPOSITORY_OWNER: ${{ github.repository_owner }}
+                run: echo "name=ghcr.io/${REPOSITORY_OWNER,,}/shadowvpn2-updater" >> "$GITHUB_OUTPUT"
 
             -   name: Generate image metadata
                 id: metadata
