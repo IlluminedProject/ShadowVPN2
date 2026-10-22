@@ -5,6 +5,7 @@
 @inject ISetupApplicationService SetupApi
 @inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
+@inject ILogger<Setup> Logger
 @using System.Net
 @using System.Net.Sockets
 @using RandomFriendlyNameGenerator
@@ -311,8 +312,9 @@
                 && _publicAddress is not null)
                 SetNodeAddress(_publicAddress);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to look up public IP during setup");
             _error = "Could not look up the public IP. Enter an address or try refreshing again.";
         }
         finally
@@ -408,8 +410,9 @@
         {
             await action();
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to complete setup operation");
             _error = "Could not complete setup. Check the entered settings and try again.";
         }
         finally

@@ -105,6 +105,7 @@ public sealed class UpdaterSocketService(
                     };
                 }
                 catch (JsonException exception) {
+                    logger.LogWarning(exception, "Updater socket request could not be read");
                     response = new UpdaterSocketResponse { Status = "Failed", Error = exception.Message };
                 }
 
@@ -113,9 +114,9 @@ public sealed class UpdaterSocketService(
                     timeout.Token);
                 await writer.FlushAsync(timeout.Token);
             }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested) {
+            catch (OperationCanceledException exception) when (timeout.IsCancellationRequested) {
                 if (!stoppingToken.IsCancellationRequested)
-                    logger.LogWarning("Updater socket request timed out");
+                    logger.LogWarning(exception, "Updater socket request timed out");
             }
             catch (Exception exception) {
                 logger.LogWarning(exception, "Updater socket request failed");

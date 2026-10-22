@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
+@inject ILogger<AdminProtocolsSettings> Logger
 @inject IJSRuntime JsRuntime
 @using System.Net
 @implements IAsyncDisposable
@@ -288,6 +289,7 @@
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load protocol settings");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
                 : "Could not load protocol settings.";
@@ -354,7 +356,10 @@
     {
         var port = AvailablePortFinder.Find(start,
             _request.Protocols, _request.Transports, reserveMesh ? _meshPort : null);
-        if (port is null) _error = "No free listen ports are available.";
+        if (port is null)
+        {
+            _error = "No free listen ports are available.";
+        }
         return port;
     }
 
@@ -408,6 +413,7 @@
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not save protocol settings");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "Could not save protocol settings.";
@@ -433,6 +439,7 @@
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not regenerate the TLS certificate for protocol {ProtocolId}", protocolId);
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "Could not regenerate the TLS certificate.";

@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
+@inject ILogger<AdminAuthSettings> Logger
 
 <PageTitle>Authorization settings - ShadowVPN2</PageTitle>
 
@@ -148,6 +149,7 @@ private string RedirectUri => _request.OidcSettings?.DeviceFlowMode == DeviceFlo
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load authorization settings");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
                 : "Could not load authorization settings.";
@@ -190,6 +192,7 @@ private string RedirectUri => _request.OidcSettings?.DeviceFlowMode == DeviceFlo
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Authorization settings operation failed");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "The operation failed.";

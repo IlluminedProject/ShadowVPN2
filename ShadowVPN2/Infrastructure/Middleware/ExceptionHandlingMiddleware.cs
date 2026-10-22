@@ -21,6 +21,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
             };
 
             if (statusCode >= 500) logger.LogError(ex, "An application error occurred");
+            else logger.LogWarning(ex, "An application error occurred with HTTP status {StatusCode}", statusCode);
 
             if (context.Response.HasStarted) {
                 logger.LogWarning(ex,

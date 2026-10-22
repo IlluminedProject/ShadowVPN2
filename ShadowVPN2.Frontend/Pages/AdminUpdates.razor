@@ -4,6 +4,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IApplicationUpdateService Updates
+@inject ILogger<AdminUpdates> Logger
 
 <PageTitle>Updates - ShadowVPN2</PageTitle>
 
@@ -172,6 +173,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not check for application updates");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view update status."
                 : "Could not check for application updates.";
@@ -186,6 +188,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load cluster update status");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view update status."
                 : "Could not load cluster update status.";
@@ -204,6 +207,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not start the cluster update");
             _error = ex.StatusCode switch
             {
                 HttpStatusCode.Forbidden => "You do not have permission to start an update.",
@@ -245,6 +249,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not refresh cluster update status");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view update status."
                 : "Could not refresh cluster update status.";

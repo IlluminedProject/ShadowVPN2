@@ -12,6 +12,7 @@
 @if (_loadError is not null)
 {
     <div class="alert alert-danger" role="alert">@_loadError</div>
+    <ExceptionDetails Exception="_loadException"/>
 }
 else if (_loading)
 {
@@ -108,6 +109,7 @@ else
     private bool _localLoginEnabled;
     private bool _loading = true;
     private string? _loadError;
+    private Exception? _loadException;
     private readonly List<ExternalLoginProviderResponse> _providers = [];
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
@@ -133,6 +135,7 @@ else
         catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
         {
             Logger.LogError(exception, "Unable to load sign-in options");
+            _loadException = exception;
             _loadError = "Sign-in options could not be loaded. Reload the page to try again.";
         }
         finally

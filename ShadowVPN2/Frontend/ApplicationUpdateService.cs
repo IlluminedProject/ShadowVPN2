@@ -32,7 +32,7 @@ public sealed class ApplicationUpdateService(
         try { return await updates.StartAsync(backwardCompatible, cancellationToken); }
         catch (AppException exception) when (exception.StatusCode == StatusCodes.Status409Conflict) {
             logger.LogWarning(exception, "Cluster update start rejected: {Reason}", exception.Message);
-            throw new ApplicationServiceException(HttpStatusCode.Conflict, exception.Message);
+            throw new ApplicationServiceException(HttpStatusCode.Conflict, exception.Message, exception);
         }
     }
 }

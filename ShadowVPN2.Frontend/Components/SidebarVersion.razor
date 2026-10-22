@@ -1,6 +1,7 @@
 @using System.Net
 @implements IAsyncDisposable
 @inject IApplicationUpdateService Updates
+@inject ILogger<SidebarVersion> Logger
 
 <div class="nav-item px-3 sidebar-version">
     @if (!string.IsNullOrWhiteSpace(_availability?.CurrentDigest))
@@ -119,8 +120,9 @@
         {
             _availability = await Updates.CheckAsync(_cancellation.Token);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load application version information");
             _availability = null;
         }
     }
@@ -129,12 +131,18 @@
     {
         if (_checking) return;
         _checking = true;
+        _error = null;
         try
         {
             _availability = await Updates.CheckAsync(_cancellation.Token);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not check for application updates");
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                    ? "You do not have permission to check for application updates."
+                    : "Could not check for application updates.";
+            _aboutOpen = true;
             _availability = null;
         }
         finally
@@ -156,6 +164,7 @@
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load update history");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view update history."
                 : "Could not load update history.";

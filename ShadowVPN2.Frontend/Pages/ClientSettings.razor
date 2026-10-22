@@ -5,6 +5,7 @@
 @attribute [Authorize]
 @inject IClientApplicationService ClientsApi
 @inject NavigationManager Navigation
+@inject ILogger<ClientSettings> Logger
 
 <PageTitle>Device settings - ShadowVPN2</PageTitle>
 
@@ -108,6 +109,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        _error = null;
         try
         {
             if (!string.IsNullOrWhiteSpace(ClientId))
@@ -125,6 +127,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to load device settings");
             if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
             else if (exception.StatusCode == HttpStatusCode.NotFound)
@@ -159,6 +162,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to save device settings");
             if (exception.StatusCode == HttpStatusCode.Unauthorized)
                 _authenticated = false;
             else

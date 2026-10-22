@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject IApplicationUpdateService Updates
+@inject ILogger<UpdateNotice> Logger
 
 @if (_available)
 {
@@ -22,8 +23,9 @@
             if (!_cancellation.IsCancellationRequested)
                 _available = response.Enabled && response.UpdateAvailable;
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not check for the application update notice");
             _available = false;
         }
     }

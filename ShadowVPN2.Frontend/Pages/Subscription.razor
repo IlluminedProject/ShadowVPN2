@@ -6,6 +6,7 @@
 @inject ISubscriptionApplicationService SubscriptionApi
 @inject IJSRuntime JsRuntime
 @inject NavigationManager Navigation
+@inject ILogger<Subscription> Logger
 
 @if (!Embedded)
 {
@@ -90,6 +91,7 @@
                                 <div class="font-monospace text-break">@server.Address</div>
                             </div>
                             <span class="app-status" role="status">@PingText(server)</span>
+                            <ExceptionDetails Exception="server.Exception"/>
                         </div>
                     }
                 </div>
@@ -128,8 +130,9 @@
             _subscription = await SubscriptionApi.GetSubscriptionAsync(SubscriptionId);
             BuildServerList();
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to load subscription");
             _subscription = null;
         }
         finally
@@ -189,6 +192,7 @@
         {
             server.Checking = true;
             server.Latency = null;
+            server.Exception = null;
         }
 
         StateHasChanged();
@@ -200,8 +204,10 @@
                 server.Latency = await JsRuntime.InvokeAsync<int>("pingServer",
                     $"https://{server.Address}/api/node/status", 3000);
             }
-            catch (JSException)
+            catch (JSException exception)
             {
+                Logger.LogWarning(exception, "Unable to check HTTPS latency for {Address}", server.Address);
+                server.Exception = exception;
                 server.Latency = -1;
             }
             finally
@@ -245,6 +251,7 @@
         public HostAddress Address { get; } = address;
         public bool Checking { get; set; }
         public int? Latency { get; set; }
+        public Exception? Exception { get; set; }
     }
 
 }

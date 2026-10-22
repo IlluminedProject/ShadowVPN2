@@ -6,6 +6,7 @@
 @inject INodeUpdatesService NodeRealtime
 @inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
+@inject ILogger<Nodes> Logger
 @using System.Net
 @implements IAsyncDisposable
 
@@ -149,6 +150,7 @@
                     @if (!string.IsNullOrEmpty(_copyStatus))
                     {
                         <div class="text-secondary small" role="status">@_copyStatus</div>
+                        <ExceptionDetails Exception="_copyException"/>
                     }
                 </div>
                 <div class="app-dialog__footer">
@@ -312,6 +314,7 @@
     private string? _error;
     private string? _dialogError;
     private string? _copyStatus;
+    private Exception? _copyException;
 
     private string LoginUrl =>
         $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
@@ -330,6 +333,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to load nodes");
             _authenticationRequired = exception.StatusCode == HttpStatusCode.Unauthorized;
             _error = _authenticationRequired
                 ? "Sign in to access nodes."
@@ -354,6 +358,7 @@
         _joinToken = null;
         _dialogError = null;
         _copyStatus = null;
+        _copyException = null;
     }
 
     private void CloseAddNode()
@@ -364,6 +369,7 @@
         _showAddNode = false;
         _dialogError = null;
         _copyStatus = null;
+        _copyException = null;
     }
 
     private void CloseEditNode()
@@ -385,6 +391,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to generate node join token");
             _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "Only administrators can add nodes."
                 : "Could not generate a node join token.";
@@ -401,13 +408,16 @@
             return;
 
         _copyStatus = null;
+        _copyException = null;
         try
         {
             await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _joinToken);
             _copyStatus = "Copied";
         }
-        catch (JSException)
+        catch (JSException exception)
         {
+            Logger.LogWarning(exception, "Unable to copy node join token");
+            _copyException = exception;
             _copyStatus = "Could not copy token.";
         }
     }
@@ -425,8 +435,9 @@
         {
             _certificateDomains = await NodesApi.GetCertificateDomainsAsync(node.NodeId);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to load node certificate domains");
             _dialogError = "Could not load certificate domains. Close and reopen this node to try again.";
         }
         finally
@@ -452,6 +463,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to update node");
             _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to edit nodes."
                 : "Could not update the node.";
@@ -480,8 +492,9 @@
             await ReloadAsync();
             _editingNode = _nodes.FirstOrDefault(node => node.NodeId == _editingNode.NodeId);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to check node domain");
             _dialogError = "Could not check the node domain.";
         }
         finally

@@ -1,6 +1,5 @@
 @inherits ErrorBoundary
 @inject ILogger<GlobalErrorBoundary> Logger
-@inject IWebHostEnvironment Environment
 
 @if (CurrentException is null)
 {
@@ -13,13 +12,7 @@ else
         <p>The operation could not be completed. Try again or reload the page.</p>
         <button type="button" class="btn btn-outline-secondary" @onclick="Recover">Try again</button>
 
-        @if (Environment.EnvironmentName == Environments.Development)
-        {
-            <details class="mt-3">
-                <summary>Technical details</summary>
-                <pre class="exception-details mt-2">@CurrentException.ToString()</pre>
-            </details>
-        }
+        <ExceptionDetails Exception="CurrentException"/>
     </div>
 }
 

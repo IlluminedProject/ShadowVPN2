@@ -8,6 +8,7 @@
 @if (_loadError is not null)
 {
     <div class="alert alert-danger" role="alert">@_loadError</div>
+    <ExceptionDetails Exception="_loadException"/>
 }
 else if (_setup is null)
 {
@@ -45,6 +46,7 @@ else
     private SetupResponse? _setup;
     private string? _code;
     private string? _loadError;
+    private Exception? _loadException;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,6 +58,7 @@ else
         catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
         {
             Logger.LogError(exception, "Unable to load authenticator setup");
+            _loadException = exception;
             _loadError = "Authenticator setup could not be loaded. Reload the page to try again.";
         }
     }

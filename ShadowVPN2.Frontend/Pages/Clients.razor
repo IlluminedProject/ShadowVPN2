@@ -6,6 +6,7 @@
 @inject IClientUpdatesService ClientRealtime
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject ILogger<Clients> Logger
 @implements IAsyncDisposable
 
 <PageTitle>VPN devices - ShadowVPN2</PageTitle>
@@ -120,6 +121,7 @@
     @if (_copyError is not null)
     {
         <div class="text-danger" role="alert">@_copyError</div>
+        <ExceptionDetails Exception="_copyException"/>
     }
 </div>
 
@@ -184,6 +186,7 @@
     private bool _saving;
     private bool _deleting;
     private string? _error;
+    private Exception? _copyException;
     private string? _deleteError;
     private string _search = string.Empty;
     private bool _isAdministrator;
@@ -199,12 +202,15 @@
     private async Task CopySubscriptionLinkAsync(Guid subscriptionId)
     {
         _copyError = null;
+        _copyException = null;
         try
         {
             await JS.InvokeVoidAsync("navigator.clipboard.writeText", Navigation.ToAbsoluteUri($"/s/{subscriptionId}").ToString());
         }
-        catch (JSException)
+        catch (JSException exception)
         {
+            Logger.LogWarning(exception, "Unable to copy subscription link");
+            _copyException = exception;
             _copyError = "Could not copy. Allow clipboard access and try again.";
         }
     }
@@ -240,8 +246,9 @@
             });
             await LoadClientsAsync();
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to update device");
             _error = "Could not update the device.";
         }
         finally
@@ -262,8 +269,9 @@
             await LoadClientsAsync();
             _showAddClient = false;
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to create device");
             _createError = "Could not create the device.";
         }
         finally
@@ -297,8 +305,9 @@
             await LoadClientsAsync();
             _deleteClient = null;
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to delete device");
             _deleteError = "Could not delete the device.";
         }
         finally
@@ -326,8 +335,9 @@
             }));
             await InvokeAsync(StateHasChanged);
         }
-        catch (ApplicationServiceException)
+        catch (ApplicationServiceException exception)
         {
+            Logger.LogError(exception, "Unable to load VPN devices");
             _error = "Could not load VPN devices.";
         }
         finally

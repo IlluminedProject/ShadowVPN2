@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
+@inject ILogger<AdminTransportsSettings> Logger
 
 <PageTitle>Transports - ShadowVPN2</PageTitle>
 
@@ -131,6 +132,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogWarning(exception, "Could not load transport settings");
             _error = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view settings."
                 : "Could not load transport settings.";
@@ -201,6 +203,7 @@
         }
         catch (ApplicationServiceException exception)
         {
+            Logger.LogWarning(exception, "Could not save transport settings");
             _error = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to change settings."
                 : "Could not save transport settings.";

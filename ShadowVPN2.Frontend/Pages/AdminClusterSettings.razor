@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IAdminSettingsService AdminApi
+@inject ILogger<AdminClusterSettings> Logger
 
 <PageTitle>Cluster settings - ShadowVPN2</PageTitle>
 
@@ -95,6 +96,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not load cluster settings");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to view settings."
                     : "Could not load cluster settings.";
@@ -118,6 +120,7 @@ else
         }
         catch (ApplicationServiceException ex)
         {
+            Logger.LogWarning(ex, "Could not save cluster settings");
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                     ? "You do not have permission to change settings."
                     : "Could not save cluster settings.";
