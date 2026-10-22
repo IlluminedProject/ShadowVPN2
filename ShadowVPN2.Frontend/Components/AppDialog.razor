@@ -24,7 +24,7 @@
     [Parameter] public string? Description { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public bool Busy { get; set; }
-    [Parameter] public bool LightDismiss { get; set; }
+    [Parameter] public bool LightDismiss { get; set; } = true;
 
     private readonly string _titleId = $"dialog-title-{Guid.NewGuid():N}";
     private readonly string _descriptionId = $"dialog-description-{Guid.NewGuid():N}";

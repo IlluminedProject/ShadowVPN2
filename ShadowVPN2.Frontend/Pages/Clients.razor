@@ -164,7 +164,7 @@
 
 @if (_subscriptionId is not null)
 {
-    <AppDialog Title="Connection setup" OnClose="CloseSubscription" LightDismiss="true">
+    <AppDialog Title="Connection setup" OnClose="CloseSubscription">
         <ChildContent>
             <div class="app-dialog__body">
                 <Subscription SubscriptionId="@_subscriptionId.Value" Embedded="true"/>

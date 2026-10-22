@@ -1,6 +1,6 @@
 const dialogs = new WeakMap();
 
-export function open(element, reference, busy, lightDismiss = false) {
+export function open(element, reference, busy, lightDismiss = true) {
     const previousFocus = document.activeElement;
     const state = {busy, closing: false};
     const cancel = async event => {

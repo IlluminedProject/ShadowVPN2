@@ -96,7 +96,7 @@
 
 @if (_showAddNode)
 {
-    <AppDialog Title="Add node" OnClose="CloseAddNode" Busy="_busy">
+    <AppDialog Title="Add node" OnClose="CloseAddNode" Busy="_busy" LightDismiss="false">
         <ChildContent>
             @if (_joinToken is null)
             {
@@ -165,7 +165,7 @@
 
 @if (_editingNode is not null)
 {
-    <AppDialog Title="@($"Node: {_editingNode.Name}")" OnClose="CloseEditNode" Busy="_busy">
+    <AppDialog Title="@($"Node: {_editingNode.Name}")" OnClose="CloseEditNode" Busy="_busy" LightDismiss="false">
         <ChildContent>
             <EditForm @key="_domainRequest" EditContext="_domainEditContext" OnValidSubmit="SaveDomainAsync">
                 <DataAnnotationsValidator/>
