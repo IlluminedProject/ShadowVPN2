@@ -226,6 +226,9 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
                         }
                         catch (TaskCanceledException) {
                         }
+                        catch (Exception ex) {
+                            logger.LogError(ex, "Error during RavenDB client changes subscription disposal cooldown");
+                        }
                     }, CancellationToken.None);
                 }
             }

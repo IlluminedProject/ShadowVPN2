@@ -3,6 +3,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.CompareExchange;
 using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Exceptions;
 
 namespace ShadowVPN2.Data.Cluster;
 
@@ -14,7 +15,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     public async Task<ClusterUpdateResponse> StartAsync(StartClusterUpdateRequest request,
         ClusterTopologyResponse topology, int localNodeNumber, CancellationToken cancellationToken) {
         if (!UpdateSafetyPolicy.AllowsRollingUpdate(request.BackwardCompatible)) {
-            throw new InvalidOperationException(
+            throw new AppException(StatusCodes.Status409Conflict,
                 "Rolling update requires a backward-compatible schema change; deploy an expand-and-contract release first");
         }
 
@@ -25,16 +26,16 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
         var connectedMembers = votingMembers.Keys.Count(tag =>
             topology.Status.TryGetValue(tag, out var status) && status.Connected);
         if (!HasQuorum(votingMembers.Count, connectedMembers))
-            throw new InvalidOperationException("RavenDB voting quorum is unavailable");
+            throw new AppException(StatusCodes.Status409Conflict, "RavenDB voting quorum is unavailable");
 
         var orderedMembers = votingMembers.Keys.OrderBy(tag => tag, StringComparer.Ordinal).ToArray();
         if (!orderedMembers.Contains(ClusterService.GetNodeTag(localNodeNumber), StringComparer.Ordinal))
-            throw new InvalidOperationException("Local RavenDB node is not a voting member");
+            throw new AppException(StatusCodes.Status409Conflict, "Local RavenDB node is not a voting member");
 
         var current = await documentStore.Operations.SendAsync(
             new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
         if (current?.Value?.Status is ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing)
-            throw new InvalidOperationException("A cluster update is already active");
+            throw new AppException(StatusCodes.Status409Conflict, "A cluster update is already active");
         if (current?.Value is { } previous)
             await RecordHistoryAsync(previous, cancellationToken);
 
@@ -51,7 +52,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, state, current?.Index ?? 0),
             token: cancellationToken);
         if (!result.Successful)
-            throw new InvalidOperationException("Another cluster update was started concurrently");
+            throw new AppException(StatusCodes.Status409Conflict, "Another cluster update was started concurrently");
         return Map(state);
     }
 
@@ -186,7 +187,8 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             if (state.Status is not (ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing))
                 return Map(state);
             if (state.Nodes.Any(node => node.Status == ClusterUpdateNodeStatus.Claimed))
-                throw new InvalidOperationException("Cannot cancel while a node update is in progress");
+                throw new AppException(StatusCodes.Status409Conflict,
+                    "Cannot cancel while a node update is in progress");
 
             var cancelled = Copy(state);
             cancelled.Status = ClusterUpdateStatus.Cancelled;

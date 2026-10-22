@@ -49,11 +49,7 @@ public sealed class ClusterUpdatesController(
     public async Task<ActionResult<ClusterUpdateResponse>> StartAvailable(
         [FromBody] StartAvailableUpdateRequest request,
         [FromServices] ApplicationUpdateService applicationUpdates, CancellationToken cancellationToken) {
-        try { return await applicationUpdates.StartAsync(request.BackwardCompatible, cancellationToken); }
-        catch (InvalidOperationException exception) {
-            return Conflict(new ProblemDetails
-                { Title = "Application update could not be started", Detail = exception.Message });
-        }
+        return await applicationUpdates.StartAsync(request.BackwardCompatible, cancellationToken);
     }
 
     [HttpPost("{id:guid}/cancel")]

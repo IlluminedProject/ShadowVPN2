@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Exceptions;
 using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Data.Cluster;
@@ -63,11 +64,13 @@ public sealed class ApplicationUpdateService(
     public async Task<ClusterUpdateResponse> StartAsync(bool backwardCompatible,
         CancellationToken cancellationToken = default) {
         var current = await GetStatusAsync(cancellationToken);
-        if (current?.Status == "Running") throw new InvalidOperationException("A cluster update is already active");
+        if (current?.Status == "Running")
+            throw new AppException(StatusCodes.Status409Conflict, "A cluster update is already active");
         var available = await CheckAsync(cancellationToken);
         if (!available.Enabled || available.Error is not null || !available.UpdateAvailable ||
             available.AvailableDigest is null)
-            throw new InvalidOperationException(available.Error ?? "No application update is available");
+            throw new AppException(StatusCodes.Status409Conflict,
+                available.Error ?? "No application update is available");
         var topology =
             await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(), cancellationToken);
         return await clusterUpdates.StartAsync(new StartClusterUpdateRequest {

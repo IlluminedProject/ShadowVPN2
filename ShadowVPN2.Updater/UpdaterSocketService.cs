@@ -114,6 +114,8 @@ public sealed class UpdaterSocketService(
                 await writer.FlushAsync(timeout.Token);
             }
             catch (OperationCanceledException) when (timeout.IsCancellationRequested) {
+                if (!stoppingToken.IsCancellationRequested)
+                    logger.LogWarning("Updater socket request timed out");
             }
             catch (Exception exception) {
                 logger.LogWarning(exception, "Updater socket request failed");
@@ -272,7 +274,10 @@ public sealed class UpdaterSocketService(
             File.Move(temporaryPath, _statePath, true);
         }
         finally {
-            File.Delete(temporaryPath);
+            try { File.Delete(temporaryPath); }
+            catch (Exception exception) {
+                logger.LogWarning(exception, "Could not remove temporary updater state");
+            }
         }
     }
 

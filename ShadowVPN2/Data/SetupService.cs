@@ -31,7 +31,8 @@ public class SetupService(
             var publicIp = await client.GetStringAsync("https://api.ipify.org");
             return publicIp.Trim();
         }
-        catch {
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) {
+            logger.LogWarning(ex, "Failed to look up the public IP address during setup");
             return null;
         }
     }
@@ -64,21 +65,28 @@ public class SetupService(
     }
 
     public async Task<bool> TestOidcConnectionAsync(string authority) {
-        try {
-            if (string.IsNullOrWhiteSpace(authority)) return false;
+        if (string.IsNullOrWhiteSpace(authority)) return false;
+        var discoveryUrl = authority.TrimEnd('/') + "/.well-known/openid-configuration";
+        if (!Uri.TryCreate(discoveryUrl, UriKind.Absolute, out var discoveryUri) ||
+            discoveryUri.Scheme is not ("http" or "https") ||
+            !string.IsNullOrEmpty(discoveryUri.UserInfo) ||
+            !string.IsNullOrEmpty(discoveryUri.Query) || !string.IsNullOrEmpty(discoveryUri.Fragment))
+            return false;
 
+        try {
             var client = httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(10);
 
-            var discoveryUrl = authority.TrimEnd('/') + "/.well-known/openid-configuration";
-            logger.LogInformation("Testing OIDC discovery endpoint at {DiscoveryUrl}", discoveryUrl);
-            var response = await client.GetAsync(discoveryUrl);
+            logger.LogInformation("Testing OIDC discovery endpoint at {Authority}",
+                discoveryUri.GetLeftPart(UriPartial.Authority));
+            using var response = await client.GetAsync(discoveryUri);
 
             logger.LogInformation("OIDC discovery endpoint returned {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
-        catch (Exception ex) {
-            logger.LogWarning(ex, "Failed to connect to OIDC authority {Authority}", authority);
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) {
+            logger.LogWarning(ex, "Failed to connect to OIDC authority {Authority}",
+                discoveryUri.GetLeftPart(UriPartial.Authority));
             return false;
         }
     }

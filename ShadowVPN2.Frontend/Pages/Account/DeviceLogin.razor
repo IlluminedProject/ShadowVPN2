@@ -125,6 +125,11 @@
                 await InvokeAsync(StateHasChanged);
                 return;
             }
+            catch (Exception exception)
+            {
+                await DispatchExceptionAsync(exception);
+                return;
+            }
         }
     }
 

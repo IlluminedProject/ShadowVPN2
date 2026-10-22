@@ -204,9 +204,12 @@ else
         }
         catch (ApplicationServiceException ex)
         {
-            _error = ex.StatusCode == HttpStatusCode.Forbidden
-                ? "You do not have permission to start an update."
-                : "Could not start the cluster update.";
+            _error = ex.StatusCode switch
+            {
+                HttpStatusCode.Forbidden => "You do not have permission to start an update.",
+                HttpStatusCode.Conflict => ex.Message,
+                _ => "Could not start the cluster update."
+            };
         }
         finally
         {
@@ -246,6 +249,10 @@ else
                 ? "You do not have permission to view update status."
                 : "Could not refresh cluster update status.";
             await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception exception)
+        {
+            await DispatchExceptionAsync(exception);
         }
     }
 

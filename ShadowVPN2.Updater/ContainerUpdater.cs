@@ -122,16 +122,24 @@ public sealed class ContainerUpdater(
             await Post(candidateId, "update", token,
                 new JsonObject { ["RestartPolicy"] = original["HostConfig"]!["RestartPolicy"]!.DeepClone() });
         }
-        catch {
-            if (candidateId is not null) await RemoveAsync(candidateId, CancellationToken.None);
-            else {
-                var candidate = await docker.InspectAsync(ContainerName, CancellationToken.None);
-                if (candidate is not null && Id(candidate) != oldId)
-                    await RemoveAsync(Id(candidate), CancellationToken.None);
+        catch (Exception exception) {
+            try {
+                if (candidateId is not null) await RemoveAsync(candidateId, CancellationToken.None);
+                else {
+                    var candidate = await docker.InspectAsync(ContainerName, CancellationToken.None);
+                    if (candidate is not null && Id(candidate) != oldId)
+                        await RemoveAsync(Id(candidate), CancellationToken.None);
+                }
+
+                if (moved)
+                    await Post(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", CancellationToken.None);
+                await Post(oldId, "start", CancellationToken.None);
+            }
+            catch (Exception rollbackException) {
+                logger.LogError(exception, "Container update failed before rollback could complete");
+                logger.LogError(rollbackException, "Could not restore the previous container after an update failure");
             }
 
-            if (moved) await Post(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", CancellationToken.None);
-            await Post(oldId, "start", CancellationToken.None);
             throw;
         }
 
