@@ -1,6 +1,6 @@
 using Raven.Client.Documents.Session;
 
-namespace ShadowVPN2.Data.Migrations;
+namespace ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 public interface IRavenMigration {
     int Version { get; }

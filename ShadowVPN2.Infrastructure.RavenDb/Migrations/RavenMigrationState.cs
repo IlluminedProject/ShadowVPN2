@@ -1,4 +1,4 @@
-namespace ShadowVPN2.Data.Migrations;
+namespace ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 internal sealed class RavenMigrationState {
     public int Version { get; set; }

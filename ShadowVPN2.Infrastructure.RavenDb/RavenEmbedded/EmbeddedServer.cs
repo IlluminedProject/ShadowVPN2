@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.Loader;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Raven.Client.Documents;
@@ -15,11 +16,8 @@ using Raven.Client.Util;
 using Serilog;
 using Serilog.Events;
 using ILogger = Serilog.ILogger;
-#if !NET462
-using System.Runtime.Loader;
-#endif
 
-namespace ShadowVPN2.Infrastructure.RavenEmbedded;
+namespace ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 
 public sealed class EmbeddedServer : IDisposable {
     public static EmbeddedServer Instance = new();

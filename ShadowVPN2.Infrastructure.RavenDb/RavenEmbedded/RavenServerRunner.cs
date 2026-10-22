@@ -3,7 +3,7 @@
 
 using System.Diagnostics;
 
-namespace ShadowVPN2.Infrastructure.RavenEmbedded;
+namespace ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 
 internal static class RavenServerRunner {
     public static Process Run(ServerOptions options) {

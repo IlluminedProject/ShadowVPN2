@@ -1,7 +1,7 @@
 using Newtonsoft.Json.Linq;
 using Raven.Client.Documents.Session;
-using ShadowVPN2.Contracts.Auth;
 using ShadowVPN2.Entities;
+using ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 namespace ShadowVPN2.Data.Migrations;
 
@@ -19,7 +19,8 @@ public sealed class DeviceFlowModeMigration : IRavenMigration {
             if (!provider.TryGetValue("DeviceFlowEnabled", out var enabled))
                 continue;
 
-            provider["DeviceFlowMode"] = (enabled.Value<bool>() ? DeviceFlowMode.Always : DeviceFlowMode.Never).ToString();
+            provider["DeviceFlowMode"] =
+                (enabled.Value<bool>() ? DeviceFlowMode.Always : DeviceFlowMode.Never).ToString();
             provider.Remove("DeviceFlowEnabled");
         }
     }

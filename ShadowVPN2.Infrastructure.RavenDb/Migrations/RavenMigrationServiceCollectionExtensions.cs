@@ -1,4 +1,4 @@
-namespace ShadowVPN2.Data.Migrations;
+namespace ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 public static class RavenMigrationServiceCollectionExtensions {
     public static IServiceCollection AddRavenMigration<TMigration>(this IServiceCollection services)

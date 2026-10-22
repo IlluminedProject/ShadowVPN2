@@ -3,7 +3,7 @@
 
 using System.Security.Cryptography.X509Certificates;
 
-namespace ShadowVPN2.Infrastructure.RavenEmbedded;
+namespace ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 
 public class ServerOptions {
     internal static string DefaultServerDirectory = Path.Combine(AppContext.BaseDirectory, "RavenDBServer");

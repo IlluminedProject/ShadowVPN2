@@ -13,6 +13,7 @@ using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb.Migrations;
 using ApplicationUpdateService = ShadowVPN2.Frontend.ApplicationUpdateService;
 
 namespace ShadowVPN2.Infrastructure;

@@ -9,14 +9,18 @@ using Microsoft.Extensions.Options;
 using OpenIddict.Client;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
+using Raven.Client.Util;
 using Raven.Identity;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 using ShadowVPN2.Infrastructure.Middleware;
+using ShadowVPN2.Infrastructure.RavenDb;
+using ShadowVPN2.Infrastructure.RavenDb.Configurations;
 using IdentityRole = Raven.Identity.IdentityRole;
 
 namespace ShadowVPN2.Infrastructure;
@@ -31,7 +35,13 @@ public static class ServiceExtensions {
                 joinState.TemporaryCertificatePath ?? LocalConfiguration.CertificatePfxPath.ToString();
             var nodeNumber = joinState.IsJoining ? joinState.TemporaryNodeNumber : localConfiguration.NodeNumber;
             return RavenDbInitializer.Initialize(certificatePath, nodeNumber,
-                services.GetRequiredService<IOptions<RavenDbOptions>>().Value, joinState);
+                services.GetRequiredService<IOptions<RavenDbOptions>>().Value,
+                (DataUtils.DataFolder / "ravendb").ToString(), joinState.IsJoining,
+                (joinState.IsJoining
+                    ? joinState.TemporaryTrustPeers
+                    : AsyncHelpers.RunSync(() => PeerCertificateTrustService.LoadAsync()))
+                .Select(peer => peer.CertificatePem),
+                serializer => serializer.Converters.Add(new PortBindingRavenJsonConverter()));
         });
         builder.Services.AddScoped<IAsyncDocumentSession>(sp =>
             sp.GetRequiredService<IDocumentStore>().OpenAsyncSession());

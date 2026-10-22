@@ -2,7 +2,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
-namespace ShadowVPN2.Data.Migrations;
+namespace ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 public sealed class RavenMigrationRunner(
     IDocumentStore documentStore,

@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
     <ProjectReference Include="..\ShadowVPN2.Frontend\ShadowVPN2.Frontend.csproj"/>
+    <ProjectReference Include="../ShadowVPN2.Infrastructure.RavenDb/ShadowVPN2.Infrastructure.RavenDb.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -24,7 +25,6 @@
     <PackageReference Include="OpenIddict.Client" Version="7.7.0"/>
     <PackageReference Include="OpenIddict.Client.SystemNetHttp" Version="7.7.0"/>
     <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9"/>
-    <PackageReference Include="RavenDB.Client" Version="7.2.1"/>
     <PackageReference Include="RavenDB.Identity" Version="9.0.1"/>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0"/>
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0"/>
@@ -44,6 +44,10 @@
 
   <ItemGroup>
     <Compile Remove="Data\Migrations\AddUserDisplayNameMigration.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Data\local\"/>
   </ItemGroup>
 
 </Project>

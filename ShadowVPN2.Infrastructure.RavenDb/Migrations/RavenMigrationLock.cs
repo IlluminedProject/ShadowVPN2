@@ -2,7 +2,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.CompareExchange;
 using Raven.Client.Documents.Session;
 
-namespace ShadowVPN2.Data.Migrations;
+namespace ShadowVPN2.Infrastructure.RavenDb.Migrations;
 
 public sealed class RavenMigrationLock(
     IDocumentStore documentStore,

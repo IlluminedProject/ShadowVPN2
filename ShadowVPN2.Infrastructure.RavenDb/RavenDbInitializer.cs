@@ -1,29 +1,28 @@
 using System.Security.Cryptography.X509Certificates;
+using Newtonsoft.Json;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Conventions;
 using Raven.Client.Json.Serialization.NewtonsoftJson;
-using Raven.Client.Util;
 using Serilog;
-using ShadowVPN2.Data.Cluster;
-using ShadowVPN2.Infrastructure;
-using ShadowVPN2.Infrastructure.Configurations;
-using ShadowVPN2.Infrastructure.RavenEmbedded;
+using ShadowVPN2.Infrastructure.RavenDb.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 using ILogger = Serilog.ILogger;
 
-namespace ShadowVPN2.Data;
+namespace ShadowVPN2.Infrastructure.RavenDb;
 
 public class RavenDbInitializer {
     public const string DatabaseName = "ShadowVPN";
     private static readonly ILogger _logger = Log.ForContext<RavenDbInitializer>();
 
     public static IDocumentStore Initialize(string certificatePath, int nodeNumber, RavenDbOptions options,
-        JoinStartupState joinState) {
+        string dataDirectory, bool isJoining, IEnumerable<string> trustedPeerCertificates,
+        Action<JsonSerializer> customizeJsonSerializer) {
         var meshUrl = $"https://100.64.0.{nodeNumber + 10}:8888";
         var meshTcpUrl = $"tcp://100.64.0.{nodeNumber + 10}:38888";
 
         var serverOptions = new ServerOptions {
             ServerUrl = $"https://127.0.0.1:8888;{meshUrl}",
-            DataDirectory = (DataUtils.DataFolder / "ravendb").ToString(),
+            DataDirectory = dataDirectory,
             ServerDirectory = options.ServerDirectory,
             CommandLineArgs = [
                 $"--PublicServerUrl={meshUrl}",
@@ -33,12 +32,9 @@ public class RavenDbInitializer {
                 $"--PublicServerUrl.Tcp.Cluster={meshTcpUrl}"
             ]
         };
-        var trustedPeers = joinState.IsJoining
-            ? joinState.TemporaryTrustPeers
-            : AsyncHelpers.RunSync(() => PeerCertificateTrustService.LoadAsync());
         serverOptions.BootstrapAdminCertificateThumbprints = [
-            .. trustedPeers.Select(peer => {
-                using var certificate = X509Certificate2.CreateFromPem(peer.CertificatePem);
+            .. trustedPeerCertificates.Select(pem => {
+                using var certificate = X509Certificate2.CreateFromPem(pem);
                 return certificate.Thumbprint;
             })
         ];
@@ -51,14 +47,12 @@ public class RavenDbInitializer {
 
         _logger.Information("RavenDB server started successfully");
         var databaseOptions = new DatabaseOptions(DatabaseName) {
-            SkipCreatingDatabase = joinState.IsJoining,
+            SkipCreatingDatabase = isJoining,
             LocalServerUrl = new Uri("https://127.0.0.1:8888"),
             Conventions = new DocumentConventions {
                 DisableTopologyUpdates = true,
                 Serialization = new NewtonsoftJsonSerializationConventions {
-                    CustomizeJsonSerializer = serializer => {
-                        serializer.Converters.Add(new PortBindingRavenJsonConverter());
-                    }
+                    CustomizeJsonSerializer = customizeJsonSerializer
                 }
             }
         };

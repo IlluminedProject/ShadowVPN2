@@ -4,7 +4,7 @@
 using Raven.Client.Documents.Conventions;
 using Raven.Client.ServerWide;
 
-namespace ShadowVPN2.Infrastructure.RavenEmbedded;
+namespace ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 
 public sealed class DatabaseOptions {
     public DatabaseOptions(string databaseName) : this(new DatabaseRecord(databaseName)) {

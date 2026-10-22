@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Data.Cluster;
-using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb.Migrations;
 using TruePath.SystemIo;
 
 namespace ShadowVPN2.Infrastructure;
