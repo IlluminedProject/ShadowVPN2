@@ -3,7 +3,9 @@ using ShadowVPN2.Contracts.Networking;
 namespace ShadowVPN2.Contracts.Application;
 
 public interface IApplicationUpdateService {
-    Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default);
+    Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default,
+        bool forceRefresh = false);
+
     Task<ClusterUpdateResponse?> GetStatusAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ApplicationUpdateHistoryResponse>>

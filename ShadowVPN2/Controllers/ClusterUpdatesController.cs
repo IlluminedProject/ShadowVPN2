@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure.Authentication;
-using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Controllers;
 
@@ -13,15 +11,14 @@ namespace ShadowVPN2.Controllers;
 [Route("api/cluster/updates")]
 public sealed class ClusterUpdatesController(
     ClusterUpdateService updateService,
-    IDocumentStore documentStore,
-    IOptions<LocalConfiguration> localConfiguration) : ControllerBase {
+    IDocumentStore documentStore) : ControllerBase {
     [HttpPost]
     [Authorize(Policy = AppPermissions.Settings.Manage)]
     public async Task<ClusterUpdateResponse> Start([FromBody] StartClusterUpdateRequest request,
         CancellationToken cancellationToken) {
         var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
             cancellationToken);
-        return await updateService.StartAsync(request, topology, localConfiguration.Value.NodeNumber,
+        return await updateService.StartAsync(request, topology, topology.NodeTag,
             cancellationToken);
     }
 

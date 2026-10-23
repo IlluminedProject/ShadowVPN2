@@ -13,7 +13,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
     public async Task<ClusterUpdateResponse> StartAsync(StartClusterUpdateRequest request,
-        ClusterTopologyResponse topology, int localNodeNumber, CancellationToken cancellationToken) {
+        ClusterTopologyResponse topology, string localNodeTag, CancellationToken cancellationToken) {
         if (!UpdateSafetyPolicy.AllowsRollingUpdate(request.BackwardCompatible)) {
             throw new AppException(StatusCodes.Status409Conflict,
                 "Rolling update requires a backward-compatible schema change; deploy an expand-and-contract release first");
@@ -23,13 +23,12 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             throw new ArgumentException("ImageDigest must be a lowercase sha256 digest", nameof(request));
 
         var votingMembers = topology.Topology.Members;
-        var connectedMembers = votingMembers.Keys.Count(tag =>
-            topology.Status.TryGetValue(tag, out var status) && status.Connected);
+        var connectedMembers = await GetConnectedMembersAsync(topology, cancellationToken);
         if (!HasQuorum(votingMembers.Count, connectedMembers))
             throw new AppException(StatusCodes.Status409Conflict, "RavenDB voting quorum is unavailable");
 
         var orderedMembers = votingMembers.Keys.OrderBy(tag => tag, StringComparer.Ordinal).ToArray();
-        if (!orderedMembers.Contains(ClusterService.GetNodeTag(localNodeNumber), StringComparer.Ordinal))
+        if (!orderedMembers.Contains(localNodeTag, StringComparer.Ordinal))
             throw new AppException(StatusCodes.Status409Conflict, "Local RavenDB node is not a voting member");
 
         var current = await documentStore.Operations.SendAsync(
@@ -141,7 +140,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             var members = topology.Topology.Members.Keys.OrderBy(tag => tag, StringComparer.Ordinal).ToArray();
             if (!members.SequenceEqual(state.Nodes.Select(node => node.NodeTag), StringComparer.Ordinal))
                 throw new InvalidOperationException("RavenDB voting membership changed during cluster update");
-            var connected = members.Count(tag => topology.Status.TryGetValue(tag, out var status) && status.Connected);
+            var connected = await GetConnectedMembersAsync(topology, cancellationToken);
             if (!UpdateSafetyPolicy.HasRestartQuorum(members.Length, connected))
                 return null;
 
@@ -200,6 +199,20 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                 return Map(cancelled);
             }
         }
+    }
+
+    private async Task<int> GetConnectedMembersAsync(ClusterTopologyResponse topology,
+        CancellationToken cancellationToken) {
+        if (string.IsNullOrEmpty(topology.Leader)) return 0;
+        var leaderTopology = topology.NodeTag == topology.Leader
+            ? topology
+            : await documentStore.Maintenance.Server.ForNode(topology.Leader)
+                .SendAsync(new GetClusterTopologyOperation(), cancellationToken);
+        if (leaderTopology.NodeTag != leaderTopology.Leader) return 0;
+        return topology.Topology.Members.Keys.Count(tag =>
+            leaderTopology.Topology.Members.ContainsKey(tag) &&
+            (tag == leaderTopology.NodeTag ||
+             (leaderTopology.Status.TryGetValue(tag, out var status) && status.Connected)));
     }
 
     internal static bool HasQuorum(int members, int connected) {

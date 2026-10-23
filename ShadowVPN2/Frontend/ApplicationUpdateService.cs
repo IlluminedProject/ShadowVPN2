@@ -10,9 +10,10 @@ public sealed class ApplicationUpdateService(
     Data.Cluster.ApplicationUpdateService updates,
     FrontendUserContext userContext,
     ILogger<ApplicationUpdateService> logger) : IApplicationUpdateService {
-    public async Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default) {
+    public async Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default,
+        bool forceRefresh = false) {
         await userContext.RequirePolicyAsync(AppPermissions.Settings.View, cancellationToken);
-        return await updates.CheckAsync(cancellationToken);
+        return await updates.CheckAsync(cancellationToken, forceRefresh);
     }
 
     public async Task<ClusterUpdateResponse?> GetStatusAsync(CancellationToken cancellationToken = default) {

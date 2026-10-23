@@ -26,6 +26,12 @@ else
 
     <section class="settings-frame" aria-labelledby="availability-heading">
         <h2 id="availability-heading">Update availability</h2>
+        <div class="form-actions mb-3">
+            <button class="btn btn-outline-primary" type="button" @onclick="CheckForUpdatesAsync"
+                    disabled="@(_checking || _busy)">
+                @(_checking ? "Checking…" : "Check for updates")
+            </button>
+        </div>
         @if (_availability is null)
         {
             <p class="text-body-secondary">Update availability could not be loaded.</p>
@@ -126,23 +132,53 @@ else
             <Authorized>
                 @if (_availability?.UpdateAvailable == true)
                 {
-                    <div class="form-check mt-4">
-                        <input id="backward-compatible" class="form-check-input" type="checkbox"
-                               @bind="_backwardCompatible" disabled="@_busy"/>
-                        <label class="form-check-label" for="backward-compatible">
-                            I confirm this update is backward compatible with all connected nodes. The image will be
-                            prepared on every node before any restart.
-                        </label>
-                    </div>
                     <div class="form-actions">
                         <button class="btn btn-primary" type="button" @onclick="StartAsync"
-                                disabled="@(_busy || !_backwardCompatible || IsActive(_status))">
+                                disabled="@(_busy || _checking || IsActive(_status))">
                             @(_busy ? "Starting…" : "Start update")
                         </button>
                     </div>
                 }
             </Authorized>
         </AuthorizeView>
+    </section>
+
+    <section class="settings-frame mt-4" aria-labelledby="history-heading">
+        <h2 id="history-heading">Installed updates</h2>
+        @if (!string.IsNullOrWhiteSpace(_historyError))
+        {
+            <div class="alert alert-danger" role="alert">@_historyError</div>
+        }
+        else if (_history is null)
+        {
+            <p class="text-body-secondary">Update history could not be loaded.</p>
+        }
+        else if (_history.Count == 0)
+        {
+            <p class="text-body-secondary mb-0">No successful updates have been recorded.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                    <tr>
+                        <th scope="col">Digest</th>
+                        <th scope="col">Installed</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var update in _history)
+                    {
+                        <tr>
+                            <td><code class="text-break">@update.ImageDigest</code></td>
+                            <td>@((update.CompletedAt ?? update.StartedAt).ToLocalTime().ToString("g"))</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     </section>
 }
 
@@ -153,13 +189,16 @@ else
     private Task? _polling;
     private bool _loading = true;
     private bool _busy;
-    private bool _backwardCompatible;
+    private bool _checking;
+    private IReadOnlyList<ApplicationUpdateHistoryResponse>? _history;
+    private string? _historyError;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadAvailabilityAsync();
         await LoadStatusAsync();
+        await LoadHistoryAsync();
         _loading = false;
         if (IsActive(_status))
             StartPolling();
@@ -177,6 +216,46 @@ else
             _error = ex.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to view update status."
                 : "Could not check for application updates.";
+        }
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_checking) return;
+        _checking = true;
+        _error = null;
+        try
+        {
+            _availability = await Updates.CheckAsync(_cancellation.Token, true);
+        }
+        catch (ApplicationServiceException ex)
+        {
+            Logger.LogWarning(ex, "Could not check for application updates");
+            _error = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to check for application updates."
+                : "Could not check for application updates.";
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        try
+        {
+            _history = (await Updates.GetHistoryAsync(_cancellation.Token))
+                .Where(update => update.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            _historyError = null;
+        }
+        catch (ApplicationServiceException ex)
+        {
+            Logger.LogWarning(ex, "Could not load update history");
+            _historyError = ex.StatusCode == HttpStatusCode.Forbidden
+                ? "You do not have permission to view update history."
+                : "Could not load update history.";
         }
     }
 
@@ -201,8 +280,7 @@ else
         _error = null;
         try
         {
-            _status = await Updates.StartAsync(_backwardCompatible, _cancellation.Token);
-            _backwardCompatible = false;
+            _status = await Updates.StartAsync(true, _cancellation.Token);
             StartPolling();
         }
         catch (ApplicationServiceException ex)
@@ -241,6 +319,7 @@ else
             if (!cancellationToken.IsCancellationRequested)
             {
                 _availability = await Updates.CheckAsync(cancellationToken);
+                await LoadHistoryAsync();
                 await InvokeAsync(StateHasChanged);
             }
         }

@@ -14,17 +14,17 @@ public sealed class ApplicationUpdateService(
     ClusterUpdateService clusterUpdates,
     IDocumentStore documentStore,
     IOptions<UpdaterOptions> options,
-    IOptions<LocalConfiguration> localConfiguration,
     ILogger<ApplicationUpdateService> logger) {
     private readonly object _cacheGate = new();
     private Task<UpdateAvailabilityResponse>? _check;
     private DateTimeOffset _expires;
     private (Guid Id, string Status)? _lastTerminal;
 
-    public async Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default) {
+    public async Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default,
+        bool forceRefresh = false) {
         Task<UpdateAvailabilityResponse> check;
         lock (_cacheGate) {
-            if (_check is null || (_check.IsCompleted && DateTimeOffset.UtcNow >= _expires)) {
+            if (_check is null || (_check.IsCompleted && (forceRefresh || DateTimeOffset.UtcNow >= _expires))) {
                 // A caller disconnecting must not cancel the shared check or cause a second registry request.
                 _check = DiscoverAsync();
                 var interval = options.Value.CheckInterval;
@@ -75,7 +75,7 @@ public sealed class ApplicationUpdateService(
             await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(), cancellationToken);
         return await clusterUpdates.StartAsync(new StartClusterUpdateRequest {
             ImageDigest = available.AvailableDigest, BackwardCompatible = backwardCompatible
-        }, topology, localConfiguration.Value.NodeNumber, cancellationToken);
+        }, topology, topology.NodeTag, cancellationToken);
     }
 
     private async Task<UpdateAvailabilityResponse> DiscoverAsync() {

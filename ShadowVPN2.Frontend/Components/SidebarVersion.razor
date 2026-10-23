@@ -1,109 +1,23 @@
-@using System.Net
 @implements IAsyncDisposable
 @inject IApplicationUpdateService Updates
 @inject ILogger<SidebarVersion> Logger
 
 <div class="nav-item px-3 sidebar-version">
-    @if (!string.IsNullOrWhiteSpace(_availability?.CurrentDigest))
+    <NavLink class="nav-link sidebar-version__current" href="/admin/updates">
+        <span class="bi bi-info-circle-fill" aria-hidden="true"></span>
+        <span class="sidebar-version__text">@VersionLabel</span>
+    </NavLink>
+    @if (_availability?.UpdateAvailable == true)
     {
-        <button type="button" class="nav-link sidebar-version__current" @onclick="OpenAboutAsync"
-                aria-label="About ShadowVPN2">
-            <span class="bi bi-info-circle-fill" aria-hidden="true"></span>
-            <span class="sidebar-version__text">@VersionLabel</span>
-        </button>
-        <button type="button" class="nav-link sidebar-version__check" @onclick="CheckForUpdatesAsync"
-                disabled="@_checking" aria-label="Check for updates" title="Check for updates">
-            <span class="bi bi-arrow-clockwise" aria-hidden="true"></span>
-            @if (_checking)
-            {
-                <span class="visually-hidden">Checking for updates</span>
-            }
-        </button>
-        @if (_availability.UpdateAvailable)
-        {
-            <NavLink class="nav-link sidebar-version__update text-warning" href="/admin/updates">
-                <span class="bi bi-arrow-up-circle-fill" aria-hidden="true"></span> Update available
-            </NavLink>
-        }
+        <NavLink class="nav-link sidebar-version__update text-warning" href="/admin/updates">
+            <span class="bi bi-arrow-up-circle-fill" aria-hidden="true"></span> Update available
+        </NavLink>
     }
 </div>
-
-@if (_aboutOpen)
-{
-    <AppDialog Title="About ShadowVPN2" OnClose="CloseAboutAsync">
-        <ChildContent>
-            <div class="app-dialog__body">
-                @if (_availability is null)
-                {
-                    <div class="app-status text-body-secondary" role="status">
-                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading build
-                        information…
-                    </div>
-                }
-                else
-                {
-                    <section>
-                        <h3 class="h5">Current build</h3>
-                        <dl class="app-details">
-                            <dt>Image</dt>
-                            <dd><code class="text-break">@(_availability.ImageReference ?? "Unknown")</code></dd>
-                            <dt>Digest</dt>
-                            <dd><code class="text-break">@(_availability.CurrentDigest ?? "Unknown")</code></dd>
-                        </dl>
-                    </section>
-                    <section>
-                        <h3 class="h5">Installed updates</h3>
-                        @if (_history is null)
-                        {
-                            <div class="app-status text-body-secondary" role="status">
-                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading
-                                history…
-                            </div>
-                        }
-                        else if (_history.Count == 0)
-                        {
-                            <p class="text-body-secondary mb-0">No successful updates have been recorded.</p>
-                        }
-                        else
-                        {
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle">
-                                    <thead>
-                                    <tr>
-                                        <th scope="col">Digest</th>
-                                        <th scope="col">Installed</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    @foreach (var update in _history)
-                                    {
-                                        <tr>
-                                            <td><code class="text-break">@ShortDigest(update.ImageDigest)</code></td>
-                                            <td>@FormatDate(update.CompletedAt ?? update.StartedAt)</td>
-                                        </tr>
-                                    }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    </section>
-                }
-                @if (!string.IsNullOrWhiteSpace(_error))
-                {
-                    <div class="alert alert-danger mt-3 mb-0" role="alert">@_error</div>
-                }
-            </div>
-        </ChildContent>
-    </AppDialog>
-}
 
 @code {
     private readonly CancellationTokenSource _cancellation = new();
     private UpdateAvailabilityResponse? _availability;
-    private IReadOnlyList<ApplicationUpdateHistoryResponse>? _history;
-    private bool _aboutOpen;
-    private bool _checking;
-    private string? _error;
 
     private string VersionLabel
     {
@@ -127,66 +41,6 @@
         }
     }
 
-    private async Task CheckForUpdatesAsync()
-    {
-        if (_checking) return;
-        _checking = true;
-        _error = null;
-        try
-        {
-            _availability = await Updates.CheckAsync(_cancellation.Token);
-        }
-        catch (ApplicationServiceException ex)
-        {
-            Logger.LogWarning(ex, "Could not check for application updates");
-            _error = ex.StatusCode == HttpStatusCode.Forbidden
-                    ? "You do not have permission to check for application updates."
-                    : "Could not check for application updates.";
-            _aboutOpen = true;
-            _availability = null;
-        }
-        finally
-        {
-            _checking = false;
-        }
-    }
-
-    private async Task OpenAboutAsync()
-    {
-        _aboutOpen = true;
-        _history = null;
-        _error = null;
-        try
-        {
-            _history = (await Updates.GetHistoryAsync(_cancellation.Token))
-                .Where(update => update.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-        }
-        catch (ApplicationServiceException ex)
-        {
-            Logger.LogWarning(ex, "Could not load update history");
-            _error = ex.StatusCode == HttpStatusCode.Forbidden
-                ? "You do not have permission to view update history."
-                : "Could not load update history.";
-        }
-    }
-
-    private Task CloseAboutAsync()
-    {
-        _aboutOpen = false;
-        return Task.CompletedTask;
-    }
-
-
-    private static string ShortDigest(string? digest)
-    {
-        return string.IsNullOrWhiteSpace(digest) ? "Unknown digest" : digest.Length > 19 ? digest[..19] : digest;
-    }
-
-    private static string FormatDate(DateTimeOffset? date)
-    {
-        return date?.ToLocalTime().ToString("g") ?? "Unknown date";
-    }
 
     public ValueTask DisposeAsync()
     {

@@ -11,7 +11,6 @@ namespace ShadowVPN2.Data.Cluster;
 public sealed class ClusterUpdateCoordinator(
     ClusterUpdateService updateService,
     IDocumentStore documentStore,
-    IOptions<LocalConfiguration> localConfiguration,
     IOptions<UpdaterOptions> options,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -30,8 +29,7 @@ public sealed class ClusterUpdateCoordinator(
                 }
                 catch (Exception exception) {
                     logger.LogWarning(exception,
-                        "Cluster update reconciliation failed for node {NodeTag} using socket {SocketPath}",
-                        ClusterService.GetNodeTag(localConfiguration.Value.NodeNumber), options.Value.SocketPath);
+                        "Cluster update reconciliation failed using socket {SocketPath}", options.Value.SocketPath);
                 }
             } while (await timer.WaitForNextTickAsync(stoppingToken));
         }
@@ -40,7 +38,9 @@ public sealed class ClusterUpdateCoordinator(
     }
 
     private async Task ReconcileAsync(CancellationToken cancellationToken) {
-        var localTag = ClusterService.GetNodeTag(localConfiguration.Value.NodeNumber);
+        var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
+            cancellationToken);
+        var localTag = topology.NodeTag;
         var update = await updateService.GetAsync(cancellationToken);
         if (update is null) return;
         if (update.Status == "Preparing") {
@@ -66,8 +66,6 @@ public sealed class ClusterUpdateCoordinator(
         if (Matches(update, status) && status.Status == "Running")
             return;
 
-        var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
-            cancellationToken);
         var claimed = await updateService.ClaimLocalAsync(localTag, topology, cancellationToken);
         if (claimed is null)
             return;
