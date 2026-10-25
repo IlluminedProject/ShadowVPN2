@@ -4,6 +4,8 @@ using ShadowVPN2.Entities;
 namespace ShadowVPN2.Data.Protocols;
 
 public static class GlobalConfigurationValidator {
+    private static readonly AwgSettingsValidator AwgValidator = new();
+
     public static void Validate(EntityGlobalConfiguration configuration) {
         ArgumentNullException.ThrowIfNull(configuration);
 
@@ -16,6 +18,9 @@ public static class GlobalConfigurationValidator {
         foreach (var protocol in protocols) {
             if (protocol.Id == Guid.Empty || !protocolsById.TryAdd(protocol.Id, protocol))
                 throw new ArgumentException("Protocol IDs must be unique and non-empty", nameof(configuration));
+
+            if (protocol is AwgGlobalSettings awg)
+                ValidateAwg(awg);
 
             var binding = ValidateBinding(protocol.ListenPort, $"protocol {protocol.Protocol}");
             if (protocol is not Hysteria2GlobalSettings && binding.PortRangeEnd.HasValue)
@@ -78,6 +83,7 @@ public static class GlobalConfigurationValidator {
     public static void ValidateMeshPort(EntityGlobalConfiguration configuration) {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        ValidateAwg(configuration.AwgSettings);
         var meshPort = configuration.AwgSettings.ListenPort.ListenPort;
         ValidatePort(meshPort, "cluster mesh");
         var protocols = configuration.Protocols ?? [];
@@ -93,6 +99,12 @@ public static class GlobalConfigurationValidator {
             throw new ArgumentException($"UDP listen port {meshPort} is reserved for cluster mesh",
                 nameof(configuration));
         }
+    }
+
+    private static void ValidateAwg(AwgGlobalSettings settings) {
+        var result = AwgValidator.Validate(settings);
+        if (!result.IsValid)
+            throw new ArgumentException(result.ToString());
     }
 
     private static void ValidateFreeTurn(FreeTurnTransportSettings settings) {

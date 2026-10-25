@@ -53,6 +53,7 @@
     {
         <EditForm @key="_request" Model="_request" OnValidSubmit="SaveAsync" class="settings-frame">
         <DataAnnotationsValidator/>
+            <Blazilla.FluentValidator Validator="_awgValidator"/>
         <ValidationSummary/>
             @if (!string.IsNullOrEmpty(_error))
             {
@@ -155,23 +156,7 @@
                             </div>
                             <details>
                                 <summary>AmneziaWG parameters</summary>
-                                <AwgParameters IdPrefix="@($"protocol-{item.Id}")"
-                                               @bind-Jc="awg.Jc"
-                                               @bind-Jmin="awg.Jmin"
-                                               @bind-Jmax="awg.Jmax"
-                                               @bind-S1="awg.S1"
-                                               @bind-H1="awg.H1"
-                                               @bind-S2="awg.S2"
-                                               @bind-H2="awg.H2"
-                                               @bind-S3="awg.S3"
-                                               @bind-H3="awg.H3"
-                                               @bind-S4="awg.S4"
-                                               @bind-H4="awg.H4"
-                                               @bind-I1="awg.I1"
-                                               @bind-I2="awg.I2"
-                                               @bind-I3="awg.I3"
-                                               @bind-I4="awg.I4"
-                                               @bind-I5="awg.I5"/>
+                                <AwgParameters IdPrefix="@($"protocol-{item.Id}")" Model="awg"/>
                             </details>
                         }
                         else if (item is NaiveProxyProtocolSettingsDto naiveProxy)
@@ -299,6 +284,8 @@
             _loading = false;
         }
     }
+
+    private readonly UpdateProtocolsSettingsValidator _awgValidator = new();
 
     private Task<IReadOnlyList<ProtocolDomainRouteResponse>> LoadDomainRoutesAsync()
     {

@@ -4,7 +4,7 @@ using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Entities;
 
-public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
+public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition, IAwgSettings {
     public override string Protocol {
         get => "WireGuard";
     }
@@ -14,6 +14,15 @@ public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
     public string ServerAddress { get; set; } = "100.64.0.1/10";
     public string PrivateKey { get; set; } = GenerateKey();
 
+    [JsonIgnore]
+    public bool IsAmneziaWg {
+        get => Jc != 0 || Jmin != 0 || Jmax != 0 || S1 != 0 || S2 != 0 || S3 != 0 || S4 != 0
+               || H1 != "1" || H2 != "2" || H3 != "3" || H4 != "4"
+               || !string.IsNullOrWhiteSpace(I1) || !string.IsNullOrWhiteSpace(I2)
+               || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
+               || !string.IsNullOrWhiteSpace(I5);
+    }
+
     public string H1 { get; set; } = "1";
 
     public string H2 { get; set; } = "2";
@@ -22,9 +31,9 @@ public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
 
     public string H4 { get; set; } = "4";
 
-    public int Jc { get; set; }
-    public int Jmin { get; set; }
-    public int Jmax { get; set; }
+    public uint Jc { get; set; }
+    public uint Jmin { get; set; }
+    public uint Jmax { get; set; }
     public int S1 { get; set; }
     public int S2 { get; set; }
     public int S3 { get; set; }
@@ -34,15 +43,6 @@ public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
     public string? I3 { get; set; }
     public string? I4 { get; set; }
     public string? I5 { get; set; }
-
-    [JsonIgnore]
-    public bool IsAmneziaWg {
-        get => Jc != 0 || Jmin != 0 || Jmax != 0 || S1 != 0 || S2 != 0 || S3 != 0 || S4 != 0
-               || H1 != "1" || H2 != "2" || H3 != "3" || H4 != "4"
-               || !string.IsNullOrWhiteSpace(I1) || !string.IsNullOrWhiteSpace(I2)
-               || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
-               || !string.IsNullOrWhiteSpace(I5);
-    }
 
     public static ProtocolSocketKind SocketKind {
         get => ProtocolSocketKind.Udp;
@@ -55,9 +55,9 @@ public class AwgGlobalSettings : ProtocolGlobalSettings, IProtocolDefinition {
             H2 = RandomHeaderValue(),
             H3 = RandomHeaderValue(),
             H4 = RandomHeaderValue(),
-            Jc = RandomNumberGenerator.GetInt32(3, 10),
-            Jmin = RandomNumberGenerator.GetInt32(15, 150),
-            Jmax = RandomNumberGenerator.GetInt32(500, 2000),
+            Jc = (uint)RandomNumberGenerator.GetInt32(3, 10),
+            Jmin = (uint)RandomNumberGenerator.GetInt32(15, 150),
+            Jmax = (uint)RandomNumberGenerator.GetInt32(500, 2000),
             S1 = RandomNumberGenerator.GetInt32(10, 100),
             S2 = RandomNumberGenerator.GetInt32(10, 100)
         };

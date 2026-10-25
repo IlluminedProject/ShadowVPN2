@@ -31,11 +31,11 @@ public class AwgEndpointConfig : EndpointConfig {
 
     [JsonPropertyName("peers")] public List<WireGuardPeer> Peers { get; set; } = new();
 
-    [JsonPropertyName("jc")] public int? Jc { get; set; }
+    [JsonPropertyName("jc")] public uint? Jc { get; set; }
 
-    [JsonPropertyName("jmin")] public int? Jmin { get; set; }
+    [JsonPropertyName("jmin")] public uint? Jmin { get; set; }
 
-    [JsonPropertyName("jmax")] public int? Jmax { get; set; }
+    [JsonPropertyName("jmax")] public uint? Jmax { get; set; }
 
     [JsonPropertyName("s1")] public int? S1 { get; set; }
 

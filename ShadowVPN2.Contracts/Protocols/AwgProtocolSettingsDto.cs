@@ -2,24 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Contracts.Protocols;
 
-public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSettings {
-    public string H1 { get; set; } = "1";
-    public string H2 { get; set; } = "2";
-    public string H3 { get; set; } = "3";
-    public string H4 { get; set; } = "4";
-    public int Jc { get; set; }
-    public int Jmin { get; set; }
-    public int Jmax { get; set; }
-    public int S1 { get; set; }
-    public int S2 { get; set; }
-    public int S3 { get; set; }
-    public int S4 { get; set; }
-    public string? I1 { get; set; }
-    public string? I2 { get; set; }
-    public string? I3 { get; set; }
-    public string? I4 { get; set; }
-    public string? I5 { get; set; }
-
+public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSettings, IAwgSettings {
     [JsonIgnore]
     public bool IsAmneziaWg {
         get => Jc != 0 || Jmin != 0 || Jmax != 0
@@ -29,6 +12,23 @@ public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSet
                || !string.IsNullOrWhiteSpace(I3) || !string.IsNullOrWhiteSpace(I4)
                || !string.IsNullOrWhiteSpace(I5);
     }
+
+    public string H1 { get; set; } = "1";
+    public string H2 { get; set; } = "2";
+    public string H3 { get; set; } = "3";
+    public string H4 { get; set; } = "4";
+    public uint Jc { get; set; }
+    public uint Jmin { get; set; }
+    public uint Jmax { get; set; }
+    public int S1 { get; set; }
+    public int S2 { get; set; }
+    public int S3 { get; set; }
+    public int S4 { get; set; }
+    public string? I1 { get; set; }
+    public string? I2 { get; set; }
+    public string? I3 { get; set; }
+    public string? I4 { get; set; }
+    public string? I5 { get; set; }
 
     public int ListenPort { get; set; }
 }

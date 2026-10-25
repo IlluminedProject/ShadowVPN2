@@ -14,7 +14,8 @@ public sealed class MeshPortValidationTests {
         var configuration = new EntityGlobalConfiguration {
             AwgSettings = new AwgGlobalSettings { ListenPort = new PortBinding(port) },
             Protocols = [
-                new AwgGlobalSettings { Id = Guid.NewGuid(), ListenPort = new PortBinding(port), Jc = amnezia ? 6 : 0 }
+                new AwgGlobalSettings
+                    { Id = Guid.NewGuid(), ListenPort = new PortBinding(port), Jc = amnezia ? 6u : 0u }
             ]
         };
 

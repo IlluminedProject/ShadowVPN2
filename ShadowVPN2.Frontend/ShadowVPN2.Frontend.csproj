@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+    <PackageReference Include="Blazilla" Version="2.4.2"/>
     <PackageReference Include="QRCoder" Version="1.8.1"/>
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
     <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9"/>
