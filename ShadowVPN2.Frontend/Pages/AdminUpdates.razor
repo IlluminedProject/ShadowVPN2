@@ -25,8 +25,8 @@ else
     }
 
     <section class="settings-frame" aria-labelledby="availability-heading">
-        <h2 id="availability-heading">Update availability</h2>
-        <div class="form-actions mb-3">
+        <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+            <h2 id="availability-heading" class="mb-0">Update availability</h2>
             <button class="btn btn-outline-primary" type="button" @onclick="CheckForUpdatesAsync"
                     disabled="@(_checking || _busy)">
                 @(_checking ? "Checking…" : "Check for updates")
