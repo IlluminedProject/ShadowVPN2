@@ -6,5 +6,7 @@ public enum ClusterUpdateNodeStatus {
     Completed = 2,
     Failed = 3,
     Preparing = 4,
-    Prepared = 5
+    Prepared = 5,
+    Skipped = 6,
+    Cancelled = 7
 }
