@@ -77,6 +77,24 @@ public static class ClusterUpdateTransitions {
         return completed;
     }
 
+    public static ClusterUpdateState RecordReconciliationFailure(ClusterUpdateState state, string localTag,
+        string error, int maxAttempts) {
+        var updated = Copy(state);
+        var node = updated.Nodes.First(node => node.NodeTag == localTag);
+        node.ReconciliationFailures++;
+        updated.UpdatedAt = DateTimeOffset.UtcNow;
+        if (node.ReconciliationFailures >= maxAttempts) {
+            node.Status = ClusterUpdateNodeStatus.Failed;
+            node.Error = $"Reconciliation failed after {node.ReconciliationFailures} attempts: {error}";
+            node.CompletedAt = updated.UpdatedAt;
+            updated.Status = ClusterUpdateStatus.Failed;
+            updated.Error = $"Node {localTag}: {node.Error}";
+            FinishRemainingNodes(updated);
+        }
+
+        return updated;
+    }
+
     public static ClusterUpdateResponse ToResponse(ClusterUpdateState state) {
         return new ClusterUpdateResponse {
             Id = state.Id,
@@ -125,6 +143,7 @@ public static class ClusterUpdateTransitions {
                 NodeTag = node.NodeTag,
                 Status = node.Status,
                 Error = node.Error,
+                ReconciliationFailures = node.ReconciliationFailures,
                 ClaimedAt = node.ClaimedAt,
                 CompletedAt = node.CompletedAt
             }).ToList(),

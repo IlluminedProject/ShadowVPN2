@@ -9,6 +9,24 @@ public sealed class ClusterUpdateTransitionsTests {
     private const string Digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     [Fact]
+    public void Reconciliation_failures_survive_transitions_and_fail_only_at_limit() {
+        var state = CreateState("A", "B", "C");
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Completed;
+        state.CurrentNodeIndex = 1;
+        var first = ClusterUpdateTransitions.RecordReconciliationFailure(state, "B", "TLS rejected", 2);
+        first.Status.Should().Be(ClusterUpdateStatus.Running);
+        first.Nodes[1].ReconciliationFailures.Should().Be(1);
+        var claimed = ClusterUpdateTransitions.Claim(first);
+        var failed = ClusterUpdateTransitions.RecordReconciliationFailure(claimed, "B", "TLS rejected", 2);
+        failed.Status.Should().Be(ClusterUpdateStatus.Failed);
+        failed.Nodes[0].Status.Should().Be(ClusterUpdateNodeStatus.Completed);
+        failed.Nodes[1].Status.Should().Be(ClusterUpdateNodeStatus.Failed);
+        failed.Nodes[2].Status.Should().Be(ClusterUpdateNodeStatus.Skipped);
+        failed.Error.Should().Contain("2 attempts").And.Contain("TLS rejected");
+        state.Nodes[1].ReconciliationFailures.Should().Be(0);
+    }
+
+    [Fact]
     public void Claim_is_idempotent_for_current_node_and_rejects_other_nodes() {
         var state = CreateState("NAA", "NAB");
 
