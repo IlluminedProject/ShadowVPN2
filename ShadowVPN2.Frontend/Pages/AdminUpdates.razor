@@ -86,10 +86,13 @@ else
                 <dd><code class="text-break">@_status.ImageDigest</code></dd>
                 <dt>Status</dt>
                 <dd><span class="badge text-bg-secondary">@_status.Status</span></dd>
-                @if (!string.IsNullOrWhiteSpace(_status.CurrentNodeTag))
+                @if (CurrentNode is { } currentNode)
                 {
                     <dt>Current node</dt>
-                    <dd>@_status.CurrentNodeTag</dd>
+                    <dd>
+                        @NodeLabel(currentNode)
+                        <span class="text-body-secondary small">(RavenDB tag: @currentNode.NodeTag)</span>
+                    </dd>
                 }
             </dl>
             @if (!string.IsNullOrWhiteSpace(_status.Error))
@@ -117,7 +120,10 @@ else
                         @foreach (var node in _status.Nodes)
                         {
                             <tr>
-                                <th scope="row">@node.NodeTag</th>
+                                <th scope="row">
+                                    <div>@NodeLabel(node)</div>
+                                    <div class="text-body-secondary small fw-normal">RavenDB tag: @node.NodeTag</div>
+                                </th>
                                 <td>@node.Status</td>
                                 <td>@(node.Error ?? "")</td>
                             </tr>
@@ -340,6 +346,19 @@ else
         }
     }
 
+
+    private ClusterUpdateNodeResponse? CurrentNode => _status?.Status == "Running"
+        ? _status.Nodes.FirstOrDefault(node => node.NodeTag == _status.CurrentNodeTag && node.Status == "Claimed")
+        : null;
+
+    private static string NodeLabel(ClusterUpdateNodeResponse node)
+    {
+        var name = string.IsNullOrWhiteSpace(node.NodeName) ? null : node.NodeName;
+        var address = string.IsNullOrWhiteSpace(node.NodeAddress) ? null : node.NodeAddress;
+        if (name is not null && address is not null && !string.Equals(name, address, StringComparison.OrdinalIgnoreCase))
+            return $"{name} ({address})";
+        return name ?? address ?? "Unknown node";
+    }
     private static bool IsActive(ClusterUpdateResponse? status)
     {
         return status?.Status.Equals("Running", StringComparison.OrdinalIgnoreCase) == true ||
