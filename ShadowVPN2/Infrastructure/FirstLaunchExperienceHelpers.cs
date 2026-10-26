@@ -3,12 +3,10 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.ServerWide.Operations;
 using Serilog;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Models;
@@ -46,8 +44,7 @@ public static class FirstLaunchExperienceHelpers {
     }
 
     public static async Task<(JoinToken Token, ClusterJoinResponse Response, string ConnectedTo)>
-        InitializeFromJoinToken(string joinToken,
-            IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager, IServiceProvider services) {
+        InitializeFromJoinToken(string joinToken, MeshService meshService, IServiceProvider services) {
         var tokenJson = Encoding.UTF8.GetString(Convert.FromBase64String(joinToken));
         var token = JsonSerializer.Deserialize<JoinToken>(tokenJson, DataUtils.DefaultSerializerOptions)
                     ?? throw new InvalidOperationException("Failed to deserialize join token");
@@ -81,7 +78,7 @@ public static class FirstLaunchExperienceHelpers {
                 temporaryCertificatePath.Value, token.NodeNumber, peers, awgPrivateKey,
                 certificate.ExportCertificatePem());
             await BootstrapSingBox(response.NodeNumber, response.AwgSettings, response.AwgPeers,
-                token.Seeds.Select(seed => seed.Address), awgPrivateKey, singBoxOptions, manager);
+                token.Seeds.Select(seed => seed.Address), awgPrivateKey, meshService);
             await ConnectToAnyPeer(response);
             return (token, response, seedAddress);
         }
@@ -166,35 +163,10 @@ public static class FirstLaunchExperienceHelpers {
 
     private static async Task BootstrapSingBox(int nodeNumber, AwgGlobalSettings awgSettings,
         IEnumerable<AwgPeerInfo> peers, IEnumerable<HostAddress> seedAddresses, string awgPrivateKey,
-        IOptions<SingBoxOptions> singBoxOptions, SingBoxProcessManager manager) {
+        MeshService meshService) {
         _logger.Information("Starting bootstrap sing-box for initial cluster connectivity");
 
-        var config = new SingBoxConfig();
-        var nodeIp = $"100.64.0.{nodeNumber + 10}";
-
-        var endpoint = new AwgEndpointConfig {
-            Tag = "awg-mesh-bootstrap",
-            UseIntegratedTun = singBoxOptions.Value.Awg.UseIntegratedTun,
-            Address = [$"{nodeIp}/24"],
-            PrivateKey = awgPrivateKey,
-            ListenPort = awgSettings.ListenPort.ListenPort,
-            Jc = awgSettings.Jc,
-            Jmin = awgSettings.Jmin,
-            Jmax = awgSettings.Jmax,
-            S1 = awgSettings.S1,
-            S2 = awgSettings.S2,
-            S3 = awgSettings.S3,
-            S4 = awgSettings.S4,
-            H1 = awgSettings.H1,
-            H2 = awgSettings.H2,
-            H3 = awgSettings.H3,
-            H4 = awgSettings.H4,
-            I1 = awgSettings.I1,
-            I2 = awgSettings.I2,
-            I3 = awgSettings.I3,
-            I4 = awgSettings.I4,
-            I5 = awgSettings.I5
-        };
+        var meshPeers = new List<WireGuardPeer>();
 
         foreach (var peerInfo in peers) {
             var peerAddress = peerInfo.PublicAddress;
@@ -211,20 +183,10 @@ public static class FirstLaunchExperienceHelpers {
                 PersistentKeepaliveInterval = 25
             };
 
-            endpoint.Peers.Add(peer);
+            meshPeers.Add(peer);
         }
 
-        config.Endpoints.Add(endpoint);
-
-        config.Outbounds.Add(new DirectOutboundConfig {
-            Tag = "direct"
-        });
-
-        config.Log.Level = "info";
-
-        var serializedConfig = JsonSerializer.Serialize(config, SingBoxService.SerializerOptions);
-        await manager.ApplyConfigAsync(serializedConfig);
-        manager.Start();
+        await meshService.BootstrapAsync(nodeNumber, awgPrivateKey, awgSettings, meshPeers, CancellationToken.None);
     }
 
 

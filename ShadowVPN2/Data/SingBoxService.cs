@@ -18,7 +18,7 @@ public class SingBoxService(
     IEnumerable<ISingBoxConfigContributor> contributors,
     GlobalConfigurationService globalConfigurationService,
     ManagedCertificateService managedCertificateService,
-    SingBoxProcessManager singBoxProcessManager,
+    SingBoxProcessManager processManager,
     IEnumerable<ISingBoxExtension> extensions,
     IHostApplicationLifetime applicationLifetime)
     : BackgroundService {
@@ -29,20 +29,23 @@ public class SingBoxService(
         WriteIndented = true
     };
 
-    private readonly SemaphoreSlim configurationGate = new(1, 1);
-    private readonly ISingBoxExtension[] extensions = extensions.ToArray();
-    private volatile bool stopping;
+    private readonly SemaphoreSlim _configurationGate = new(1, 1);
+    private readonly ISingBoxExtension[] _extensions = extensions.ToArray();
+    private readonly CancellationTokenSource _lifetime = new();
+
+    private readonly SingBoxProcessHandle _process = processManager.Create("proxy");
+    private int _disposed;
+    private volatile bool _stopping;
 
     public bool IsRunning {
-        get => singBoxProcessManager.IsRunning;
+        get => _process.IsRunning;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         logger.LogInformation("SingBoxService starting");
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var registration = applicationLifetime.ApplicationStarted.Register(() => started.TrySetResult());
+        await using var registration = applicationLifetime.ApplicationStarted.Register(() => started.TrySetResult());
         await started.Task.WaitAsync(stoppingToken);
-        await RegenerateAndApplyConfigAsync(stoppingToken);
 
         // Subscribe to changes
         globalConfigurationService.ConfigurationChanged += OnConfigurationChanged;
@@ -55,19 +58,10 @@ public class SingBoxService(
                 _ = RegenerateInBackgroundAsync();
             }));
 
-        using var nodesSubscription = documentStore.Changes()
-            .ForDocumentsInCollection<EntityClusterNode>()
-            .Subscribe(new ActionObserver<DocumentChange>(change => {
-                logger.LogInformation("Nodes collection changed, regenerating sing-box config");
-                _ = RegenerateInBackgroundAsync();
-            }));
 
-        while (!stopping && !stoppingToken.IsCancellationRequested) {
-            singBoxProcessManager.Start();
-            await singBoxProcessManager.WaitForExitAsync(stoppingToken);
-            // TODO Proper delays and exit handling
-            await Task.Delay(3000, stoppingToken);
-        }
+        await RegenerateInBackgroundAsync();
+
+        await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
     private void OnConfigurationChanged(object? sender, EntityGlobalConfiguration e) {
@@ -90,9 +84,11 @@ public class SingBoxService(
     }
 
     public async Task RegenerateAndApplyConfigAsync(CancellationToken ct) {
-        await configurationGate.WaitAsync(ct);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+        ct = cancellation.Token;
+        await _configurationGate.WaitAsync(ct);
         try {
-            if (stopping) return;
+            if (_stopping) return;
             logger.LogInformation("Regenerating sing-box configuration");
             var configuration = await globalConfigurationService.GetAsync(ct);
             var protocols = configuration.Protocols;
@@ -103,35 +99,52 @@ public class SingBoxService(
             config.Log.Level = "debug";
             foreach (var contributor in contributors) await contributor.ContributeAsync(config, protocols, clients);
             var context = new SingBoxContext(config, clients, protocols, configuration.Transports);
-            foreach (var extension in extensions) await extension.ConfigureAsync(context, ct);
+            foreach (var extension in _extensions) await extension.ConfigureAsync(context, ct);
 
             var configJson = JsonSerializer.Serialize(config, SerializerOptions);
-            await singBoxProcessManager.ApplyConfigAsync(configJson);
-            foreach (var extension in extensions) await extension.ApplyAsync(context, ct);
+            await _process.ApplyConfigAsync(configJson, ct);
+            foreach (var extension in _extensions) await extension.ApplyAsync(context, ct);
         }
         finally {
-            configurationGate.Release();
+            _configurationGate.Release();
         }
     }
 
+
     public override async Task StopAsync(CancellationToken cancellationToken) {
-        stopping = true;
+        _stopping = true;
+        _lifetime.Cancel();
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
-        await configurationGate.WaitAsync(CancellationToken.None);
-        configurationGate.Release();
+        await _configurationGate.WaitAsync(CancellationToken.None);
+        _configurationGate.Release();
         try {
             await base.StopAsync(cancellationToken);
         }
         finally {
-            singBoxProcessManager.Stop();
+            await _process.DisposeAsync();
         }
     }
 
     public override void Dispose() {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        _stopping = true;
+        _lifetime.Cancel();
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
-        singBoxProcessManager.Dispose();
-        base.Dispose();
+        try {
+            base.Dispose();
+        }
+        finally {
+            _configurationGate.Wait();
+            try {
+                _process.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            finally {
+                _configurationGate.Release();
+            }
+        }
     }
 }

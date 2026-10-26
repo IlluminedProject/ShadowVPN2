@@ -97,6 +97,8 @@ public static class ApplicationServices {
         builder.Services.AddSingleton(_ => new LookupClient(new LookupClientOptions { ThrowDnsErrors = true }));
         builder.Services.AddSingleton<DomainValidationService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
+        builder.Services.AddSingleton<MeshService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<MeshService>());
         builder.Services.AddSingleton<ISingBoxExtension, RemoveEmptyInboundsExtension>();
         builder.Services.AddSingleton<NaiveProxySharedPortExtension>();
         builder.Services.AddSingleton<ISingBoxExtension>(sp => sp.GetRequiredService<NaiveProxySharedPortExtension>());
@@ -107,7 +109,6 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, DefaultOutboundContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, NaiveProxyConfigContributor>();
-        builder.Services.AddSingleton<ISingBoxConfigContributor, AwgMeshConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddSingleton<ClusterUpdateService>();

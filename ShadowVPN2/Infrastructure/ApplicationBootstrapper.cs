@@ -11,8 +11,7 @@ namespace ShadowVPN2.Infrastructure;
 public sealed class ApplicationBootstrapper(
     IConfiguration configuration,
     IOptions<LocalConfiguration> localConfigurationOptions,
-    IOptions<SingBoxOptions> singBoxOptions,
-    SingBoxProcessManager singBoxProcessManager,
+    MeshService meshService,
     IServiceProvider services,
     ILogger<ApplicationBootstrapper> logger) {
     public async Task InitializeAsync() {
@@ -20,13 +19,12 @@ public sealed class ApplicationBootstrapper(
         var joinToken = configuration["JoinToken"];
         var firstLaunch = FirstLaunchExperienceHelpers.IsFirstLaunch();
         if (firstLaunch && !string.IsNullOrEmpty(joinToken)) {
-            var join = await FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken,
-                singBoxOptions, singBoxProcessManager, services);
+            var join = await FirstLaunchExperienceHelpers.InitializeFromJoinToken(joinToken, meshService, services);
 
             logger.LogInformation("Completing cluster join");
             await FirstLaunchExperienceHelpers.CompleteJoinAsync(join.Token, join.Response, join.ConnectedTo,
                 services.GetRequiredService<IDocumentStore>(), services);
-            await RunMigrationsAsync(false);
+            await RunMigrationsAsync();
             return;
         }
 
@@ -35,19 +33,11 @@ public sealed class ApplicationBootstrapper(
 
         localConfigurationOptions.Value.CopyFrom(await LocalConfiguration.LoadAsync());
         await PeerCertificateTrustService.RestoreRootStoreAsync();
-        await RunMigrationsAsync(!firstLaunch);
+        await meshService.InitializeFromDatabaseAsync(CancellationToken.None);
+        await RunMigrationsAsync();
     }
 
-    private async Task RunMigrationsAsync(bool startSavedMesh) {
-        if (startSavedMesh) {
-            logger.LogInformation("Starting saved mesh configuration before RavenDB initialization");
-            singBoxProcessManager.Start();
-            if (!singBoxProcessManager.IsRunning) {
-                throw new InvalidOperationException(
-                    "Cannot initialize RavenDB: the saved sing-box configuration is unavailable");
-            }
-        }
-
+    private async Task RunMigrationsAsync() {
         var runner = services.GetRequiredService<RavenMigrationRunner>();
         var cancellationToken = services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping;
         if (!await runner.HasPendingMigrationsAsync(cancellationToken))
