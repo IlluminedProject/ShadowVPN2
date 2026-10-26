@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Polly.Registry;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -12,8 +13,12 @@ public sealed class ClusterUpdateCoordinator(
     ClusterUpdateService updateService,
     IDocumentStore documentStore,
     IOptions<UpdaterOptions> options,
+    ResiliencePipelineProvider<string> resiliencePipelines,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private (Guid UpdateId, string NodeTag, string Error)? _pendingFailure;
+    private (Guid UpdateId, string NodeTag)? _activeNode;
+
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         // Reconcile retained socket state after app replacement and retry transient RavenDB/socket outages.
@@ -21,15 +26,24 @@ public sealed class ClusterUpdateCoordinator(
         try {
             do {
                 try {
-                    await ReconcileAsync(stoppingToken);
-                    await updateService.ArchiveCompletedAsync(stoppingToken);
+                    await resiliencePipelines.GetPipeline("cluster-update").ExecuteAsync(async token => {
+                        try {
+                            await ReconcileAsync(token);
+                            await updateService.ArchiveCompletedAsync(token);
+                        }
+                        catch (Exception exception) when (!stoppingToken.IsCancellationRequested) {
+                            if (_activeNode is { } active && _pendingFailure is null)
+                                _pendingFailure = (active.UpdateId, active.NodeTag, exception.GetBaseException().Message);
+                            throw;
+                        }
+                    }, stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
                     break;
                 }
                 catch (Exception exception) {
-                    logger.LogWarning(exception,
-                        "Cluster update reconciliation failed using socket {SocketPath}", options.Value.SocketPath);
+                    logger.LogError(exception,
+                        "Cluster update reconciliation retry pipeline exhausted its attempts");
                 }
             } while (await timer.WaitForNextTickAsync(stoppingToken));
         }
@@ -38,19 +52,29 @@ public sealed class ClusterUpdateCoordinator(
     }
 
     private async Task ReconcileAsync(CancellationToken cancellationToken) {
+        if (_pendingFailure is { } failure) {
+            await updateService.RecordReconciliationFailureAsync(failure.UpdateId, failure.NodeTag,
+                failure.Error, 5, cancellationToken);
+            _pendingFailure = null;
+        }
         var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
             cancellationToken);
         var localTag = topology.NodeTag;
         var update = await updateService.GetAsync(cancellationToken);
-        if (update is null) return;
+        if (update is null) {
+            _activeNode = null;
+            return;
+        }
+        _activeNode = update.Status == "Preparing" && update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Preparing") ||
+            update.Status == "Running" && update.CurrentNodeTag == localTag ? (update.Id, localTag) : null;
         if (update.Status == "Preparing") {
             var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
             if (localNode?.Status == "Preparing") {
                 var prepared = await SendAsync("prepare", update, cancellationToken);
-                if (Matches(update, prepared) && prepared.Status is "Prepared" or "Succeeded" or "Failed") {
-                    await updateService.PrepareLocalAsync(localTag, update.Id,
-                        prepared.Status is "Prepared" or "Succeeded", prepared.Error, cancellationToken);
-                }
+                if (!Matches(update, prepared) || prepared.Status is not ("Prepared" or "Succeeded" or "Failed"))
+                    throw new InvalidOperationException($"Updater did not prepare update {update.Id}: {prepared.Status}; {prepared.Error}");
+                await updateService.PrepareLocalAsync(localTag, update.Id,
+                    prepared.Status is "Prepared" or "Succeeded", prepared.Error, cancellationToken);
             }
 
             return;
@@ -58,7 +82,11 @@ public sealed class ClusterUpdateCoordinator(
 
         if (update.Status != "Running" || update.CurrentNodeTag != localTag)
             return;
+        await ReconcileNodeAsync(update, localTag, topology, cancellationToken);
+    }
 
+    private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,
+        Raven.Client.Http.ClusterTopologyResponse topology, CancellationToken cancellationToken) {
         var status = await SendAsync("status", update, cancellationToken);
         var ownsStep = update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Claimed");
         if (ownsStep && await CompleteAsync(update, localTag, status, cancellationToken))
@@ -68,7 +96,7 @@ public sealed class ClusterUpdateCoordinator(
 
         var claimed = await updateService.ClaimLocalAsync(localTag, topology, cancellationToken);
         if (claimed is null)
-            return;
+            throw new InvalidOperationException("Cannot claim update step: RavenDB restart quorum is unavailable");
 
         // The compare-exchange claim may observe a newer rollout than the initial read.
         if (claimed.Id != update.Id || claimed.ImageDigest != update.ImageDigest)
@@ -76,12 +104,9 @@ public sealed class ClusterUpdateCoordinator(
         if (await CompleteAsync(claimed, localTag, status, cancellationToken))
             return;
         if (Matches(claimed, status) && status.Status != "Prepared")
-            return;
+            throw new InvalidOperationException($"Updater returned unexpected status {status.Status}");
         if (status.Status == "Running") {
-            logger.LogWarning(
-                "Updater is running operation {UpdaterUpdateId} for digest {UpdaterImageDigest} while node {NodeTag} owns update {UpdateId}",
-                status.UpdateId, status.ImageDigest, localTag, claimed.Id);
-            return;
+            throw new InvalidOperationException($"Updater is running another operation {status.UpdateId}");
         }
 
         var started = await SendAsync("start", claimed, cancellationToken);
@@ -92,9 +117,7 @@ public sealed class ClusterUpdateCoordinator(
                 claimed.Id, localTag, claimed.ImageDigest);
         }
         else {
-            logger.LogWarning(
-                "Updater did not accept update {UpdateId} for node {NodeTag}; returned operation {UpdaterUpdateId} with status {UpdaterStatus}",
-                claimed.Id, localTag, started.UpdateId, started.Status);
+            throw new InvalidOperationException($"Updater did not accept update {claimed.Id}: {started.Status}; {started.Error}");
         }
     }
 

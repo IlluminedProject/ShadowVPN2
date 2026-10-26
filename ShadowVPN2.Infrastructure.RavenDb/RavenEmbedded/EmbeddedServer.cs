@@ -3,6 +3,8 @@
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Security;
 using System.Runtime.Loader;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -87,15 +89,8 @@ public sealed class EmbeddedServer : IDisposable {
         if (options.Security != null) {
             try {
                 var thumbprint = options.Security.ServerCertificateThumbprint;
-                RequestExecutor.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) => {
-#if NET6_0_OR_GREATER
-                    if (certificate == null)
-                        return false;
-#endif
-                    var certificate2 = certificate as X509Certificate2 ??
-                                       X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
-                    return certificate2.Thumbprint == thumbprint;
-                };
+                RequestExecutor.RemoteCertificateValidationCallback += (sender, certificate, chain, errors) =>
+                    ValidateServerCertificate(sender, certificate, errors, thumbprint);
             }
             catch (NotSupportedException) {
                 // not supported on Mono
@@ -107,6 +102,25 @@ public sealed class EmbeddedServer : IDisposable {
 
         var task = StartServerInternalAsync();
         GC.KeepAlive(task); // make sure that we aren't allowing to elide the call
+    }
+
+    private static bool ValidateServerCertificate(object sender, X509Certificate? certificate,
+        SslPolicyErrors errors, string? localThumbprint) {
+        if (certificate == null || (errors & SslPolicyErrors.RemoteCertificateNotAvailable) != 0)
+            return false;
+
+        // RavenDB invokes registered callbacks even when platform trust and hostname validation succeed.
+        // Peer certificates are synchronized into the current user's root store as membership changes.
+        if (errors == SslPolicyErrors.None)
+            return true;
+
+        // The embedded endpoint uses loopback while its certificate identifies the mesh address.
+        // Limit this exception to an identifiable loopback target and the exact local certificate.
+        var hostname = RequestExecutor.ConvertSenderObjectToHostname(sender);
+        var isLoopback = string.Equals(hostname, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                         (IPAddress.TryParse(hostname, out var address) && IPAddress.IsLoopback(address));
+        return isLoopback && string.Equals(certificate.GetCertHashString(), localThumbprint,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task StopServerAsync(CancellationToken forceServerKillToken = default) {

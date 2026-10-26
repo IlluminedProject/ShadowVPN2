@@ -13,6 +13,24 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     private const string HistoryPrefix = "ShadowVPN2/ClusterUpdate/History/";
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
+    public async Task RecordReconciliationFailureAsync(Guid updateId, string localTag, string error,
+        int maxAttempts, CancellationToken cancellationToken) {
+        while (true) {
+            var current = await documentStore.Operations.SendAsync(
+                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
+            if (current?.Value is not { } state || state.Id != updateId ||
+                state.Status is not (ClusterUpdateStatus.Preparing or ClusterUpdateStatus.Running)) return;
+            var node = state.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
+            if (node is null || node.Status is not (ClusterUpdateNodeStatus.Preparing or
+                ClusterUpdateNodeStatus.Prepared or ClusterUpdateNodeStatus.Pending or ClusterUpdateNodeStatus.Claimed)) return;
+            var updated = ClusterUpdateTransitions.RecordReconciliationFailure(state, localTag, error, maxAttempts);
+            var result = await documentStore.Operations.SendAsync(
+                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
+                token: cancellationToken);
+            if (result.Successful) return;
+        }
+    }
+
     public async Task<ClusterUpdateResponse> StartAsync(StartClusterUpdateRequest request,
         ClusterTopologyResponse topology, string localNodeTag, CancellationToken cancellationToken) {
         if (!UpdateSafetyPolicy.AllowsRollingUpdate(request.BackwardCompatible)) {
@@ -211,7 +229,12 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             using var leaderStore = new DocumentStore();
             leaderStore.Urls = [leaderUrl];
             leaderStore.Certificate = documentStore.Certificate;
-            leaderStore.Conventions = documentStore.Conventions.Clone();
+            leaderStore.Conventions = new Raven.Client.Documents.Conventions.DocumentConventions {
+                DisableTopologyUpdates = true,
+                DisposeCertificate = false,
+                CreateHttpClient = documentStore.Conventions.CreateHttpClient,
+                HttpClientType = documentStore.Conventions.HttpClientType
+            };
             leaderStore.Initialize();
             leaderTopology = await leaderStore.Maintenance.Server
                 .SendAsync(new GetClusterTopologyOperation(), cancellationToken);

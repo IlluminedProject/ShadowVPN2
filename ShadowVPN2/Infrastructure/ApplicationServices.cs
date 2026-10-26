@@ -1,6 +1,8 @@
 using DnsClient;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Polly;
+using Polly.Retry;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
@@ -29,6 +31,9 @@ public static class ApplicationServices {
         builder.Services.AddOptions<FreeTurnOptions>().BindConfiguration("FreeTurn");
         builder.Services.AddOptions<LocalConfiguration>();
         builder.Services.AddOptions<UpdaterOptions>().BindConfiguration("Updater");
+        builder.Services.AddResiliencePipeline("cluster-update", pipeline => pipeline
+            .AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 5, Delay = TimeSpan.FromSeconds(5), BackoffType = DelayBackoffType.Linear })
+            .AddTimeout(TimeSpan.FromSeconds(30)));
         builder.Services.AddSingleton<JoinStartupState>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
         builder.Services.AddSingleton<ManagedCertificateService>();
