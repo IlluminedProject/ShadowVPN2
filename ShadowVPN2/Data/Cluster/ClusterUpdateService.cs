@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations.CompareExchange;
 using Raven.Client.Http;
+using Raven.Client.Exceptions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Exceptions;
 
@@ -23,7 +24,19 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             throw new ArgumentException("ImageDigest must be a lowercase sha256 digest", nameof(request));
 
         var votingMembers = topology.Topology.Members;
-        var connectedMembers = await GetConnectedMembersAsync(topology, cancellationToken);
+        int connectedMembers;
+        try {
+            connectedMembers = await GetConnectedMembersAsync(topology, cancellationToken);
+        }
+        catch (Exception exception) when (
+            !cancellationToken.IsCancellationRequested &&
+            exception is HttpRequestException or TimeoutException or
+                OperationCanceledException or AllTopologyNodesDownException
+                or RavenException { InnerException: HttpRequestException or TimeoutException }) {
+            throw new AppException(StatusCodes.Status409Conflict,
+                $"Cannot start cluster update: RavenDB leader '{topology.Leader}' is unreachable");
+        }
+
         if (!HasQuorum(votingMembers.Count, connectedMembers))
             throw new AppException(StatusCodes.Status409Conflict, "RavenDB voting quorum is unavailable");
 
@@ -192,10 +205,18 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     private async Task<int> GetConnectedMembersAsync(ClusterTopologyResponse topology,
         CancellationToken cancellationToken) {
         if (string.IsNullOrEmpty(topology.Leader)) return 0;
-        var leaderTopology = topology.NodeTag == topology.Leader
-            ? topology
-            : await documentStore.Maintenance.Server.ForNode(topology.Leader)
+        var leaderTopology = topology;
+        if (topology.NodeTag != topology.Leader) {
+            if (!topology.Topology.Members.TryGetValue(topology.Leader, out var leaderUrl)) return 0;
+            using var leaderStore = new DocumentStore();
+            leaderStore.Urls = [leaderUrl];
+            leaderStore.Certificate = documentStore.Certificate;
+            leaderStore.Conventions = documentStore.Conventions.Clone();
+            leaderStore.Initialize();
+            leaderTopology = await leaderStore.Maintenance.Server
                 .SendAsync(new GetClusterTopologyOperation(), cancellationToken);
+        }
+
         if (leaderTopology.NodeTag != leaderTopology.Leader) return 0;
         return topology.Topology.Members.Keys.Count(tag =>
             leaderTopology.Topology.Members.ContainsKey(tag) &&
@@ -206,5 +227,4 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     internal static bool HasQuorum(int members, int connected) {
         return members > 0 && connected >= members / 2 + 1;
     }
-
 }
