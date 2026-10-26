@@ -52,14 +52,14 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             token: cancellationToken);
         if (!result.Successful)
             throw new AppException(StatusCodes.Status409Conflict, "Another cluster update was started concurrently");
-        return Map(state);
+        return ClusterUpdateTransitions.ToResponse(state);
     }
 
     public async Task<ClusterUpdateResponse?> GetAsync(CancellationToken cancellationToken) {
         var result = await documentStore.Operations.SendAsync(
             new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
         if (result?.Value is not { } state) return null;
-        return Map(state);
+        return ClusterUpdateTransitions.ToResponse(state);
     }
 
     public async Task<IReadOnlyList<ApplicationUpdateHistoryResponse>> GetHistoryAsync(
@@ -109,22 +109,12 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                 return null;
             var node = state.Nodes.FirstOrDefault(x => x.NodeTag == localTag);
             if (node is null) return null;
-            var updated = Copy(state);
-            var updatedNode = updated.Nodes.First(x => x.NodeTag == localTag);
-            updatedNode.Status = succeeded ? ClusterUpdateNodeStatus.Prepared : ClusterUpdateNodeStatus.Failed;
-            updatedNode.Error = succeeded ? null : error ?? "Image preparation failed";
-            updated.UpdatedAt = DateTimeOffset.UtcNow;
-            if (!succeeded) {
-                updated.Status = ClusterUpdateStatus.Failed;
-                updated.Error = updatedNode.Error;
-            }
-            else if (updated.Nodes.All(x => x.Status == ClusterUpdateNodeStatus.Prepared))
-                updated.Status = ClusterUpdateStatus.Running;
+            var updated = ClusterUpdateTransitions.Prepare(state, localTag, succeeded, error);
 
             var result = await documentStore.Operations.SendAsync(
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
                 token: cancellationToken);
-            if (result.Successful) return Map(updated);
+            if (result.Successful) return ClusterUpdateTransitions.ToResponse(updated);
         }
     }
 
@@ -145,13 +135,13 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                 return null;
 
             if (state.Nodes[state.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Claimed)
-                return Map(state);
+                return ClusterUpdateTransitions.ToResponse(state);
             var claimed = ClusterUpdateTransitions.Claim(state);
             var result = await documentStore.Operations.SendAsync(
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, claimed, current.Index),
                 token: cancellationToken);
             if (result.Successful)
-                return Map(claimed);
+                return ClusterUpdateTransitions.ToResponse(claimed);
         }
     }
 
@@ -172,7 +162,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
                 token: cancellationToken);
             if (result.Successful) {
-                return Map(updated);
+                return ClusterUpdateTransitions.ToResponse(updated);
             }
         }
     }
@@ -184,19 +174,17 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             if (current?.Value is not { } state || state.Id != id)
                 throw new KeyNotFoundException("Cluster update not found");
             if (state.Status is not (ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing))
-                return Map(state);
+                return ClusterUpdateTransitions.ToResponse(state);
             if (state.Nodes.Any(node => node.Status == ClusterUpdateNodeStatus.Claimed))
                 throw new AppException(StatusCodes.Status409Conflict,
                     "Cannot cancel while a node update is in progress");
 
-            var cancelled = Copy(state);
-            cancelled.Status = ClusterUpdateStatus.Cancelled;
-            cancelled.UpdatedAt = DateTimeOffset.UtcNow;
+            var cancelled = ClusterUpdateTransitions.Cancel(state);
             var result = await documentStore.Operations.SendAsync(
                 new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, cancelled, current.Index),
                 token: cancellationToken);
             if (result.Successful) {
-                return Map(cancelled);
+                return ClusterUpdateTransitions.ToResponse(cancelled);
             }
         }
     }
@@ -219,39 +207,4 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
         return members > 0 && connected >= members / 2 + 1;
     }
 
-    private static ClusterUpdateState Copy(ClusterUpdateState state) {
-        return new ClusterUpdateState {
-            Id = state.Id,
-            ImageDigest = state.ImageDigest,
-            Nodes = state.Nodes.Select(node => new ClusterUpdateNodeState {
-                NodeTag = node.NodeTag,
-                Status = node.Status,
-                Error = node.Error,
-                ClaimedAt = node.ClaimedAt,
-                CompletedAt = node.CompletedAt
-            }).ToList(),
-            CurrentNodeIndex = state.CurrentNodeIndex,
-            Status = state.Status,
-            Error = state.Error,
-            StartedAt = state.StartedAt,
-            UpdatedAt = state.UpdatedAt
-        };
-    }
-
-    private static ClusterUpdateResponse Map(ClusterUpdateState state) {
-        return new ClusterUpdateResponse {
-            Id = state.Id,
-            ImageDigest = state.ImageDigest,
-            Status = state.Status.ToString(),
-            Nodes = state.Nodes.Select(node => new ClusterUpdateNodeResponse {
-                NodeTag = node.NodeTag,
-                Status = node.Status.ToString(),
-                Error = node.Error
-            }).ToArray(),
-            CurrentNodeTag = state.CurrentNodeIndex < state.Nodes.Count
-                ? state.Nodes[state.CurrentNodeIndex].NodeTag
-                : null,
-            Error = state.Error
-        };
-    }
 }
