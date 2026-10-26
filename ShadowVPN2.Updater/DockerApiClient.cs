@@ -23,7 +23,7 @@ public sealed class DockerApiClient : IDisposable {
             }
         };
         _http = new HttpClient(handler)
-            { BaseAddress = new Uri("http://localhost/v1.41/"), Timeout = Timeout.InfiniteTimeSpan };
+            { BaseAddress = new Uri("http://localhost/"), Timeout = Timeout.InfiniteTimeSpan };
     }
 
     public void Dispose() {
