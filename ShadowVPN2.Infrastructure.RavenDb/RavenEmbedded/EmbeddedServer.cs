@@ -10,7 +10,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Conventions;
+using Raven.Client.Documents.Operations;
 using Raven.Client.Exceptions;
+using Raven.Client.Exceptions.Database;
 using Raven.Client.Extensions;
 using Raven.Client.Http;
 using Raven.Client.ServerWide.Operations;
@@ -206,6 +208,14 @@ public sealed class EmbeddedServer : IDisposable {
     }
 
     private async Task TryCreateDatabase(DatabaseOptions options, IDocumentStore store, CancellationToken token) {
+        try {
+            await store.Maintenance.SendAsync(new GetStatisticsOperation(), token).ConfigureAwait(false);
+            return;
+        }
+        catch (DatabaseDoesNotExistException) {
+            // Only a missing database requires a cluster write and an available leader.
+        }
+
         try {
             await store.Maintenance.Server.SendAsync(new CreateDatabaseOperation(options.DatabaseRecord), token)
                 .ConfigureAwait(false);

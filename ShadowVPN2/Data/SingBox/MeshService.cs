@@ -132,7 +132,8 @@ public sealed class MeshService(
         using var session = documentStore.OpenAsyncSession();
         var global = await session.LoadAsync<EntityGlobalConfiguration>(
             EntityGlobalConfiguration.ConfigurationDocumentId, ct);
-        var nodes = await session.Query<EntityClusterNode>().ToListAsync(ct);
+        var nodes = await session.Advanced
+            .LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/", pageSize: int.MaxValue, token: ct);
         var localNode = nodes.FirstOrDefault(node => node.NodeId == local.NodeId);
         var nodeNumber = localNode?.Number ?? local.NodeNumber;
         var peers = new List<WireGuardPeer>();
