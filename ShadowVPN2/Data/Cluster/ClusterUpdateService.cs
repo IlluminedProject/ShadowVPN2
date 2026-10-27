@@ -1,33 +1,42 @@
 using System.Text.RegularExpressions;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Conventions;
 using Raven.Client.Documents.Operations.CompareExchange;
-using Raven.Client.Http;
+using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
+using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Exceptions;
+using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
 namespace ShadowVPN2.Data.Cluster;
 
 public sealed class ClusterUpdateService(IDocumentStore documentStore) {
-    private const string StateKey = "ShadowVPN2/ClusterUpdate/State";
     private const string HistoryPrefix = "ShadowVPN2/ClusterUpdate/History/";
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
     public async Task RecordReconciliationFailureAsync(Guid updateId, string localTag, string error,
         int maxAttempts, CancellationToken cancellationToken) {
         while (true) {
-            var current = await documentStore.Operations.SendAsync(
-                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-            if (current?.Value is not { } state || state.Id != updateId ||
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != updateId ||
                 state.Status is not (ClusterUpdateStatus.Preparing or ClusterUpdateStatus.Running)) return;
             var node = state.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
             if (node is null || node.Status is not (ClusterUpdateNodeStatus.Preparing or
-                ClusterUpdateNodeStatus.Prepared or ClusterUpdateNodeStatus.Pending or ClusterUpdateNodeStatus.Claimed)) return;
+                    ClusterUpdateNodeStatus.Prepared or ClusterUpdateNodeStatus.Pending
+                    or ClusterUpdateNodeStatus.Claimed)) return;
             var updated = ClusterUpdateTransitions.RecordReconciliationFailure(state, localTag, error, maxAttempts);
-            var result = await documentStore.Operations.SendAsync(
-                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
-                token: cancellationToken);
-            if (result.Successful) return;
+            current.State = updated;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (ConcurrencyException) {
+            }
         }
     }
 
@@ -62,11 +71,14 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
         if (!orderedMembers.Contains(localNodeTag, StringComparer.Ordinal))
             throw new AppException(StatusCodes.Status409Conflict, "Local RavenDB node is not a voting member");
 
-        var current = await documentStore.Operations.SendAsync(
-            new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-        if (current?.Value?.Status is ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing)
+        using var session = documentStore.OpenAsyncSession(new SessionOptions {
+            TransactionMode = TransactionMode.ClusterWide
+        });
+        var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+            cancellationToken);
+        if (current?.State.Status is ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing)
             throw new AppException(StatusCodes.Status409Conflict, "A cluster update is already active");
-        if (current?.Value is { } previous)
+        if (current?.State is { } previous)
             await RecordHistoryAsync(previous, cancellationToken);
 
         var state = new ClusterUpdateState {
@@ -78,18 +90,29 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             StartedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
-        var result = await documentStore.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, state, current?.Index ?? 0),
-            token: cancellationToken);
-        if (!result.Successful)
+        if (current is null) {
+            await session.StoreAsync(new ClusterUpdateDocument { State = state }, ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+        }
+        else {
+            current.State = state;
+        }
+
+        try {
+            await session.SaveChangesAsync(cancellationToken);
+        }
+        catch (ConcurrencyException) {
             throw new AppException(StatusCodes.Status409Conflict, "Another cluster update was started concurrently");
+        }
+
         return ClusterUpdateTransitions.ToResponse(state);
     }
 
     public async Task<ClusterUpdateResponse?> GetAsync(CancellationToken cancellationToken) {
-        var result = await documentStore.Operations.SendAsync(
-            new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-        if (result?.Value is not { } state) return null;
+        using var session = documentStore.OpenAsyncSession();
+        var result = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+            cancellationToken);
+        if (result?.State is not { } state) return null;
         return ClusterUpdateTransitions.ToResponse(state);
     }
 
@@ -108,9 +131,10 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     }
 
     public async Task ArchiveCompletedAsync(CancellationToken cancellationToken) {
-        var current = await documentStore.Operations.SendAsync(
-            new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-        if (current?.Value is { } state)
+        using var session = documentStore.OpenAsyncSession();
+        var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+            cancellationToken);
+        if (current?.State is { } state)
             await RecordHistoryAsync(state, cancellationToken);
     }
 
@@ -133,28 +157,37 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
     public async Task<ClusterUpdateResponse?> PrepareLocalAsync(string localTag, Guid updateId, bool succeeded,
         string? error, CancellationToken cancellationToken) {
         while (true) {
-            var current = await documentStore.Operations.SendAsync(
-                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-            if (current?.Value is not { } state || state.Id != updateId ||
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != updateId ||
                 state.Status != ClusterUpdateStatus.Preparing)
                 return null;
             var node = state.Nodes.FirstOrDefault(x => x.NodeTag == localTag);
             if (node is null) return null;
             var updated = ClusterUpdateTransitions.Prepare(state, localTag, succeeded, error);
 
-            var result = await documentStore.Operations.SendAsync(
-                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
-                token: cancellationToken);
-            if (result.Successful) return ClusterUpdateTransitions.ToResponse(updated);
+            current.State = updated;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
+                return ClusterUpdateTransitions.ToResponse(updated);
+            }
+            catch (ConcurrencyException) {
+            }
         }
     }
 
     public async Task<ClusterUpdateResponse?> ClaimLocalAsync(string localTag, ClusterTopologyResponse topology,
         CancellationToken cancellationToken) {
         while (true) {
-            var current = await documentStore.Operations.SendAsync(
-                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-            if (current?.Value is not { Status: ClusterUpdateStatus.Running } state ||
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { Status: ClusterUpdateStatus.Running } state ||
                 !ClusterUpdateTransitions.IsClaimable(state, localTag))
                 return null;
 
@@ -168,20 +201,25 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             if (state.Nodes[state.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Claimed)
                 return ClusterUpdateTransitions.ToResponse(state);
             var claimed = ClusterUpdateTransitions.Claim(state);
-            var result = await documentStore.Operations.SendAsync(
-                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, claimed, current.Index),
-                token: cancellationToken);
-            if (result.Successful)
+            current.State = claimed;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
                 return ClusterUpdateTransitions.ToResponse(claimed);
+            }
+            catch (ConcurrencyException) {
+            }
         }
     }
 
     public async Task<ClusterUpdateResponse> CompleteLocalAsync(string localTag,
         CompleteClusterUpdateRequest request, CancellationToken cancellationToken) {
         while (true) {
-            var current = await documentStore.Operations.SendAsync(
-                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-            if (current?.Value is not { } state || state.Id != request.UpdateId ||
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != request.UpdateId ||
                 state.CurrentNodeIndex >= state.Nodes.Count ||
                 state.Nodes[state.CurrentNodeIndex].NodeTag != localTag ||
                 state.Nodes[state.CurrentNodeIndex].Status != ClusterUpdateNodeStatus.Claimed)
@@ -189,20 +227,24 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
 
             var updated = ClusterUpdateTransitions.Complete(state, request);
 
-            var result = await documentStore.Operations.SendAsync(
-                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, updated, current.Index),
-                token: cancellationToken);
-            if (result.Successful) {
+            current.State = updated;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
                 return ClusterUpdateTransitions.ToResponse(updated);
+            }
+            catch (ConcurrencyException) {
             }
         }
     }
 
     public async Task<ClusterUpdateResponse> CancelAsync(Guid id, CancellationToken cancellationToken) {
         while (true) {
-            var current = await documentStore.Operations.SendAsync(
-                new GetCompareExchangeValueOperation<ClusterUpdateState>(StateKey), token: cancellationToken);
-            if (current?.Value is not { } state || state.Id != id)
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != id)
                 throw new KeyNotFoundException("Cluster update not found");
             if (state.Status is not (ClusterUpdateStatus.Running or ClusterUpdateStatus.Preparing))
                 return ClusterUpdateTransitions.ToResponse(state);
@@ -211,11 +253,12 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
                     "Cannot cancel while a node update is in progress");
 
             var cancelled = ClusterUpdateTransitions.Cancel(state);
-            var result = await documentStore.Operations.SendAsync(
-                new PutCompareExchangeValueOperation<ClusterUpdateState>(StateKey, cancelled, current.Index),
-                token: cancellationToken);
-            if (result.Successful) {
+            current.State = cancelled;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
                 return ClusterUpdateTransitions.ToResponse(cancelled);
+            }
+            catch (ConcurrencyException) {
             }
         }
     }
@@ -229,7 +272,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             using var leaderStore = new DocumentStore();
             leaderStore.Urls = [leaderUrl];
             leaderStore.Certificate = documentStore.Certificate;
-            leaderStore.Conventions = new Raven.Client.Documents.Conventions.DocumentConventions {
+            leaderStore.Conventions = new DocumentConventions {
                 DisableTopologyUpdates = true,
                 DisposeCertificate = false,
                 CreateHttpClient = documentStore.Conventions.CreateHttpClient,

@@ -1,10 +1,15 @@
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.Extensions.Options;
+using Polly;
 using Polly.Registry;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Changes;
+using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Data.Cluster;
@@ -16,77 +21,152 @@ public sealed class ClusterUpdateCoordinator(
     ResiliencePipelineProvider<string> resiliencePipelines,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private (Guid UpdateId, string NodeTag, string Error)? _pendingFailure;
     private (Guid UpdateId, string NodeTag)? _activeNode;
+    private (Guid UpdateId, string NodeTag, string Error)? _pendingFailure;
 
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
-        // Reconcile retained socket state after app replacement and retry transient RavenDB/socket outages.
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         try {
-            do {
+            while (!stoppingToken.IsCancellationRequested) {
                 try {
-                    await resiliencePipelines.GetPipeline("cluster-update").ExecuteAsync(async token => {
-                        try {
-                            await ReconcileAsync(token);
-                            await updateService.ArchiveCompletedAsync(token);
-                        }
-                        catch (Exception exception) when (!stoppingToken.IsCancellationRequested) {
-                            if (_activeNode is { } active && _pendingFailure is null)
-                                _pendingFailure = (active.UpdateId, active.NodeTag, exception.GetBaseException().Message);
-                            throw;
-                        }
-                    }, stoppingToken);
+                    await ObserveUpdatesAsync(stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
                     break;
                 }
                 catch (Exception exception) {
-                    logger.LogError(exception,
-                        "Cluster update reconciliation retry pipeline exhausted its attempts");
+                    logger.LogError(exception, "Cluster update change subscription failed; retrying");
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                 }
-            } while (await timer.WaitForNextTickAsync(stoppingToken));
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
         }
     }
 
-    private async Task ReconcileAsync(CancellationToken cancellationToken) {
+    private async Task ObserveUpdatesAsync(CancellationToken stoppingToken) {
+        var updates = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) {
+            SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite
+        });
+        var changes = documentStore.Changes();
+        var observable = changes.ForDocument(ClusterUpdateDocument.DocumentId);
+        using var subscription = observable.Subscribe(new ActionObserver<DocumentChange>(
+            _ => updates.Writer.TryWrite(true),
+            error => updates.Writer.TryComplete(error)));
+
+        void OnConnectionStatusChanged(object? sender, EventArgs args) {
+            updates.Writer.TryWrite(true);
+        }
+
+        changes.ConnectionStatusChanged += OnConnectionStatusChanged;
+        try {
+            while (!stoppingToken.IsCancellationRequested) {
+                while (updates.Reader.TryRead(out _)) { }
+
+                var connection = changes.EnsureConnectedNow();
+                var subscribed = observable.EnsureSubscribedNow();
+                var subscriptionReady = connection.IsCompletedSuccessfully && subscribed.IsCompletedSuccessfully;
+
+                var active = true;
+                var context = ResilienceContextPool.Shared.Get("reconcile", stoppingToken);
+                try {
+                    active = await resiliencePipelines.GetPipeline("cluster-update").ExecuteAsync(async execution => {
+                        try {
+                            var running = await ReconcileAsync(execution.CancellationToken);
+                            await updateService.ArchiveCompletedAsync(execution.CancellationToken);
+                            return running;
+                        }
+                        catch (Exception exception) when (!stoppingToken.IsCancellationRequested) {
+                            if (_activeNode is { } node && _pendingFailure is null)
+                                _pendingFailure = (node.UpdateId, node.NodeTag, exception.GetBaseException().Message);
+                            throw;
+                        }
+                    }, context);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+                    throw;
+                }
+                catch (Exception exception) {
+                    logger.LogError(exception, "Cluster update reconciliation retry pipeline exhausted its attempts");
+                }
+                finally {
+                    ResilienceContextPool.Shared.Return(context);
+                }
+
+                if (connection.IsCompleted)
+                    await connection;
+                if (subscribed.IsCompleted)
+                    await subscribed;
+
+                using var wakeup = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                if (active || !subscriptionReady || !changes.Connected)
+                    wakeup.CancelAfter(TimeSpan.FromSeconds(5));
+                try {
+                    var notification = updates.Reader.WaitToReadAsync(wakeup.Token).AsTask();
+                    if (!subscriptionReady) {
+                        var readiness =
+                            (connection.IsCompletedSuccessfully ? subscribed : connection).WaitAsync(wakeup.Token);
+                        var completed = await Task.WhenAny(notification, readiness);
+                        await completed;
+                    }
+                    else if (!await notification) {
+                        return;
+                    }
+                }
+                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) {
+                    // Poll active operations and recover missed changes until the subscription is ready.
+                }
+                finally {
+                    await wakeup.CancelAsync();
+                }
+            }
+        }
+        finally {
+            changes.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        }
+    }
+
+    private async Task<bool> ReconcileAsync(CancellationToken cancellationToken) {
         if (_pendingFailure is { } failure) {
             await updateService.RecordReconciliationFailureAsync(failure.UpdateId, failure.NodeTag,
                 failure.Error, 5, cancellationToken);
             _pendingFailure = null;
         }
+
+        var update = await updateService.GetAsync(cancellationToken);
+        _activeNode = null;
+        if (update is null || update.Status is not ("Preparing" or "Running"))
+            return false;
         var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
             cancellationToken);
         var localTag = topology.NodeTag;
-        var update = await updateService.GetAsync(cancellationToken);
-        if (update is null) {
-            _activeNode = null;
-            return;
-        }
-        _activeNode = update.Status == "Preparing" && update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Preparing") ||
-            update.Status == "Running" && update.CurrentNodeTag == localTag ? (update.Id, localTag) : null;
+        _activeNode = (update.Status == "Preparing" &&
+                       update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Preparing")) ||
+                      (update.Status == "Running" && update.CurrentNodeTag == localTag)
+            ? (update.Id, localTag)
+            : null;
         if (update.Status == "Preparing") {
             var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
             if (localNode?.Status == "Preparing") {
                 var prepared = await SendAsync("prepare", update, cancellationToken);
                 if (!Matches(update, prepared) || prepared.Status is not ("Prepared" or "Succeeded" or "Failed"))
-                    throw new InvalidOperationException($"Updater did not prepare update {update.Id}: {prepared.Status}; {prepared.Error}");
+                    throw new InvalidOperationException(
+                        $"Updater did not prepare update {update.Id}: {prepared.Status}; {prepared.Error}");
                 await updateService.PrepareLocalAsync(localTag, update.Id,
                     prepared.Status is "Prepared" or "Succeeded", prepared.Error, cancellationToken);
             }
 
-            return;
+            return true;
         }
 
         if (update.Status != "Running" || update.CurrentNodeTag != localTag)
-            return;
+            return true;
         await ReconcileNodeAsync(update, localTag, topology, cancellationToken);
+        return true;
     }
 
     private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,
-        Raven.Client.Http.ClusterTopologyResponse topology, CancellationToken cancellationToken) {
+        ClusterTopologyResponse topology, CancellationToken cancellationToken) {
         var status = await SendAsync("status", update, cancellationToken);
         var ownsStep = update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Claimed");
         if (ownsStep && await CompleteAsync(update, localTag, status, cancellationToken))
@@ -98,7 +178,7 @@ public sealed class ClusterUpdateCoordinator(
         if (claimed is null)
             throw new InvalidOperationException("Cannot claim update step: RavenDB restart quorum is unavailable");
 
-        // The compare-exchange claim may observe a newer rollout than the initial read.
+        // The cluster-wide claim may observe a newer rollout than the initial read.
         if (claimed.Id != update.Id || claimed.ImageDigest != update.ImageDigest)
             return;
         if (await CompleteAsync(claimed, localTag, status, cancellationToken))
@@ -117,7 +197,8 @@ public sealed class ClusterUpdateCoordinator(
                 claimed.Id, localTag, claimed.ImageDigest);
         }
         else {
-            throw new InvalidOperationException($"Updater did not accept update {claimed.Id}: {started.Status}; {started.Error}");
+            throw new InvalidOperationException(
+                $"Updater did not accept update {claimed.Id}: {started.Status}; {started.Error}");
         }
     }
 

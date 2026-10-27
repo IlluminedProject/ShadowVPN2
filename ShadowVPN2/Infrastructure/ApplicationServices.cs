@@ -32,7 +32,8 @@ public static class ApplicationServices {
         builder.Services.AddOptions<LocalConfiguration>();
         builder.Services.AddOptions<UpdaterOptions>().BindConfiguration("Updater");
         builder.Services.AddResiliencePipeline("cluster-update", pipeline => pipeline
-            .AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 5, Delay = TimeSpan.FromSeconds(5), BackoffType = DelayBackoffType.Linear })
+            .AddRetry(new RetryStrategyOptions
+                { MaxRetryAttempts = 5, Delay = TimeSpan.FromSeconds(5), BackoffType = DelayBackoffType.Linear })
             .AddTimeout(TimeSpan.FromSeconds(30)));
         builder.Services.AddSingleton<JoinStartupState>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
@@ -48,6 +49,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<RavenMigrationLock>();
         builder.Services.AddSingleton<RavenMigrationRunner>();
         builder.Services.AddRavenMigration<DeviceFlowModeMigration>();
+        builder.Services.AddRavenMigration<ClusterUpdateDocumentMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();
