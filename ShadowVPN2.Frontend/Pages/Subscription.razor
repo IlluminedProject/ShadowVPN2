@@ -55,7 +55,13 @@
     else
     {
         <section class="mb-4">
-            <h2>Servers</h2>
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                <h2 class="mb-0">Servers</h2>
+                <button class="btn btn-outline-secondary" type="button" data-copy-text="@_allConnectionLinks"
+                        disabled="@string.IsNullOrEmpty(_allConnectionLinks)">
+                    <span class="bi bi-copy" aria-hidden="true"></span> Copy all configs
+                </button>
+            </div>
             @if (!_subscription.Protocols.Any())
             {
                 <p class="text-body-secondary">No connection protocols are enabled for this client.</p>
@@ -106,6 +112,7 @@
     [Parameter] public bool Embedded { get; set; }
 
     private SubscriptionResponse? _subscription;
+    private string _allConnectionLinks = string.Empty;
     private bool _loading = true;
     private bool _pinging;
     private readonly List<ServerState> _servers = [];
@@ -129,6 +136,7 @@
         {
             _subscription = await SubscriptionApi.GetSubscriptionAsync(SubscriptionId);
             BuildServerList();
+            _allConnectionLinks = CreateAllConnectionLinks();
         }
         catch (ApplicationServiceException exception)
         {
@@ -171,6 +179,41 @@
         catch (JSDisconnectedException)
         {
         }
+    }
+
+    private string CreateAllConnectionLinks()
+    {
+        if (_subscription is null)
+            return string.Empty;
+
+        var links = new List<string>();
+        foreach (var endpoint in _subscription.Protocols.SelectMany(protocol => protocol.Endpoints)
+                     .OrderByDescending(endpoint => endpoint.IsMain)
+                     .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase))
+        {
+            if (endpoint.PublishDirectConnection)
+            {
+                links.Add(endpoint.Connection switch
+                {
+                    Hysteria2ConnectionInfo hysteria => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria, _subscription.ClientName),
+                    NaiveProxyConnectionInfo naive => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naive, _subscription.ClientName),
+                    WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
+                    _ => throw new InvalidOperationException($"Unsupported connection type: {endpoint.Connection.GetType().Name}")
+                });
+            }
+
+            foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
+            {
+                var local = SubscriptionLinkBuilder.CreateLocalConnection(endpoint.Connection);
+                var config = local is WireGuardConnectionInfo wireGuard
+                    ? SubscriptionLinkBuilder.CreateWireGuardConfig(wireGuard)
+                    : null;
+                links.Add(SubscriptionLinkBuilder.CreateFreeTurnShareUrl(transport, _subscription.ClientName, config));
+            }
+        }
+
+        return string.Join('\n', links);
     }
 
     private void BuildServerList()
