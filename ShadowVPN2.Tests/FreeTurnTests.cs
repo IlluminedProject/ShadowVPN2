@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Entities;
 using Xunit;
 

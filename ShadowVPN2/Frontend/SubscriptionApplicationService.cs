@@ -1,11 +1,18 @@
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Data.Subscription.Exporters;
+using ShadowVPN2.Data.Subscription.Models.Connections;
+using ShadowVPN2.Data.Subscription.Renderers;
+using ShadowVPN2.Data.Subscription.Services;
 using Contract = ShadowVPN2.Contracts.Subscriptions;
 
 namespace ShadowVPN2.Frontend;
 
-public sealed class SubscriptionApplicationService(SubscriptionService subscriptionService)
+public sealed class SubscriptionApplicationService(ISubscriptionSource subscriptionService,
+    SubscriptionProtocolExporterRegistry exporters, SubscriptionRendererRegistry renderers)
     : ISubscriptionApplicationService {
+    public Task<IReadOnlyList<Contract.SubscriptionFormatDescriptor>> GetFormatsAsync(
+        CancellationToken cancellationToken = default) => Task.FromResult(renderers.Formats);
     public async Task<Contract.SubscriptionResponse?> GetSubscriptionAsync(Guid id,
         CancellationToken cancellationToken = default) {
         var response = await subscriptionService.GetSubscriptionAsync(id);
@@ -21,62 +28,16 @@ public sealed class SubscriptionApplicationService(SubscriptionService subscript
                     Address = endpoint.Address,
                     IsMain = endpoint.IsMain,
                     PublishDirectConnection = endpoint.PublishDirectConnection,
-                    Connection = MapConnection(endpoint.Connection),
+                    Connection = exporters.GetRequired(endpoint.Connection).ToContract(endpoint.Connection),
+                    ShareUrl = endpoint.PublishDirectConnection
+                        ? exporters.GetRequired(endpoint.Connection).CreateShareUrl(endpoint.Connection, response.ClientName)
+                        : null,
                     Transports = endpoint.Transports.Select(MapTransport).ToArray()
                 }).ToArray()
             }).ToArray()
         };
     }
 
-    private static Contract.ProtocolConnectionInfo MapConnection(ProtocolConnectionInfo connection) {
-        return connection switch {
-            WireGuardConnectionInfo wireGuard => new Contract.WireGuardConnectionInfo {
-                ServerAddress = wireGuard.ServerAddress,
-                ServerPort = wireGuard.ServerPort,
-                PrivateKey = wireGuard.PrivateKey,
-                AssignedIp = wireGuard.AssignedIp,
-                ServerPublicKey = wireGuard.ServerPublicKey,
-                Mtu = wireGuard.Mtu,
-                IsAmneziaWg = wireGuard.IsAmneziaWg,
-                Jc = wireGuard.Jc,
-                Jmin = wireGuard.Jmin,
-                Jmax = wireGuard.Jmax,
-                S1 = wireGuard.S1,
-                S2 = wireGuard.S2,
-                S3 = wireGuard.S3,
-                S4 = wireGuard.S4,
-                H1 = wireGuard.H1,
-                H2 = wireGuard.H2,
-                H3 = wireGuard.H3,
-                H4 = wireGuard.H4,
-                I1 = wireGuard.I1,
-                I2 = wireGuard.I2,
-                I3 = wireGuard.I3,
-                I4 = wireGuard.I4,
-                I5 = wireGuard.I5
-            },
-            Hysteria2ConnectionInfo hysteria2 => new Contract.Hysteria2ConnectionInfo {
-                ServerAddress = hysteria2.ServerAddress,
-                PortBinding = hysteria2.PortBinding,
-                Password = hysteria2.Password,
-                ObfsType = hysteria2.ObfsType,
-                ObfsPassword = hysteria2.ObfsPassword,
-                Sni = hysteria2.Sni,
-                PinSha256 = hysteria2.PinSha256
-            },
-            NaiveProxyConnectionInfo naiveProxy => new Contract.NaiveProxyConnectionInfo {
-                ServerAddress = naiveProxy.ServerAddress,
-                ServerPort = naiveProxy.ServerPort,
-                Quic = naiveProxy.Quic,
-                Username = naiveProxy.Username,
-                Password = naiveProxy.Password,
-                Sni = naiveProxy.Sni,
-                Insecure = naiveProxy.Insecure,
-                PinSha256 = naiveProxy.PinSha256
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(connection), connection, null)
-        };
-    }
 
     private static Contract.TransportConnectionInfo MapTransport(TransportConnectionInfo transport) {
         return transport switch {

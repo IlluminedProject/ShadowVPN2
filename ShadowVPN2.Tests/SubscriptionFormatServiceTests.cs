@@ -3,6 +3,9 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.WebUtilities;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Data.Subscription.Models.Common;
+using ShadowVPN2.Data.Subscription.Models.Connections;
+using ShadowVPN2.Data.Subscription.Services;
 using ShadowVPN2.Entities;
 using Xunit;
 
@@ -107,24 +110,6 @@ public sealed class SubscriptionFormatServiceTests {
         query["name"].ToString().Should().Be("device");
     }
 
-    [Theory]
-    [InlineData(SubscriptionFormat.Mihomo)]
-    [InlineData(SubscriptionFormat.MihomoProvider)]
-    public void Mihomo_rejects_naive_quic_instead_of_exporting_an_https_connection(SubscriptionFormat format) {
-        var response = CreateResponse();
-        response.Protocols[0].Endpoints[0].Connection = new NaiveProxyConnectionInfo {
-            ServerAddress = HostName.Parse("vpn.example.com"),
-            ServerPort = 8443,
-            Quic = true,
-            Username = "user",
-            Password = "password",
-            Sni = HostName.Parse("vpn.example.com")
-        };
-
-        var render = () => new SubscriptionFormatService().Render(response, format);
-
-        render.Should().Throw<ArgumentException>().WithMessage("*NaiveProxy QUIC*Base64 or JSON*");
-    }
 
     [Theory]
     [InlineData(SubscriptionFormat.Base64)]

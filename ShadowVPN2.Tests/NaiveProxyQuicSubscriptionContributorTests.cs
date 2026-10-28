@@ -7,6 +7,8 @@ using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Data.Subscription.Contributors;
+using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Entities.Proxy;
 using Xunit;
