@@ -9,6 +9,7 @@
 
 <PageTitle>Protocols - ShadowVPN2</PageTitle>
 
+<GlobalErrorBoundary @key="_request">
 <div>
     <div class="page-header">
         <div>
@@ -210,6 +211,7 @@
                    ConfirmText="Remove protocol" OnConfirm="ConfirmRemoveProtocol"
                    OnCancel="() => _pendingRemoval = null"/>
 }
+</GlobalErrorBoundary>
 
 @code {
     private UpdateProtocolsSettingsRequest _request = new();
