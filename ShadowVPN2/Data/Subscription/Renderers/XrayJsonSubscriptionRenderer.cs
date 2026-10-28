@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ShadowVPN2.Contracts.Subscriptions;
 using ShadowVPN2.Data.Subscription.Exporters;
+using ShadowVPN2.Data.Subscription.Models.Rules;
 using ShadowVPN2.Data.Subscription.Models.Xray;
 using SubscriptionResponse = ShadowVPN2.Data.Subscription.Models.Common.SubscriptionResponse;
 
@@ -16,9 +17,12 @@ public sealed class XrayJsonSubscriptionRenderer : ISubscriptionRenderer {
         _exporters = exporters;
     }
 
-    public Models.Rules.SubscriptionResponseType ResponseType => Models.Rules.SubscriptionResponseType.XrayJson;
+    public SubscriptionResponseType ResponseType {
+        get => SubscriptionResponseType.XrayJson;
+    }
 
-    public SubscriptionFormatDescriptor Descriptor { get; } = new("xray-json", "Xray JSON", "application/json; charset=utf-8");
+    public SubscriptionFormatDescriptor Descriptor { get; } =
+        new("xray-json", "Xray JSON", "application/json; charset=utf-8");
 
     public string Render(SubscriptionResponse subscription) {
         var config = new XraySubscriptionConfig();
@@ -32,9 +36,7 @@ public sealed class XrayJsonSubscriptionRenderer : ISubscriptionRenderer {
             var exporter = _exporters.GetRequired(endpoint.Connection);
             var outbound = (exporter as IXraySubscriptionExporter)?.CreateXrayOutbound(endpoint.Connection);
             if (outbound is null)
-                throw new ArgumentException(
-                    $"Endpoint '{endpoint.Name}' ({endpoint.Connection.GetType().Name}) cannot be represented in the xray-json subscription format.",
-                    nameof(subscription));
+                continue;
 
             var name = string.IsNullOrWhiteSpace(endpoint.Name) ? "Proxy" : endpoint.Name;
             var tag = name;
@@ -45,7 +47,9 @@ public sealed class XrayJsonSubscriptionRenderer : ISubscriptionRenderer {
         }
 
         if (config.Outbounds.Count == 0)
-            throw new ArgumentException("The subscription has no direct endpoints representable in the xray-json format.", nameof(subscription));
+            throw new ArgumentException(
+                "The subscription has no direct endpoints representable in the xray-json format.",
+                nameof(subscription));
 
         return JsonSerializer.Serialize(config, JsonOptions);
     }

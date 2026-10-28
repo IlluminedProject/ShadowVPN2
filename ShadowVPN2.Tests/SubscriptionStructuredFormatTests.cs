@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Data.Subscription.Models.Common;
 using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Data.Subscription.Services;
@@ -9,6 +8,44 @@ using Xunit;
 namespace ShadowVPN2.Tests;
 
 public sealed class SubscriptionStructuredFormatTests {
+    [Theory]
+    [InlineData(SubscriptionFormat.Stash)]
+    [InlineData(SubscriptionFormat.SingBox)]
+    [InlineData(SubscriptionFormat.XrayJson)]
+    [InlineData(SubscriptionFormat.Mihomo)]
+    [InlineData(SubscriptionFormat.MihomoProvider)]
+    public void Mixed_subscription_keeps_compatible_endpoints(SubscriptionFormat format) {
+        var response = new SubscriptionResponse {
+            ClientName = "device",
+            Protocols = [
+                new ProtocolSubscription {
+                    Protocol = "mixed",
+                    Endpoints = [
+                        new SubscriptionEndpoint {
+                            Name = "Unsupported", Address = HostAddress.Parse("unsupported.example.com"),
+                            Connection = new NaiveProxyConnectionInfo {
+                                ServerAddress = HostName.Parse("unsupported.example.com"), ServerPort = 443,
+                                Username = "user", Password = "secret", Quic = true, Insecure = true,
+                                Sni = HostName.Parse("unsupported.example.com")
+                            }
+                        },
+                        new SubscriptionEndpoint {
+                            Name = "Compatible", Address = HostAddress.Parse("compatible.example.com"),
+                            Connection = new Hysteria2ConnectionInfo {
+                                ServerAddress = HostName.Parse("compatible.example.com"),
+                                PortBinding = new PortBinding(443), Password = "working-secret"
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+        var content = new SubscriptionFormatService().Render(response, format);
+        Assert.Contains("compatible.example.com", content);
+        Assert.Contains("working-secret", content);
+        Assert.DoesNotContain("unsupported.example.com", content);
+    }
+
     [Fact]
     public void Singbox_preserves_hysteria_port_hopping_obfuscation_and_certificate_pin() {
         var connection = new Hysteria2ConnectionInfo {
@@ -16,7 +53,8 @@ public sealed class SubscriptionStructuredFormatTests {
             Password = "secret", ObfsType = "salamander", ObfsPassword = "mask",
             Sni = HostName.Parse("tls.example.com"), PinSha256 = new string('A', 64)
         };
-        var json = JsonNode.Parse(new SubscriptionFormatService().Render(Response(connection), SubscriptionFormat.SingBox))!;
+        var json = JsonNode.Parse(
+            new SubscriptionFormatService().Render(Response(connection), SubscriptionFormat.SingBox))!;
         var outbound = json["outbounds"]![1]!;
         Assert.Equal("20000:30000", outbound["server_ports"]![0]!.GetValue<string>());
         Assert.Null(outbound["server_port"]);
@@ -39,7 +77,8 @@ public sealed class SubscriptionStructuredFormatTests {
         Assert.Equal("10.0.0.2/32", singbox["endpoints"]![0]!["address"]![0]!.GetValue<string>());
         var xray = JsonNode.Parse(service.Render(Response(connection), SubscriptionFormat.XrayJson))!;
         Assert.Equal("public", xray["outbounds"]![0]!["settings"]!["peers"]![0]!["publicKey"]!.GetValue<string>());
-        Assert.Equal("[2001:db8::1]:51820", xray["outbounds"]![0]!["settings"]!["peers"]![0]!["endpoint"]!.GetValue<string>());
+        Assert.Equal("[2001:db8::1]:51820",
+            xray["outbounds"]![0]!["settings"]!["peers"]![0]!["endpoint"]!.GetValue<string>());
         connection.IsAmneziaWg = true;
         connection.Jc = 4;
         connection.Jmin = 40;
@@ -68,10 +107,14 @@ public sealed class SubscriptionStructuredFormatTests {
     }
 
     private static SubscriptionResponse Response(ProtocolConnectionInfo connection) => new() {
-        ClientName = "device", Protocols = [new ProtocolSubscription {
-            Protocol = "test", Endpoints = [new SubscriptionEndpoint {
-                Name = "Main", Address = HostAddress.Parse("vpn.example.com"), Connection = connection
-            }]
-        }]
+        ClientName = "device", Protocols = [
+            new ProtocolSubscription {
+                Protocol = "test", Endpoints = [
+                    new SubscriptionEndpoint {
+                        Name = "Main", Address = HostAddress.Parse("vpn.example.com"), Connection = connection
+                    }
+                ]
+            }
+        ]
     };
 }
