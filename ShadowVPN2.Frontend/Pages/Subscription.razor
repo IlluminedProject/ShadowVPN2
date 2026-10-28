@@ -57,10 +57,13 @@
         <section class="mb-4">
             <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
                 <h2 class="mb-0">Servers</h2>
-                <button class="btn btn-outline-secondary" type="button" data-copy-text="@_allConnectionLinks"
-                        disabled="@string.IsNullOrEmpty(_allConnectionLinks)">
-                    <span class="bi bi-copy" aria-hidden="true"></span> Copy all configs
-                </button>
+                <div class="connection-actions">
+                    <button class="btn btn-sm btn-outline-secondary connection-actions__copy" type="button"
+                            data-copy-text="@_allConnectionLinks" title="Copy all configs" aria-label="Copy all configs"
+                            disabled="@string.IsNullOrEmpty(_allConnectionLinks)">
+                        <span class="bi bi-copy" aria-hidden="true"></span>
+                    </button>
+                </div>
             </div>
             @if (!_subscription.Protocols.Any())
             {
