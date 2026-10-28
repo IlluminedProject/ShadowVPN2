@@ -47,6 +47,7 @@ try {
     app.UseAuthorization();
 
     app.UseAntiforgery();
+    app.UseMiddleware<SubscriptionResponseMiddleware>();
 
     app.UseStaticFiles();
     app.MapStaticAssets();

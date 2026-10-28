@@ -1,0 +1,90 @@
+using System.Text;
+using ShadowVPN2.Contracts.Networking;
+
+namespace ShadowVPN2.Data.Subscription.Links;
+
+public sealed class ProxyUriBuilder {
+    private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
+
+    public ProxyUriBuilder(string scheme, HostName host, int port) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
+        ArgumentException.ThrowIfNullOrWhiteSpace(host.Value, nameof(host));
+        ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+
+        Scheme = scheme;
+        Host = host;
+        Port = port;
+    }
+
+    public string Scheme { get; }
+    public HostName Host { get; }
+    public int Port { get; }
+    public string? UserName { get; private set; }
+    public string? Password { get; private set; }
+    public string? Fragment { get; private set; }
+
+    public ProxyUriBuilder WithCredentials(string? userName, string? password = null) {
+        UserName = userName;
+        Password = password;
+        return this;
+    }
+
+    public ProxyUriBuilder AddQuery(string key, string? value) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        if (!string.IsNullOrEmpty(value))
+            _queryParams[key] = value;
+
+        return this;
+    }
+
+    public ProxyUriBuilder AddQueryIf(bool condition, string key, string? value) {
+        return condition ? AddQuery(key, value) : this;
+    }
+
+    public ProxyUriBuilder WithFragment(string? fragment) {
+        Fragment = fragment;
+        return this;
+    }
+
+    public string Build() {
+        var builder = new StringBuilder()
+            .Append(Scheme)
+            .Append("://");
+
+        if (!string.IsNullOrEmpty(UserName) || !string.IsNullOrEmpty(Password)) {
+            if (!string.IsNullOrEmpty(UserName)) {
+                builder.Append(Uri.EscapeDataString(UserName));
+                if (!string.IsNullOrEmpty(Password))
+                    builder.Append(':').Append(Uri.EscapeDataString(Password));
+            }
+            else {
+                builder.Append(Uri.EscapeDataString(Password!));
+            }
+
+            builder.Append('@');
+        }
+
+        builder.Append(Host.ToAddress(Port).FormatWithPort()).Append('/');
+
+        if (_queryParams.Count > 0) {
+            builder.Append('?');
+            var first = true;
+            foreach (var (key, value) in _queryParams) {
+                if (!first)
+                    builder.Append('&');
+
+                builder.Append(Uri.EscapeDataString(key))
+                    .Append('=')
+                    .Append(Uri.EscapeDataString(value));
+                first = false;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Fragment))
+            builder.Append('#').Append(Uri.EscapeDataString(Fragment));
+
+        return builder.ToString();
+    }
+}

@@ -15,6 +15,9 @@ public abstract class InboundConfig {
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(DirectOutboundConfig), "direct")]
+[JsonDerivedType(typeof(Hysteria2OutboundConfig), "hysteria2")]
+[JsonDerivedType(typeof(NaiveProxyOutboundConfig), "naive")]
+[JsonDerivedType(typeof(SelectorOutboundConfig), "selector")]
 public abstract class OutboundConfig {
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 }

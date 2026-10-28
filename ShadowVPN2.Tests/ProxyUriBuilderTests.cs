@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Subscription;
+using ShadowVPN2.Data.Subscription.Links;
 using Xunit;
 
 namespace ShadowVPN2.Tests;

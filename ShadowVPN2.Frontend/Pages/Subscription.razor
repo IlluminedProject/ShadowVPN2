@@ -27,11 +27,11 @@
                             data-dropdown-trigger aria-expanded="false" aria-controls="subscription-options"
                             aria-label="Choose subscription format"></button>
                     <ul id="subscription-options" class="dropdown-menu" data-dropdown-popup>
-                        @foreach (var format in SubscriptionFormats)
+                        @foreach (var format in _formats)
                         {
                             <li>
                                 <button class="dropdown-item" type="button"
-                                        data-copy-text="@CreateSubscriptionUrl(format.Key)">@format.Value</button>
+                                        data-copy-text="@CreateSubscriptionUrl(format.Id)">@format.DisplayName</button>
                             </li>
                         }
                     </ul>
@@ -120,14 +120,7 @@
     private IJSObjectReference? _copyModule;
     private IJSObjectReference? _dropdownModule;
 
-    private static IReadOnlyDictionary<string, string> SubscriptionFormats { get; } =
-        new Dictionary<string, string>
-        {
-            ["Base64"] = "Base64",
-            ["Mihomo"] = "Mihomo",
-            ["MihomoProvider"] = "Mihomo provider",
-            ["FreeTurn"] = "FreeTurn"
-        };
+    private IReadOnlyList<SubscriptionFormatDescriptor> _formats = [];
 
     protected override async Task OnParametersSetAsync()
     {
@@ -135,6 +128,7 @@
         try
         {
             _subscription = await SubscriptionApi.GetSubscriptionAsync(SubscriptionId);
+            _formats = await SubscriptionApi.GetFormatsAsync();
             BuildServerList();
             _allConnectionLinks = CreateAllConnectionLinks();
         }
@@ -192,16 +186,8 @@
                      .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase))
         {
-            if (endpoint.PublishDirectConnection)
-            {
-                links.Add(endpoint.Connection switch
-                {
-                    Hysteria2ConnectionInfo hysteria => SubscriptionLinkBuilder.CreateHysteria2ShareUrl(hysteria, _subscription.ClientName),
-                    NaiveProxyConnectionInfo naive => SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(naive, _subscription.ClientName),
-                    WireGuardConnectionInfo wireGuard => SubscriptionLinkBuilder.CreateWireGuardShareUrl(wireGuard),
-                    _ => throw new InvalidOperationException($"Unsupported connection type: {endpoint.Connection.GetType().Name}")
-                });
-            }
+            if (endpoint.PublishDirectConnection && endpoint.ShareUrl is { } shareUrl)
+                links.Add(shareUrl);
 
             foreach (var transport in endpoint.Transports.OfType<FreeTurnConnectionInfo>())
             {
@@ -267,9 +253,9 @@
 
     private string CreateSubscriptionUrl(string? format)
     {
-        var path = $"s/{SubscriptionId}/subscription";
+        var path = $"s/{SubscriptionId}";
         if (format is not null)
-            path += $"?format={Uri.EscapeDataString(format)}";
+            path += $"/{Uri.EscapeDataString(format)}";
         return Navigation.ToAbsoluteUri(path).ToString();
     }
 

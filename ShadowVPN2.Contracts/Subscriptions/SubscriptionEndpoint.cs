@@ -8,5 +8,6 @@ public sealed class SubscriptionEndpoint {
     public bool IsMain { get; set; }
     public bool PublishDirectConnection { get; set; } = true;
     public required ProtocolConnectionInfo Connection { get; set; }
+    public string? ShareUrl { get; set; }
     public IReadOnlyList<TransportConnectionInfo> Transports { get; set; } = [];
 }
