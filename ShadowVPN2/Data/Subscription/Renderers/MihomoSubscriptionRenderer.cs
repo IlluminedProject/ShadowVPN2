@@ -1,6 +1,9 @@
 using System.Text;
+using System.Text.Json;
 using ShadowVPN2.Contracts.Subscriptions;
 using ShadowVPN2.Data.Subscription.Exporters;
+using ShadowVPN2.Data.Subscription.Models.Mihomo;
+using ShadowVPN2.Data.Subscription.Models.Rules;
 using SubscriptionResponse = ShadowVPN2.Data.Subscription.Models.Common.SubscriptionResponse;
 
 namespace ShadowVPN2.Data.Subscription.Renderers;
@@ -14,7 +17,9 @@ public sealed class MihomoSubscriptionRenderer : ISubscriptionRenderer {
         _exporters = exporters;
     }
 
-    public Models.Rules.SubscriptionResponseType ResponseType => Models.Rules.SubscriptionResponseType.Mihomo;
+    public SubscriptionResponseType ResponseType {
+        get => SubscriptionResponseType.Mihomo;
+    }
 
     public SubscriptionFormatDescriptor Descriptor { get; } = new("mihomo", "Mihomo", "text/yaml; charset=utf-8");
 
@@ -28,14 +33,19 @@ public sealed class MihomoSubscriptionRenderer : ISubscriptionRenderer {
             .ThenBy(endpoint => endpoint.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(endpoint => endpoint.Address.ToString(), StringComparer.OrdinalIgnoreCase)
             .Select(endpoint => _exporters.GetRequired(endpoint.Connection)
-                .CreateMihomoProxy(endpoint.Connection, endpoint.Name) ??
-                throw new ArgumentException($"Endpoint '{endpoint.Name}' cannot be represented in the Mihomo format.", nameof(subscription)))
+                .CreateMihomoProxy(endpoint.Connection, endpoint.Name))
+            .OfType<MihomoProxy>()
             .ToArray();
-        var builder = new StringBuilder(proxies.Length == 0 ? "proxies: []\n" : "proxies:\n");
+        if (proxies.Length == 0) {
+            throw new ArgumentException("The subscription has no direct endpoints representable in the Mihomo format.",
+                nameof(subscription));
+        }
+
+        var builder = new StringBuilder("proxies:\n");
         foreach (var proxy in proxies)
             YamlSubscriptionRendererSupport.AppendProxy(builder, proxy);
 
-        if (providerOnly || proxies.Length == 0)
+        if (providerOnly)
             return builder.ToString();
 
         builder.AppendLine("proxy-groups:");
@@ -43,10 +53,9 @@ public sealed class MihomoSubscriptionRenderer : ISubscriptionRenderer {
         builder.AppendLine("    type: select");
         builder.AppendLine("    proxies:");
         foreach (var proxy in proxies)
-            builder.Append("      - ").AppendLine(System.Text.Json.JsonSerializer.Serialize(proxy.Name));
+            builder.Append("      - ").AppendLine(JsonSerializer.Serialize(proxy.Name));
         builder.AppendLine("rules:");
         builder.AppendLine("  - MATCH,Proxy");
         return builder.ToString();
     }
-
 }

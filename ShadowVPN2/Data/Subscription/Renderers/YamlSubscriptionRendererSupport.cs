@@ -24,14 +24,14 @@ internal static class YamlSubscriptionRendererSupport {
             var proxy = exporters.GetRequired(endpoint.Connection)
                 .CreateMihomoProxy(endpoint.Connection, endpoint.Name);
             if (proxy is null || !canRepresent(proxy))
-                throw new ArgumentException(
-                    $"Subscription format '{formatId}' cannot represent published endpoint '{endpoint.Name}'" +
-                    (proxy is null ? "." : $" with proxy type '{proxy.Type}'."), nameof(subscription));
+                continue;
             proxies.Add(proxy);
         }
 
         if (proxies.Count == 0)
-            return "proxies: []\nproxy-groups: []\nrules: []\n";
+            throw new ArgumentException(
+                $"The subscription has no direct endpoints representable in the '{formatId}' format.",
+                nameof(subscription));
 
         var builder = new StringBuilder("proxies:\n");
         foreach (var proxy in proxies)
@@ -60,7 +60,8 @@ internal static class YamlSubscriptionRendererSupport {
         AppendString(builder, "sni", proxy.Sni);
         AppendBoolean(builder, "skip-cert-verify", proxy.SkipCertVerify);
         if (stash)
-            AppendString(builder, "server-cert-fingerprint", proxy.Fingerprint is null ? null : NormalizeFingerprint(proxy.Fingerprint));
+            AppendString(builder, "server-cert-fingerprint",
+                proxy.Fingerprint is null ? null : NormalizeFingerprint(proxy.Fingerprint));
         else
             AppendString(builder, "fingerprint", proxy.Fingerprint);
         AppendString(builder, "obfs", proxy.Obfs);
@@ -79,8 +80,10 @@ internal static class YamlSubscriptionRendererSupport {
                         builder.Append(", ");
                     builder.Append(Quote(allowedIps[index]));
                 }
+
                 builder.AppendLine("]");
             }
+
             AppendBoolean(builder, "udp", proxy.Udp);
         }
     }
