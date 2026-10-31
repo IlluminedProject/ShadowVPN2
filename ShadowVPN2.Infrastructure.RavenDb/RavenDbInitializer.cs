@@ -44,7 +44,6 @@ public class RavenDbInitializer {
         _logger.Information("Starting RavenDB server at {ServerUrl}. Data: {DataDirectory}", serverOptions.ServerUrl,
             serverOptions.DataDirectory);
         EmbeddedServer.Instance.StartServer(serverOptions);
-
         if (!isJoining)
             EmbeddedServer.Instance.BootstrapClusterAsync("A").GetAwaiter().GetResult();
 

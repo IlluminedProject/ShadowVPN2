@@ -43,7 +43,6 @@ cleanup() {
 
 configure() {
     mkdir -p "$STATE_DIR"
-
     # Remove rules left by an uncleanly terminated previous container instance.
     cleanup
 

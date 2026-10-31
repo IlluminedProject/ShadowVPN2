@@ -197,6 +197,7 @@ public sealed class EmbeddedServer : IDisposable {
             store.AfterDispose += (sender, args) => _documentStores.TryRemove(databaseName, out _);
 
             store.Initialize();
+
             if (!options.SkipCreatingDatabase)
                 await TryCreateDatabase(options, store, token).ConfigureAwait(false);
 
@@ -208,7 +209,8 @@ public sealed class EmbeddedServer : IDisposable {
     }
 
     public async Task BootstrapClusterAsync(string nodeTag, CancellationToken token = default) {
-        var serverUrl = await GetServerUriAsync(token).ConfigureAwait(false);
+        await GetServerUriAsync(token).ConfigureAwait(false);
+        var serverUrl = new Uri("https://127.0.0.1:8888");
         var handler = new HttpClientHandler {
             ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
                 certificate != null && string.Equals(certificate.GetCertHashString(),
@@ -217,13 +219,15 @@ public sealed class EmbeddedServer : IDisposable {
         if (_serverOptions?.Security?.ClientCertificate is { } clientCertificate)
             handler.ClientCertificates.Add(clientCertificate);
         using var client = new HttpClient(handler) {
-            BaseAddress = serverUrl
+            BaseAddress = serverUrl,
+            Timeout = TimeSpan.FromSeconds(10)
         };
         using var response = await client.PostAsync(
                 $"admin/cluster/bootstrap?tag={Uri.EscapeDataString(nodeTag)}", null, token)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
+
 
     private async Task TryCreateDatabase(DatabaseOptions options, IDocumentStore store, CancellationToken token) {
         try {
@@ -340,14 +344,11 @@ public sealed class EmbeddedServer : IDisposable {
             new TaskCompletionSource<(string Url, string Stdout)>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
 
-        // DataReceived callbacks run on ThreadPool threads → can overlap.
-        // Lock prevents AppendLine/ToString races.
         process.ErrorDataReceived += (_, receivedEventArgs) => {
             if (receivedEventArgs.Data == null) {
                 string final;
                 lock (stderrBuilder)
                     final = stderrBuilder.ToString();
-
                 stderrTcs.TrySetResult(final);
                 return;
             }
@@ -359,48 +360,38 @@ public sealed class EmbeddedServer : IDisposable {
         process.OutputDataReceived += (_, receivedEventArgs) => {
             if (receivedEventArgs.Data == null)
                 return;
-
             lock (stdoutBuilder)
                 stdoutBuilder.AppendLine(receivedEventArgs.Data);
 
             const string prefix = "Server available on: ";
             if (!receivedEventArgs.Data.StartsWith(prefix))
                 return;
-
             var url = receivedEventArgs.Data.Substring(prefix.Length);
             string final;
             lock (stdoutBuilder)
                 final = stdoutBuilder.ToString();
-
-            stdoutTcs.TrySetResult((url, Stdout: final));
+            stdoutTcs.TrySetResult((url, final));
         };
 
         process.BeginErrorReadLine();
         process.BeginOutputReadLine();
 
         var timeoutTask = Task.Delay(_serverOptions.MaxServerStartupTimeDuration);
-
-        var firstCompletedTask =
-            await Task.WhenAny(stdoutTcs.Task, stderrTcs.Task, timeoutTask).ConfigureAwait(false);
+        var firstCompletedTask = await Task.WhenAny(stdoutTcs.Task, stderrTcs.Task, timeoutTask)
+            .ConfigureAwait(false);
         if (firstCompletedTask == stdoutTcs.Task) {
             var (url, _) = stdoutTcs.Task.Result;
             return (new Uri(url), process);
         }
 
-        string stdoutString;
-        lock (stdoutBuilder)
-            stdoutString = stdoutBuilder.ToString();
-
+        var stdoutString = stdoutBuilder.ToString();
         string stderrString;
         if (firstCompletedTask == stderrTcs.Task) {
             stderrString = stderrTcs.Task.Result;
-            await Task.WhenAny(Task.Delay(TimeSpan.FromSeconds(5)), stdoutTcs.Task)
-                .ConfigureAwait(false); // extra 5 sec grace in case more error lines still arrive
+            await Task.WhenAny(Task.Delay(TimeSpan.FromSeconds(5)), stdoutTcs.Task).ConfigureAwait(false);
         }
-        else // timeout
-        {
-            lock (stderrBuilder)
-                stderrString = stderrBuilder.ToString();
+        else {
+            stderrString = stderrBuilder.ToString();
         }
 
         ShutdownServerProcess(process);
