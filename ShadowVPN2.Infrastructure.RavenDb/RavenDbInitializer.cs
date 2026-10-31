@@ -45,6 +45,9 @@ public class RavenDbInitializer {
             serverOptions.DataDirectory);
         EmbeddedServer.Instance.StartServer(serverOptions);
 
+        if (!isJoining)
+            EmbeddedServer.Instance.BootstrapClusterAsync("A").GetAwaiter().GetResult();
+
         _logger.Information("RavenDB server started successfully");
         var databaseOptions = new DatabaseOptions(DatabaseName) {
             SkipCreatingDatabase = isJoining,

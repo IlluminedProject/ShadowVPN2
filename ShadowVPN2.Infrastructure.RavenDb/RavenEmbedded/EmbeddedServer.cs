@@ -207,6 +207,24 @@ public sealed class EmbeddedServer : IDisposable {
             .ConfigureAwait(false);
     }
 
+    public async Task BootstrapClusterAsync(string nodeTag, CancellationToken token = default) {
+        var serverUrl = await GetServerUriAsync(token).ConfigureAwait(false);
+        var handler = new HttpClientHandler {
+            ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
+                certificate != null && string.Equals(certificate.GetCertHashString(),
+                    _serverOptions?.Security?.ServerCertificateThumbprint, StringComparison.OrdinalIgnoreCase)
+        };
+        if (_serverOptions?.Security?.ClientCertificate is { } clientCertificate)
+            handler.ClientCertificates.Add(clientCertificate);
+        using var client = new HttpClient(handler) {
+            BaseAddress = serverUrl
+        };
+        using var response = await client.PostAsync(
+                $"admin/cluster/bootstrap?tag={Uri.EscapeDataString(nodeTag)}", null, token)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task TryCreateDatabase(DatabaseOptions options, IDocumentStore store, CancellationToken token) {
         try {
             await store.Maintenance.SendAsync(new GetStatisticsOperation(), token).ConfigureAwait(false);
