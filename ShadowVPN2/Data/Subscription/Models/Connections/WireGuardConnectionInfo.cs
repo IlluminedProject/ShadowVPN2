@@ -1,5 +1,5 @@
-using System.Text;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Contracts.Subscriptions;
 
 namespace ShadowVPN2.Data.Subscription.Models.Connections;
 
@@ -70,8 +70,16 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
     }
 
     public string CreateShareUrl() {
-        var scheme = IsAmneziaWg ? "awg" : "wireguard";
-        return $"{scheme}://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateConfig()))}";
+        return WireGuardShareUrlBuilder.Build(ToContract());
+    }
+
+    private Contracts.Subscriptions.WireGuardConnectionInfo ToContract() {
+        return new Contracts.Subscriptions.WireGuardConnectionInfo {
+            ServerAddress = ServerAddress, ServerPort = ServerPort, PrivateKey = PrivateKey,
+            AssignedIp = AssignedIp, ServerPublicKey = ServerPublicKey, Mtu = Mtu, IsAmneziaWg = IsAmneziaWg,
+            Jc = Jc, Jmin = Jmin, Jmax = Jmax, S1 = S1, S2 = S2, S3 = S3, S4 = S4,
+            H1 = H1, H2 = H2, H3 = H3, H4 = H4, I1 = I1, I2 = I2, I3 = I3, I4 = I4, I5 = I5
+        };
     }
 
     public WireGuardConnectionInfo WithEndpoint(HostName serverAddress, int serverPort, int mtu) {

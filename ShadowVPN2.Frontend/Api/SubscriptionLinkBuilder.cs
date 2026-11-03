@@ -44,8 +44,7 @@ public static class SubscriptionLinkBuilder {
     }
 
     public static string CreateWireGuardShareUrl(WireGuardConnectionInfo connection) {
-        var scheme = connection.IsAmneziaWg ? "awg" : "wireguard";
-        return $"{scheme}://{Convert.ToBase64String(Encoding.UTF8.GetBytes(CreateWireGuardConfig(connection)))}";
+        return WireGuardShareUrlBuilder.Build(connection);
     }
 
     public static string CreateHysteria2ShareUrl(Hysteria2ConnectionInfo connection, string clientName) {

@@ -214,9 +214,9 @@ public sealed class SubscriptionLinkBuilderTests {
     }
 
     [Theory]
-    [InlineData(false, "wireguard://")]
-    [InlineData(true, "awg://")]
-    public void CreateWireGuardShareUrl_uses_client_scheme_for_wg_variant(bool amnezia, string scheme) {
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateWireGuardShareUrl_uses_throne_wg_scheme_for_all_variants(bool amnezia) {
         var connection = new WireGuardConnectionInfo {
             ServerAddress = HostName.Parse("vpn.example.com"),
             ServerPort = 51820,
@@ -230,10 +230,11 @@ public sealed class SubscriptionLinkBuilderTests {
 
         var link = SubscriptionLinkBuilder.CreateWireGuardShareUrl(connection);
 
-        link.Should().StartWith(scheme);
-        var config = Encoding.UTF8.GetString(Convert.FromBase64String(link[scheme.Length..]));
-        config.Should().Contain("PrivateKey = private-key");
+        link.Should().StartWith("wg://vpn.example.com:51820?");
+        link.Should().Contain("private_key=private-key");
+        link.Should().Contain("local_address=10.0.0.2%2F32");
+        link.Should().Contain($"enable_amnezia={amnezia.ToString().ToLowerInvariant()}");
         if (amnezia)
-            config.Should().Contain("Jc = 0");
+            link.Should().Contain("jc=0");
     }
 }
