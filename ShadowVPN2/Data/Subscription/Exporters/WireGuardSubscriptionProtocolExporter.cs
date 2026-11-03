@@ -7,28 +7,24 @@ using Contract = ShadowVPN2.Contracts.Subscriptions;
 namespace ShadowVPN2.Data.Subscription.Exporters;
 
 public sealed class WireGuardSubscriptionProtocolExporter : SubscriptionProtocolExporter<WireGuardConnectionInfo> {
-    public override string CreateShareUrl(WireGuardConnectionInfo connection, string clientName) => connection.CreateShareUrl();
+    public override string CreateShareUrl(WireGuardConnectionInfo connection, string clientName) {
+        return connection.CreateShareUrl();
+    }
 
     public override EndpointConfig CreateSingBoxEndpoint(WireGuardConnectionInfo connection) {
-        if (connection.IsAmneziaWg)
-            return new AwgEndpointConfig {
-                Mtu = connection.Mtu, Address = [LocalAddress(connection)], PrivateKey = connection.PrivateKey,
-                Peers = [new WireGuardPeer {
-                    Address = connection.ServerAddress.ToString(), Port = connection.ServerPort,
-                    PublicKey = connection.ServerPublicKey, AllowedIps = ["0.0.0.0/0"]
-                }],
-                Jc = connection.Jc, Jmin = connection.Jmin, Jmax = connection.Jmax,
-                S1 = connection.S1, S2 = connection.S2, S3 = connection.S3, S4 = connection.S4,
-                H1 = connection.H1, H2 = connection.H2, H3 = connection.H3, H4 = connection.H4,
-                I1 = connection.I1, I2 = connection.I2, I3 = connection.I3, I4 = connection.I4, I5 = connection.I5
-            };
         return new WireGuardEndpointConfig {
             System = false, Name = "", Mtu = connection.Mtu,
             Address = [LocalAddress(connection)], PrivateKey = connection.PrivateKey,
-            Peers = [new WireGuardPeer {
-                Address = connection.ServerAddress.ToString(), Port = connection.ServerPort,
-                PublicKey = connection.ServerPublicKey, AllowedIps = ["0.0.0.0/0"]
-            }]
+            Peers = [
+                new WireGuardPeer {
+                    Address = connection.ServerAddress.ToString(), Port = connection.ServerPort,
+                    PublicKey = connection.ServerPublicKey, AllowedIps = ["0.0.0.0/0"]
+                }
+            ],
+            Jc = connection.Jc, Jmin = connection.Jmin, Jmax = connection.Jmax,
+            S1 = connection.S1, S2 = connection.S2, S3 = connection.S3, S4 = connection.S4,
+            H1 = connection.H1, H2 = connection.H2, H3 = connection.H3, H4 = connection.H4,
+            I1 = connection.I1, I2 = connection.I2, I3 = connection.I3, I4 = connection.I4, I5 = connection.I5
         };
     }
 
@@ -38,10 +34,12 @@ public sealed class WireGuardSubscriptionProtocolExporter : SubscriptionProtocol
         return new XrayWireGuardOutboundConfig {
             Settings = new XrayWireGuardSettings {
                 SecretKey = connection.PrivateKey, Address = [LocalAddress(connection)], Mtu = connection.Mtu,
-                Peers = [new XrayWireGuardPeer {
-                    Endpoint = connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort(),
-                    PublicKey = connection.ServerPublicKey, AllowedIPs = ["0.0.0.0/0"]
-                }]
+                Peers = [
+                    new XrayWireGuardPeer {
+                        Endpoint = connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort(),
+                        PublicKey = connection.ServerPublicKey, AllowedIPs = ["0.0.0.0/0"]
+                    }
+                ]
             }
         };
     }

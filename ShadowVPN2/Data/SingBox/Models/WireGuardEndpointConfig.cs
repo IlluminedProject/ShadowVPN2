@@ -3,52 +3,23 @@ using System.Text.Json.Serialization;
 namespace ShadowVPN2.Data.SingBox.Models;
 
 public class WireGuardEndpointConfig : EndpointConfig {
-    [JsonPropertyName("system")] public bool System { get; set; } = true;
-
-    [JsonPropertyName("name")] public string Name { get; set; } = "wg0";
-
+    [JsonPropertyName("system")] public bool System { get; set; } = false;
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
     [JsonPropertyName("mtu")] public int? Mtu { get; set; }
-
     [JsonPropertyName("address")] public List<string> Address { get; set; } = new();
-
     [JsonPropertyName("private_key")] public string PrivateKey { get; set; } = null!;
-
     [JsonPropertyName("listen_port")] public int ListenPort { get; set; }
-
     [JsonPropertyName("peers")] public List<WireGuardPeer> Peers { get; set; } = new();
-}
-
-public class AwgEndpointConfig : EndpointConfig {
-    [JsonPropertyName("useIntegratedTun")] public bool UseIntegratedTun { get; set; } = false;
-
-    [JsonPropertyName("mtu")] public int? Mtu { get; set; }
-
-    [JsonPropertyName("address")] public List<string> Address { get; set; } = new();
-
-    [JsonPropertyName("private_key")] public string PrivateKey { get; set; } = null!;
-
-    [JsonPropertyName("listen_port")] public int ListenPort { get; set; }
-
-    [JsonPropertyName("peers")] public List<WireGuardPeer> Peers { get; set; } = new();
-
     [JsonPropertyName("jc")] public uint? Jc { get; set; }
-
     [JsonPropertyName("jmin")] public uint? Jmin { get; set; }
-
     [JsonPropertyName("jmax")] public uint? Jmax { get; set; }
-
     [JsonPropertyName("s1")] public int? S1 { get; set; }
-
     [JsonPropertyName("s2")] public int? S2 { get; set; }
     [JsonPropertyName("s3")] public int? S3 { get; set; }
     [JsonPropertyName("s4")] public int? S4 { get; set; }
-
     [JsonPropertyName("h1")] public string? H1 { get; set; }
-
     [JsonPropertyName("h2")] public string? H2 { get; set; }
-
     [JsonPropertyName("h3")] public string? H3 { get; set; }
-
     [JsonPropertyName("h4")] public string? H4 { get; set; }
     [JsonPropertyName("i1")] public string? I1 { get; set; }
     [JsonPropertyName("i2")] public string? I2 { get; set; }

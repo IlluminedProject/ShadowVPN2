@@ -16,7 +16,6 @@ namespace ShadowVPN2.Data.SingBox;
 public sealed class MeshService(
     ILogger<MeshService> logger,
     IOptions<LocalConfiguration> localConfiguration,
-    IOptions<SingBoxOptions> options,
     SingBoxProcessManager processManager,
     IServiceProvider services) : BackgroundService {
     private readonly SemaphoreSlim _configurationGate = new(1, 1);
@@ -27,7 +26,7 @@ public sealed class MeshService(
     public async Task BootstrapAsync(int nodeNumber, string privateKey, AwgGlobalSettings settings,
         IEnumerable<WireGuardPeer> peers, CancellationToken ct) {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
-        var config = Build(nodeNumber, privateKey, options.Value.Awg.UseIntegratedTun, settings, peers);
+        var config = Build(nodeNumber, privateKey, settings, peers);
         await ApplyConfigAsync(JsonSerializer.Serialize(config, SingBoxService.SerializerOptions), cancellation.Token);
         await WaitForLocalAddressAsync(nodeNumber, cancellation.Token);
     }
@@ -155,8 +154,7 @@ public sealed class MeshService(
             }
         }
 
-        var config = Build(nodeNumber, local.AwgPrivateKey, options.Value.Awg.UseIntegratedTun, global?.AwgSettings,
-            peers);
+        var config = Build(nodeNumber, local.AwgPrivateKey, global?.AwgSettings, peers);
         await ApplyConfigAsync(JsonSerializer.Serialize(config, SingBoxService.SerializerOptions), ct);
         return nodeNumber;
     }
@@ -207,11 +205,12 @@ public sealed class MeshService(
         }
     }
 
-    public SingBoxConfig Build(int nodeNumber, string privateKey, bool useIntegratedTun,
-        AwgGlobalSettings? settings, IEnumerable<WireGuardPeer> peers) {
-        var endpoint = new AwgEndpointConfig {
+    public SingBoxConfig Build(int nodeNumber, string privateKey, AwgGlobalSettings? settings,
+        IEnumerable<WireGuardPeer> peers) {
+        var endpoint = new WireGuardEndpointConfig {
             Tag = "awg-mesh",
-            UseIntegratedTun = useIntegratedTun,
+            System = true,
+            Name = "awg-mesh",
             Address = [$"100.64.0.{nodeNumber + 10}/24"],
             PrivateKey = privateKey,
             ListenPort = settings?.ListenPort.ListenPort ?? 0,

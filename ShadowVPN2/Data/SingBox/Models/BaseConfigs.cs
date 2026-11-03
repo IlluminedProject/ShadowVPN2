@@ -24,7 +24,6 @@ public abstract class OutboundConfig {
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(WireGuardEndpointConfig), "wireguard")]
-[JsonDerivedType(typeof(AwgEndpointConfig), "awg")]
 public abstract class EndpointConfig {
     [JsonPropertyName("tag")] public string Tag { get; set; } = null!;
 }

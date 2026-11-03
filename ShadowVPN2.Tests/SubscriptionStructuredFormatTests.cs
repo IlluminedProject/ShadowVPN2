@@ -89,7 +89,7 @@ public sealed class SubscriptionStructuredFormatTests {
         connection.S4 = 48;
         connection.I1 = "<b 0x1234>";
         var awg = JsonNode.Parse(service.Render(Response(connection), SubscriptionFormat.SingBox))!["endpoints"]![0]!;
-        Assert.Equal("awg", awg["type"]!.GetValue<string>());
+        Assert.Equal("wireguard", awg["type"]!.GetValue<string>());
         Assert.Equal("private", awg["private_key"]!.GetValue<string>());
         Assert.Equal("10.0.0.2/32", awg["address"]![0]!.GetValue<string>());
         Assert.Equal("public", awg["peers"]![0]!["public_key"]!.GetValue<string>());

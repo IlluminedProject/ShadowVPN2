@@ -18,18 +18,16 @@ RUN rm -f /out/ravendb/libzstd.win.* /out/ravendb/libzstd.mac.* /out/ravendb/lib
     /out/ravendb/alpine-librdkafka.so /out/ravendb/centos8-librdkafka.so
 
 FROM golang:1.26.8-bookworm AS singbox-build
-ARG AMNEZIA_BOX_REVISION=a63f4dd4a4f44b7fea0a7d2ab630e38d610cbf7d
-WORKDIR /src/amnezia-box
+ARG SINGBOX_LX_REVISION=9c655e30e8fc423557964c3e5e06b124ffd2d4a2
+WORKDIR /src/sing-box-lx
 RUN git init . \
-    && git remote add origin https://github.com/IlluminedProject/amnezia-box.git \
-    && git fetch --depth=1 origin "$AMNEZIA_BOX_REVISION" \
-    && git checkout --detach FETCH_HEAD
+    && git remote add origin https://github.com/IlluminedProject/sing-box-lx.git \
+    && git fetch --depth=1 origin "$SINGBOX_LX_REVISION" \
+    && git checkout --detach FETCH_HEAD \
+    && git submodule update --init --depth=1
 RUN --mount=type=cache,id=shadowvpn2-singbox-mod,target=/go/pkg/mod \
     --mount=type=cache,id=shadowvpn2-singbox-build,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath \
-    -tags "$(cat release/DEFAULT_BUILD_TAGS),with_purego,with_awg,with_low_memory,with_trusttunnel" \
-    -ldflags "-X github.com/sagernet/sing-box/constant.Version=1.15.0-alpha.9-awgm.30-awg-tun-fix $(cat release/LDFLAGS) -s -w -buildid=" \
-    -o /out/sing-box ./cmd/sing-box \
+    CGO_ENABLED=0 make -f Makefile.lx lx-build LX_OUTPUT=/out/sing-box \
     && cp "$(go list -m -f '{{.Dir}}' github.com/sagernet/cronet-go/lib/linux_amd64)/libcronet.so" /out/libcronet.so
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.12 AS runtime-dependencies
@@ -50,7 +48,7 @@ FROM runtime-dependencies AS runtime-base
 COPY --chown=1654:1654 --from=ravendb-build /out/ravendb /opt/ravendb
 COPY --chmod=755 docker/shadowvpn2-entrypoint.sh /usr/local/bin/shadowvpn2-entrypoint
 
-# Install the pinned amnezia-box build with the AWG system TUN fix.
+# Install the pinned sing-box-lx build with AWG support.
 COPY --from=binaries /usr/local/bin/sing-box /usr/local/bin/sing-box
 RUN setcap cap_net_admin,cap_net_raw,cap_net_bind_service=+ep /usr/local/bin/sing-box
 COPY --from=singbox-build /out/libcronet.so /usr/local/bin/libcronet.so
