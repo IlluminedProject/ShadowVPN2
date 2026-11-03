@@ -185,6 +185,7 @@ public class SingBoxService(
             pair.First.Port != pair.Second.Port);
     }
 
+
     public override async Task StopAsync(CancellationToken cancellationToken) {
         _stopping = true;
         await _lifetime.CancelAsync();

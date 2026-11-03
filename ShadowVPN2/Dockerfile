@@ -18,7 +18,7 @@ RUN rm -f /out/ravendb/libzstd.win.* /out/ravendb/libzstd.mac.* /out/ravendb/lib
     /out/ravendb/alpine-librdkafka.so /out/ravendb/centos8-librdkafka.so
 
 FROM golang:1.26.8-bookworm AS singbox-build
-ARG SINGBOX_LX_REVISION=bbf1b456ecdc919847252cb37561c3454735abb5
+ARG SINGBOX_LX_REVISION=7cfb79336256cf196d2447df35bcbedccd2e4117
 WORKDIR /src/sing-box-lx
 RUN git init . \
     && git remote add origin https://github.com/IlluminedProject/sing-box-lx.git \
