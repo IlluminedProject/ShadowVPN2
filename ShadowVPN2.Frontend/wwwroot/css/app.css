@@ -201,6 +201,23 @@ h1:focus {
     flex-shrink: 0;
 }
 
+.port-binding-input {
+    position: relative;
+    display: block;
+}
+
+.port-binding-hint {
+    position: absolute;
+    inset: 50% .5rem auto auto;
+    transform: translateY(-50%);
+    color: var(--bs-secondary-color);
+    pointer-events: none;
+}
+
+.port-binding-input .form-control {
+    padding-right: 3.25rem;
+}
+
 .settings-item-publication {
     flex-shrink: 0;
     margin-left: auto;

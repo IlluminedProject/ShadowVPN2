@@ -1,10 +1,15 @@
 @using System.Diagnostics.CodeAnalysis
 @inherits InputBase<PortBinding>
 
-<input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
-       aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
-       @bind="CurrentValueAsString"/>
-
+<span class="port-binding-input">
+    <input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
+           aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
+           @bind="CurrentValueAsString"/>
+    @if (!CurrentValueAsString.Contains('-', StringComparison.Ordinal))
+    {
+        <span class="port-binding-hint" aria-hidden="true">-PORT</span>
+    }
+</span>
 @code {
     protected override string? FormatValueAsString(PortBinding value)
     {
