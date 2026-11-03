@@ -11,7 +11,7 @@ export function initialize(id) {
         error.hidden = true;
         button.disabled = true;
         try {
-            await navigator.clipboard.writeText(button.dataset.copyText);
+            await copyText(button.dataset.copyText);
         } catch {
             error.textContent = 'Could not copy. Allow clipboard access and try again.';
             error.hidden = false;
@@ -23,6 +23,27 @@ export function initialize(id) {
     pages.set(id, {root, click});
 }
 
+async function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+    if (!document.execCommand('copy'))
+        throw new Error('Clipboard copy failed');
+    input.remove();
+}
+
+/*
+ * Keep disposal below the helper so module consumers retain the same API.
+ */
 export function dispose(id) {
     const state = pages.get(id);
     if (!state) return;
