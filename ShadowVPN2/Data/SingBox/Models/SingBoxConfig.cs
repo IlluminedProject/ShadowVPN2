@@ -14,6 +14,8 @@ public class SingBoxConfig {
     [JsonPropertyName("outbounds")] public List<OutboundConfig> Outbounds { get; set; } = new();
 
     [JsonPropertyName("route")] public SingBoxRouteConfig? Route { get; set; }
+
+    [JsonPropertyName("experimental")] public SingBoxExperimentalConfig? Experimental { get; set; }
 }
 
 public class SingBoxDnsConfig {

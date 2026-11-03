@@ -20,7 +20,9 @@ public class SingBoxService(
     ManagedCertificateService managedCertificateService,
     SingBoxProcessManager processManager,
     IEnumerable<ISingBoxExtension> extensions,
-    IHostApplicationLifetime applicationLifetime)
+    IHostApplicationLifetime applicationLifetime,
+    SingBoxRuntimeClient runtimeClient,
+    SingBoxRuntimeEndpoint runtimeEndpoint)
     : BackgroundService {
     public static readonly JsonSerializerOptions SerializerOptions = new() {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -34,6 +36,7 @@ public class SingBoxService(
     private readonly CancellationTokenSource _lifetime = new();
 
     private readonly SingBoxProcessHandle _process = processManager.Create("proxy");
+    private readonly SingBoxRuntimeClient _runtimeClient = runtimeClient;
     private int _disposed;
     private volatile bool _stopping;
 
@@ -101,8 +104,21 @@ public class SingBoxService(
             var context = new SingBoxContext(config, clients, protocols, configuration.Transports);
             foreach (var extension in _extensions) await extension.ConfigureAsync(context, ct);
 
-            var configJson = JsonSerializer.Serialize(config, SerializerOptions);
-            await _process.ApplyConfigAsync(configJson, ct);
+            config.Experimental ??= new SingBoxExperimentalConfig();
+            config.Experimental.ClashApi ??= new SingBoxClashApiConfig {
+                ExternalController = runtimeEndpoint.Address,
+                Secret = runtimeEndpoint.Secret
+            };
+            var runtimeCandidate = _process.GetRuntimeApplyCandidate(config);
+            if (runtimeCandidate != null &&
+                await TryApplyRuntimeAsync(config, runtimeCandidate, ct).ConfigureAwait(false)) {
+                logger.LogInformation("Applied runtime-only configuration change without restart");
+                _process.MarkRuntimeApplied(config);
+            }
+            else {
+                await _process.ApplyConfigAsync(config, ct);
+            }
+
             foreach (var extension in _extensions) await extension.ApplyAsync(context, ct);
         }
         finally {
@@ -110,10 +126,68 @@ public class SingBoxService(
         }
     }
 
+    /// <summary>
+    ///     RavenDB-first runtime application: the database is the source of truth,
+    ///     and only the deltas (users/peers) are pushed to the running instance.
+    ///     Returns false when the runtime path fails; the caller then falls back to
+    ///     a full restart.
+    /// </summary>
+    private async Task<bool>
+        TryApplyRuntimeAsync(SingBoxConfig candidate, SingBoxConfig applied, CancellationToken ct) {
+        try {
+            var appliedInbounds = applied.Inbounds.ToDictionary(i => i.Tag, i => i);
+            foreach (var inbound in candidate.Inbounds) {
+                if (!appliedInbounds.TryGetValue(inbound.Tag, out var previous) ||
+                    InboundsEqual(previous, inbound)) continue;
+                if (inbound is not IRuntimeManagedInbound runtimeInbound)
+                    return false;
+                await _runtimeClient.ReplaceInboundUsersAsync(inbound.Tag, runtimeInbound.RuntimeUsers, ct)
+                    .ConfigureAwait(false);
+            }
+
+            var appliedEndpoints = applied.Endpoints.ToDictionary(e => e.Tag, e => e);
+            foreach (var endpoint in candidate.Endpoints) {
+                if (endpoint is not WireGuardEndpointConfig wireGuard ||
+                    appliedEndpoints.GetValueOrDefault(endpoint.Tag) is not WireGuardEndpointConfig previousWireGuard)
+                    continue;
+                if (PeersEqual(previousWireGuard.Peers, wireGuard.Peers)) continue;
+                IReadOnlyList<WireGuardPeerDto> peers = [
+                    .. wireGuard.Peers
+                        .Select(p => new WireGuardPeerDto {
+                            PublicKey = p.PublicKey,
+                            AllowedIps = p.AllowedIps,
+                            PersistentKeepaliveInterval = p.PersistentKeepaliveInterval,
+                            Address = p.Address,
+                            Port = p.Port
+                        })
+                ];
+                await _runtimeClient.ReplaceEndpointPeersAsync(endpoint.Tag, peers, ct).ConfigureAwait(false);
+            }
+
+            return true;
+        }
+        catch (Exception exception) {
+            logger.LogWarning(exception, "Runtime-only configuration apply failed; falling back to restart");
+            return false;
+        }
+    }
+
+    private static bool InboundsEqual(InboundConfig left, InboundConfig right) {
+        return JsonSerializer.Serialize(left, SerializerOptions) == JsonSerializer.Serialize(right, SerializerOptions);
+    }
+
+    private static bool PeersEqual(IReadOnlyList<WireGuardPeer> left, IReadOnlyList<WireGuardPeer> right) {
+        return left.Count == right.Count && !left.Zip(right).Any(pair =>
+            pair.First.PublicKey != pair.Second.PublicKey ||
+            !pair.First.AllowedIps.SequenceEqual(pair.Second.AllowedIps) ||
+            pair.First.PersistentKeepaliveInterval != pair.Second.PersistentKeepaliveInterval ||
+            pair.First.Address != pair.Second.Address ||
+            pair.First.Port != pair.Second.Port);
+    }
 
     public override async Task StopAsync(CancellationToken cancellationToken) {
         _stopping = true;
-        _lifetime.Cancel();
+        await _lifetime.CancelAsync();
         globalConfigurationService.ConfigurationChanged -= OnConfigurationChanged;
         managedCertificateService.CertificatesChanged -= OnCertificatesChanged;
         await _configurationGate.WaitAsync(CancellationToken.None);

@@ -4,7 +4,6 @@ using System.Net.NetworkInformation;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
-using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Data.SingBox.Models;
@@ -27,7 +26,7 @@ public sealed class MeshService(
         IEnumerable<WireGuardPeer> peers, CancellationToken ct) {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         var config = Build(nodeNumber, privateKey, settings, peers);
-        await ApplyConfigAsync(JsonSerializer.Serialize(config, SingBoxService.SerializerOptions), cancellation.Token);
+        await ApplyConfigAsync(config, cancellation.Token);
         await WaitForLocalAddressAsync(nodeNumber, cancellation.Token);
     }
 
@@ -155,15 +154,15 @@ public sealed class MeshService(
         }
 
         var config = Build(nodeNumber, local.AwgPrivateKey, global?.AwgSettings, peers);
-        await ApplyConfigAsync(JsonSerializer.Serialize(config, SingBoxService.SerializerOptions), ct);
+        await ApplyConfigAsync(config, ct);
         return nodeNumber;
     }
 
-    private async Task ApplyConfigAsync(string configJson, CancellationToken ct) {
+    private async Task ApplyConfigAsync(SingBoxConfig config, CancellationToken ct) {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         await _configurationGate.WaitAsync(cancellation.Token);
         try {
-            await _process.ApplyConfigAsync(configJson, cancellation.Token);
+            await _process.ApplyConfigAsync(config, cancellation.Token);
         }
         finally {
             _configurationGate.Release();

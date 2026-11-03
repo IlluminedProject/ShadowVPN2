@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace ShadowVPN2.Data.SingBox.Models;
 
-public class WireGuardEndpointConfig : EndpointConfig {
+public class WireGuardEndpointConfig : EndpointConfig, IRuntimeManagedConfig {
     [JsonPropertyName("system")] public bool System { get; set; } = false;
     [JsonPropertyName("name")] public string Name { get; set; } = "";
     [JsonPropertyName("mtu")] public int? Mtu { get; set; }
@@ -26,6 +26,9 @@ public class WireGuardEndpointConfig : EndpointConfig {
     [JsonPropertyName("i3")] public string? I3 { get; set; }
     [JsonPropertyName("i4")] public string? I4 { get; set; }
     [JsonPropertyName("i5")] public string? I5 { get; set; }
+
+    IReadOnlySet<string> IRuntimeManagedConfig.RuntimeManagedProperties { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { "peers" };
 }
 
 public class WireGuardPeer {

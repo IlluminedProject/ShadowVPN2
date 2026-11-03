@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using ShadowVPN2.Data.SingBox.Models;
 using TruePath;
 using TruePath.SystemIo;
 
@@ -16,6 +18,8 @@ public sealed class SingBoxProcessHandle : IAsyncDisposable {
 
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _supervisorCancellation = new();
+    private SingBoxConfig? _appliedConfig;
+    private string? _appliedJson;
     private bool _disposed;
     private string? _lastSuccessfulJson;
     private Process? _process;
@@ -73,8 +77,33 @@ public sealed class SingBoxProcessHandle : IAsyncDisposable {
         if (stopError != null) throw stopError;
     }
 
-    public async Task ApplyConfigAsync(string configJson, CancellationToken ct = default) {
-        ArgumentNullException.ThrowIfNull(configJson);
+    /// <summary>
+    ///     Returns the currently applied config JSON when the candidate differs
+    ///     from it only in runtime-manageable sections (inbound users and wireguard
+    ///     endpoint peers). Returns null when a full restart is required or the
+    ///     applied snapshot is unknown.
+    /// </summary>
+    public SingBoxConfig? GetRuntimeApplyCandidate(SingBoxConfig config) {
+        var applied = Volatile.Read(ref _appliedConfig);
+        if (applied == null || !IsRunning) return null;
+        return SingBoxRuntimeDiff.IsRuntimeOnlyChange(applied, config) ? applied : null;
+    }
+
+    /// <summary>
+    ///     Records that the candidate config has been fully applied to the running
+    ///     instance via the runtime API, so subsequent comparisons use it as the
+    ///     baseline.
+    /// </summary>
+    public void MarkRuntimeApplied(SingBoxConfig config) {
+        var json = JsonSerializer.Serialize(config, SingBoxService.SerializerOptions);
+        Volatile.Write(ref _appliedConfig, config);
+        Volatile.Write(ref _appliedJson, json);
+        _lastSuccessfulJson = json;
+    }
+
+    public async Task ApplyConfigAsync(SingBoxConfig config, CancellationToken ct = default) {
+        ArgumentNullException.ThrowIfNull(config);
+        var configJson = JsonSerializer.Serialize(config, SingBoxService.SerializerOptions);
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -106,6 +135,8 @@ public sealed class SingBoxProcessHandle : IAsyncDisposable {
                 }
 
                 _lastSuccessfulJson = configJson;
+                _appliedConfig = config;
+                _appliedJson = configJson;
             }
             finally {
                 try {
