@@ -5,9 +5,9 @@
     <input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
            aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
            @bind="CurrentValueAsString"/>
-    @if (!CurrentValueAsString.Contains('-', StringComparison.Ordinal))
+    @if (!CurrentValueAsString.Contains('-', StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(CurrentValueAsString))
     {
-        <span class="port-binding-hint" aria-hidden="true">-PORT</span>
+        <span class="port-binding-hint" aria-hidden="true">-@CurrentValueAsString</span>
     }
 </span>
 @code {
