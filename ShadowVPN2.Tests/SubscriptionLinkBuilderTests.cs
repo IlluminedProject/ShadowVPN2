@@ -213,6 +213,24 @@ public sealed class SubscriptionLinkBuilderTests {
         connection.Mtu.Should().Be(1408);
     }
 
+    [Fact]
+    public void CreateWireGuardConfig_puts_awg_parameters_in_interface_section() {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = true, Jc = 2, Jmin = 10, Jmax = 50,
+            S1 = 34, S2 = 84, S3 = 20, S4 = 23,
+            H1 = "264548", H2 = "859751", H3 = "897465", H4 = "859745"
+        };
+
+        var config = SubscriptionLinkBuilder.CreateWireGuardConfig(connection);
+
+        config.IndexOf("Jc = 2", StringComparison.Ordinal).Should()
+            .BeLessThan(config.IndexOf("[Peer]", StringComparison.Ordinal));
+        config.IndexOf("H4 = 859745", StringComparison.Ordinal).Should()
+            .BeLessThan(config.IndexOf("[Peer]", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

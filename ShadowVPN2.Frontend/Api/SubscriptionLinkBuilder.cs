@@ -14,33 +14,32 @@ public static class SubscriptionLinkBuilder {
                       PrivateKey = {connection.PrivateKey}
                       Address = {connection.AssignedIp}/32
                       MTU = {connection.Mtu}
-
-                      [Peer]
-                      PublicKey = {connection.ServerPublicKey}
-                      Endpoint = {connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()}
-                      AllowedIPs = 0.0.0.0/0
-                      PersistentKeepalive = 25
-
                       """;
-        if (!connection.IsAmneziaWg)
-            return config;
+        if (connection.IsAmneziaWg)
+            config += $"""
+                       Jc = {connection.Jc}
+                       Jmin = {connection.Jmin}
+                       Jmax = {connection.Jmax}
+                       S1 = {connection.S1}
+                       S2 = {connection.S2}
+                       S3 = {connection.S3}
+                       S4 = {connection.S4}
+                       H1 = {connection.H1}
+                       H2 = {connection.H2}
+                       H3 = {connection.H3}
+                       H4 = {connection.H4}
 
-        config += $"""
-                   Jc = {connection.Jc}
-                   Jmin = {connection.Jmin}
-                   Jmax = {connection.Jmax}
-                   S1 = {connection.S1}
-                   S2 = {connection.S2}
-                   S3 = {connection.S3}
-                   S4 = {connection.S4}
-                   H1 = {connection.H1}
-                   H2 = {connection.H2}
-                   H3 = {connection.H3}
-                   H4 = {connection.H4}
+                       """ + Optional("I1", connection.I1) + Optional("I2", connection.I2) +
+                      Optional("I3", connection.I3) + Optional("I4", connection.I4) + Optional("I5", connection.I5);
 
-                   """;
-        return config + Optional("I1", connection.I1) + Optional("I2", connection.I2) +
-               Optional("I3", connection.I3) + Optional("I4", connection.I4) + Optional("I5", connection.I5);
+        return config + $"""
+                         [Peer]
+                         PublicKey = {connection.ServerPublicKey}
+                         Endpoint = {connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()}
+                         AllowedIPs = 0.0.0.0/0
+                         PersistentKeepalive = 25
+
+                         """;
     }
 
     public static string CreateWireGuardShareUrl(WireGuardConnectionInfo connection) {
