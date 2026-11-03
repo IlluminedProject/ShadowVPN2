@@ -12,13 +12,13 @@ public static class WireGuardShareUrlBuilder {
             .AddQuery("public_key", connection.ServerPublicKey);
 
         if (connection.IsAmneziaWg) {
-            builder.AddQuery("jc", connection.Jc.ToString())
-                .AddQuery("jmin", connection.Jmin.ToString())
-                .AddQuery("jmax", connection.Jmax.ToString())
-                .AddQuery("s1", connection.S1.ToString())
-                .AddQuery("s2", connection.S2.ToString())
-                .AddQuery("s3", connection.S3.ToString())
-                .AddQuery("s4", connection.S4.ToString())
+            builder.AddQuery("jc", connection.Jc?.ToString())
+                .AddQuery("jmin", connection.Jmin?.ToString())
+                .AddQuery("jmax", connection.Jmax?.ToString())
+                .AddQuery("s1", connection.S1?.ToString())
+                .AddQuery("s2", connection.S2?.ToString())
+                .AddQuery("s3", connection.S3?.ToString())
+                .AddQuery("s4", connection.S4?.ToString())
                 .AddQuery("h1", connection.H1)
                 .AddQuery("h2", connection.H2)
                 .AddQuery("h3", connection.H3)

@@ -47,7 +47,7 @@ public static class ApplicationServices {
         builder.SetupRavenDb();
         builder.Services.AddSingleton<RavenMigrationLock>();
         builder.Services.AddSingleton<RavenMigrationRunner>();
-        builder.Services.AddRavenMigration<DeviceFlowModeMigration>();
+        builder.Services.AddRavenMigration<AwgHeaderNullabilityMigration>();
         builder.Services.AddRavenMigration<ClusterUpdateDocumentMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
@@ -92,6 +92,8 @@ public static class ApplicationServices {
         builder.Services.AddSingleton(_ => new LookupClient(new LookupClientOptions { ThrowDnsErrors = true }));
         builder.Services.AddSingleton<DomainValidationService>();
         builder.Services.AddSingleton<SingBoxProcessManager>();
+        builder.Services.AddSingleton<SingBoxRuntimeEndpoint>();
+        builder.Services.AddSingleton<SingBoxRuntimeClient>();
         builder.Services.AddSingleton<MeshService>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<MeshService>());
         builder.Services.AddSingleton<ISingBoxExtension, RemoveEmptyInboundsExtension>();

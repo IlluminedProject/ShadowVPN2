@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace ShadowVPN2.Frontend.Components;
 
-public sealed class InputUInt32 : InputBase<uint> {
+public sealed class InputUInt32 : InputBase<uint?> {
     protected override void BuildRenderTree(RenderTreeBuilder builder) {
         builder.OpenElement(0, "input");
         builder.AddMultipleAttributes(1, AdditionalAttributes);
@@ -21,17 +21,19 @@ public sealed class InputUInt32 : InputBase<uint> {
         builder.CloseElement();
     }
 
-    protected override string FormatValueAsString(uint value) {
-        return value.ToString(CultureInfo.InvariantCulture);
+    protected override string? FormatValueAsString(uint? value) {
+        return value?.ToString(CultureInfo.InvariantCulture);
     }
 
-    protected override bool TryParseValueFromString(string? value, out uint result,
+    protected override bool TryParseValueFromString(string? value, out uint? result,
         [NotNullWhen(false)] out string? validationErrorMessage) {
-        if (uint.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result)) {
+        if (uint.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)) {
+            result = parsed;
             validationErrorMessage = null;
             return true;
         }
 
+        result = null;
         validationErrorMessage =
             $"{DisplayName ?? FieldIdentifier.FieldName} must be an integer between 0 and 4294967295";
         return false;

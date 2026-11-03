@@ -10,17 +10,17 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
     public required string ServerPublicKey { get; set; }
     public required int Mtu { get; set; }
     public required bool IsAmneziaWg { get; set; }
-    public uint Jc { get; set; }
-    public uint Jmin { get; set; }
-    public uint Jmax { get; set; }
-    public int S1 { get; set; }
-    public int S2 { get; set; }
-    public int S3 { get; set; }
-    public int S4 { get; set; }
-    public required string H1 { get; set; }
-    public required string H2 { get; set; }
-    public required string H3 { get; set; }
-    public required string H4 { get; set; }
+    public uint? Jc { get; set; }
+    public uint? Jmin { get; set; }
+    public uint? Jmax { get; set; }
+    public int? S1 { get; set; }
+    public int? S2 { get; set; }
+    public int? S3 { get; set; }
+    public int? S4 { get; set; }
+    public string? H1 { get; set; }
+    public string? H2 { get; set; }
+    public string? H3 { get; set; }
+    public string? H4 { get; set; }
     public string? I1 { get; set; }
     public string? I2 { get; set; }
     public string? I3 { get; set; }

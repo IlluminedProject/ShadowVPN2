@@ -25,7 +25,7 @@ public sealed class AwgSettingsValidator : AbstractValidator<IAwgSettings> {
     }
 
     private static bool IsHeader(string? value) {
-        return TryParseHeader(value, out _);
+        return string.IsNullOrWhiteSpace(value) || TryParseHeader(value, out _);
     }
 
     private static bool DoesNotOverlap(string? value, string? first, string? second, string? third) {

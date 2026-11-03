@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ShadowVPN2.Contracts.Extensions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Protocols;
@@ -128,10 +129,10 @@ public class ProtocolsController(
                     PrivateKey = current?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,
                     ServerAddress = current?.ServerAddress ?? "100.64.0.1/10",
                     Mtu = current?.Mtu ?? 1408,
-                    H1 = awg.H1,
-                    H2 = awg.H2,
-                    H3 = awg.H3,
-                    H4 = awg.H4,
+                    H1 = awg.H1.NullIfDefault("1"),
+                    H2 = awg.H2.NullIfDefault("2"),
+                    H3 = awg.H3.NullIfDefault("3"),
+                    H4 = awg.H4.NullIfDefault("4"),
                     Jc = awg.Jc,
                     Jmin = awg.Jmin,
                     Jmax = awg.Jmax,
@@ -139,11 +140,11 @@ public class ProtocolsController(
                     S2 = awg.S2,
                     S3 = awg.S3,
                     S4 = awg.S4,
-                    I1 = awg.I1,
-                    I2 = awg.I2,
-                    I3 = awg.I3,
-                    I4 = awg.I4,
-                    I5 = awg.I5
+                    I1 = awg.I1.NullIfWhiteSpace(),
+                    I2 = awg.I2.NullIfWhiteSpace(),
+                    I3 = awg.I3.NullIfWhiteSpace(),
+                    I4 = awg.I4.NullIfWhiteSpace(),
+                    I5 = awg.I5.NullIfWhiteSpace()
                 };
             }
             case NaiveProxyProtocolSettingsDto naiveProxy: {

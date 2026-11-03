@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ShadowVPN2.Contracts.Extensions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
@@ -44,10 +45,10 @@ public class ClusterController(
         await globalConfigurationService.UpdateAsync(configuration => {
             var awg = configuration.AwgSettings;
             awg.ListenPort = new PortBinding(request.ListenPort);
-            awg.H1 = request.H1;
-            awg.H2 = request.H2;
-            awg.H3 = request.H3;
-            awg.H4 = request.H4;
+            awg.H1 = request.H1.NullIfDefault("1");
+            awg.H2 = request.H2.NullIfDefault("2");
+            awg.H3 = request.H3.NullIfDefault("3");
+            awg.H4 = request.H4.NullIfDefault("4");
             awg.Jc = request.Jc;
             awg.Jmin = request.Jmin;
             awg.Jmax = request.Jmax;
@@ -55,11 +56,11 @@ public class ClusterController(
             awg.S2 = request.S2;
             awg.S3 = request.S3;
             awg.S4 = request.S4;
-            awg.I1 = request.I1;
-            awg.I2 = request.I2;
-            awg.I3 = request.I3;
-            awg.I4 = request.I4;
-            awg.I5 = request.I5;
+            awg.I1 = request.I1.NullIfWhiteSpace();
+            awg.I2 = request.I2.NullIfWhiteSpace();
+            awg.I3 = request.I3.NullIfWhiteSpace();
+            awg.I4 = request.I4.NullIfWhiteSpace();
+            awg.I5 = request.I5.NullIfWhiteSpace();
             GlobalConfigurationValidator.ValidateMeshPort(configuration);
         }, cancellationToken);
     }

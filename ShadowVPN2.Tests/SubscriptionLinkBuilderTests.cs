@@ -231,6 +231,129 @@ public sealed class SubscriptionLinkBuilderTests {
             .BeLessThan(config.IndexOf("[Peer]", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void CreateWireGuardConfig_separates_every_directive_with_newlines() {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = true, Jc = 2, Jmin = 10, Jmax = 50,
+            S1 = 34, S2 = 84, S3 = 20, S4 = 23,
+            H1 = "264548", H2 = "859751", H3 = "897465", H4 = "859745"
+        };
+
+        var lines = SubscriptionLinkBuilder.CreateWireGuardConfig(connection)
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        lines.Should().ContainInOrder(
+            "[Interface]", "PrivateKey = private-key", "Address = 10.0.0.2/32", "MTU = 1408", "Jc = 2",
+            "Jmin = 10", "Jmax = 50", "S1 = 34", "S2 = 84", "S3 = 20", "S4 = 23", "H1 = 264548",
+            "H2 = 859751", "H3 = 897465", "H4 = 859745", "[Peer]", "PublicKey = public-key",
+            "Endpoint = vpn.example.com:51820", "AllowedIPs = 0.0.0.0/0", "PersistentKeepalive = 25");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateWireGuardConfig_omits_all_absent_awg_parameters(bool amnezia) {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = amnezia
+        };
+
+        var config = SubscriptionLinkBuilder.CreateWireGuardConfig(connection);
+
+        config.Should().Be(string.Join(Environment.NewLine,
+            "[Interface]", "PrivateKey = private-key", "Address = 10.0.0.2/32", "MTU = 1408", "",
+            "[Peer]", "PublicKey = public-key", "Endpoint = vpn.example.com:51820",
+            "AllowedIPs = 0.0.0.0/0", "PersistentKeepalive = 25", ""));
+    }
+
+    [Fact]
+    public void CreateWireGuardConfig_omits_blank_and_null_awg_parameters_and_retains_zero() {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = true,
+            Jc = 0, Jmax = 0, S1 = 0, S3 = 0, H1 = "0", H2 = "", H3 = " \t ",
+            I1 = "", I2 = " \t ", I3 = "<b 0x01>"
+        };
+
+        var config = SubscriptionLinkBuilder.CreateWireGuardConfig(connection);
+
+        config.Should().Be(string.Join(Environment.NewLine,
+            "[Interface]", "PrivateKey = private-key", "Address = 10.0.0.2/32", "MTU = 1408",
+            "Jc = 0", "Jmax = 0", "S1 = 0", "S3 = 0", "H1 = 0", "I3 = <b 0x01>", "",
+            "[Peer]", "PublicKey = public-key", "Endpoint = vpn.example.com:51820",
+            "AllowedIPs = 0.0.0.0/0", "PersistentKeepalive = 25", ""));
+    }
+
+    [Fact]
+    public void Local_wireguard_copy_preserves_absent_parameters_and_explicit_zeros() {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = true, Jc = 0, S2 = 0, H4 = "0", I5 = "<b 0x01>"
+        };
+
+        var local = (WireGuardConnectionInfo)SubscriptionLinkBuilder.CreateLocalConnection(connection);
+
+        local.Jc.Should().Be(0);
+        local.Jmin.Should().BeNull();
+        local.Jmax.Should().BeNull();
+        local.S1.Should().BeNull();
+        local.S2.Should().Be(0);
+        local.S3.Should().BeNull();
+        local.S4.Should().BeNull();
+        local.H1.Should().BeNull();
+        local.H2.Should().BeNull();
+        local.H3.Should().BeNull();
+        local.H4.Should().Be("0");
+        local.I5.Should().Be("<b 0x01>");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Wireguard_connection_json_preserves_null_and_zero_awg_parameters(bool explicitZero) {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = explicitZero,
+            Jc = explicitZero ? 0u : null, Jmin = explicitZero ? 0u : null, Jmax = explicitZero ? 0u : null,
+            S1 = explicitZero ? 0 : null, S2 = explicitZero ? 0 : null,
+            S3 = explicitZero ? 0 : null, S4 = explicitZero ? 0 : null,
+            H1 = explicitZero ? "0" : null, H2 = explicitZero ? "0" : null,
+            H3 = explicitZero ? "0" : null, H4 = explicitZero ? "0" : null
+        };
+
+        var json = JsonSerializer.Serialize(connection);
+        using var document = JsonDocument.Parse(json);
+        foreach (var field in new[] { "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4" }) {
+            var value = document.RootElement.GetProperty(field);
+            if (!explicitZero)
+                value.ValueKind.Should().Be(JsonValueKind.Null);
+            else if (field.StartsWith('H'))
+                value.GetString().Should().Be("0");
+            else
+                value.GetUInt32().Should().Be(0);
+        }
+
+        var restored = JsonSerializer.Deserialize<WireGuardConnectionInfo>(json)!;
+        restored.Jc.Should().Be(connection.Jc);
+        restored.Jmin.Should().Be(connection.Jmin);
+        restored.Jmax.Should().Be(connection.Jmax);
+        restored.S1.Should().Be(connection.S1);
+        restored.S2.Should().Be(connection.S2);
+        restored.S3.Should().Be(connection.S3);
+        restored.S4.Should().Be(connection.S4);
+        restored.H1.Should().Be(connection.H1);
+        restored.H2.Should().Be(connection.H2);
+        restored.H3.Should().Be(connection.H3);
+        restored.H4.Should().Be(connection.H4);
+    }
+
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -242,7 +365,7 @@ public sealed class SubscriptionLinkBuilderTests {
             AssignedIp = "10.0.0.2",
             ServerPublicKey = "public-key",
             Mtu = 1408,
-            IsAmneziaWg = amnezia,
+            IsAmneziaWg = amnezia, Jc = 0,
             H1 = "1", H2 = "2", H3 = "3", H4 = "4"
         };
 
@@ -254,5 +377,28 @@ public sealed class SubscriptionLinkBuilderTests {
         link.Should().Contain($"enable_amnezia={amnezia.ToString().ToLowerInvariant()}");
         if (amnezia)
             link.Should().Contain("jc=0");
+    }
+
+    [Fact]
+    public void CreateWireGuardShareUrl_omits_absent_awg_parameters_and_retains_zero() {
+        var connection = new WireGuardConnectionInfo {
+            ServerAddress = HostName.Parse("vpn.example.com"), ServerPort = 51820,
+            PrivateKey = "private-key", AssignedIp = "10.0.0.2", ServerPublicKey = "public-key",
+            Mtu = 1408, IsAmneziaWg = true, Jc = 0, S2 = 0, H1 = "0"
+        };
+
+        var query = QueryHelpers.ParseQuery(new Uri(SubscriptionLinkBuilder.CreateWireGuardShareUrl(connection)).Query);
+
+        query["jc"].ToString().Should().Be("0");
+        query["s2"].ToString().Should().Be("0");
+        query["h1"].ToString().Should().Be("0");
+        query.Keys.Should().NotContain("jmin");
+        query.Keys.Should().NotContain("jmax");
+        query.Keys.Should().NotContain("s1");
+        query.Keys.Should().NotContain("s3");
+        query.Keys.Should().NotContain("s4");
+        query.Keys.Should().NotContain("h2");
+        query.Keys.Should().NotContain("h3");
+        query.Keys.Should().NotContain("h4");
     }
 }

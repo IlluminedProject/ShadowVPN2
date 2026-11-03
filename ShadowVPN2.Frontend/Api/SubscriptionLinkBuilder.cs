@@ -9,37 +9,37 @@ public static class SubscriptionLinkBuilder {
     private static readonly HostName Loopback = HostName.Parse("127.0.0.1");
 
     public static string CreateWireGuardConfig(WireGuardConnectionInfo connection) {
-        var config = $"""
-                      [Interface]
-                      PrivateKey = {connection.PrivateKey}
-                      Address = {connection.AssignedIp}/32
-                      MTU = {connection.Mtu}
-                      """;
-        if (connection.IsAmneziaWg)
-            config += $"""
-                       Jc = {connection.Jc}
-                       Jmin = {connection.Jmin}
-                       Jmax = {connection.Jmax}
-                       S1 = {connection.S1}
-                       S2 = {connection.S2}
-                       S3 = {connection.S3}
-                       S4 = {connection.S4}
-                       H1 = {connection.H1}
-                       H2 = {connection.H2}
-                       H3 = {connection.H3}
-                       H4 = {connection.H4}
+        var builder = new ConfigBuilder()
+            .AddSection("Interface")
+            .Add("PrivateKey", connection.PrivateKey)
+            .Add("Address", $"{connection.AssignedIp}/32")
+            .Add("MTU", connection.Mtu);
 
-                       """ + Optional("I1", connection.I1) + Optional("I2", connection.I2) +
-                      Optional("I3", connection.I3) + Optional("I4", connection.I4) + Optional("I5", connection.I5);
+        builder
+            .AddOptional("Jc", connection.Jc)
+            .AddOptional("Jmin", connection.Jmin)
+            .AddOptional("Jmax", connection.Jmax)
+            .AddOptional("S1", connection.S1)
+            .AddOptional("S2", connection.S2)
+            .AddOptional("S3", connection.S3)
+            .AddOptional("S4", connection.S4)
+            .AddOptional("H1", connection.H1)
+            .AddOptional("H2", connection.H2)
+            .AddOptional("H3", connection.H3)
+            .AddOptional("H4", connection.H4)
+            .AddOptional("I1", connection.I1)
+            .AddOptional("I2", connection.I2)
+            .AddOptional("I3", connection.I3)
+            .AddOptional("I4", connection.I4)
+            .AddOptional("I5", connection.I5);
 
-        return config + $"""
-                         [Peer]
-                         PublicKey = {connection.ServerPublicKey}
-                         Endpoint = {connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()}
-                         AllowedIPs = 0.0.0.0/0
-                         PersistentKeepalive = 25
-
-                         """;
+        return builder
+            .AddSection("Peer")
+            .Add("PublicKey", connection.ServerPublicKey)
+            .Add("Endpoint", connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort())
+            .Add("AllowedIPs", "0.0.0.0/0")
+            .Add("PersistentKeepalive", 25)
+            .Build();
     }
 
     public static string CreateWireGuardShareUrl(WireGuardConnectionInfo connection) {

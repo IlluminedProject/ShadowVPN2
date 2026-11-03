@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Application;
+using ShadowVPN2.Contracts.Extensions;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data;
 using ShadowVPN2.Data.Certificates;
@@ -123,10 +124,10 @@ public sealed class AdminSettingsService(
         await globalConfigurationService.UpdateAsync(configuration => {
             var awg = configuration.AwgSettings;
             awg.ListenPort = new PortBinding(request.ListenPort, awg.ListenPort.PortRangeEnd);
-            awg.H1 = request.H1;
-            awg.H2 = request.H2;
-            awg.H3 = request.H3;
-            awg.H4 = request.H4;
+            awg.H1 = request.H1.NullIfDefault("1");
+            awg.H2 = request.H2.NullIfDefault("2");
+            awg.H3 = request.H3.NullIfDefault("3");
+            awg.H4 = request.H4.NullIfDefault("4");
             awg.Jc = request.Jc;
             awg.Jmin = request.Jmin;
             awg.Jmax = request.Jmax;
@@ -134,11 +135,11 @@ public sealed class AdminSettingsService(
             awg.S2 = request.S2;
             awg.S3 = request.S3;
             awg.S4 = request.S4;
-            awg.I1 = request.I1;
-            awg.I2 = request.I2;
-            awg.I3 = request.I3;
-            awg.I4 = request.I4;
-            awg.I5 = request.I5;
+            awg.I1 = request.I1.NullIfWhiteSpace();
+            awg.I2 = request.I2.NullIfWhiteSpace();
+            awg.I3 = request.I3.NullIfWhiteSpace();
+            awg.I4 = request.I4.NullIfWhiteSpace();
+            awg.I5 = request.I5.NullIfWhiteSpace();
             GlobalConfigurationValidator.ValidateMeshPort(configuration);
         }, cancellationToken);
     }
@@ -270,10 +271,10 @@ public sealed class AdminSettingsService(
                     PrivateKey = (existing as AwgGlobalSettings)?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,
                     ServerAddress = (existing as AwgGlobalSettings)?.ServerAddress ?? "100.64.0.1/10",
                     Mtu = (existing as AwgGlobalSettings)?.Mtu ?? 1408,
-                    H1 = awg.H1,
-                    H2 = awg.H2,
-                    H3 = awg.H3,
-                    H4 = awg.H4,
+                    H1 = awg.H1.NullIfDefault("1"),
+                    H2 = awg.H2.NullIfDefault("2"),
+                    H3 = awg.H3.NullIfDefault("3"),
+                    H4 = awg.H4.NullIfDefault("4"),
                     Jc = awg.Jc,
                     Jmin = awg.Jmin,
                     Jmax = awg.Jmax,
@@ -281,11 +282,11 @@ public sealed class AdminSettingsService(
                     S2 = awg.S2,
                     S3 = awg.S3,
                     S4 = awg.S4,
-                    I1 = awg.I1,
-                    I2 = awg.I2,
-                    I3 = awg.I3,
-                    I4 = awg.I4,
-                    I5 = awg.I5
+                    I1 = awg.I1.NullIfWhiteSpace(),
+                    I2 = awg.I2.NullIfWhiteSpace(),
+                    I3 = awg.I3.NullIfWhiteSpace(),
+                    I4 = awg.I4.NullIfWhiteSpace(),
+                    I5 = awg.I5.NullIfWhiteSpace()
                 };
             case NaiveProxyProtocolSettingsDto naiveProxy: {
                 var current = existing as NaiveProxyGlobalSettings;

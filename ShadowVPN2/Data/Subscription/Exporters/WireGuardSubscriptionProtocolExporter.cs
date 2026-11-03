@@ -23,8 +23,15 @@ public sealed class WireGuardSubscriptionProtocolExporter : SubscriptionProtocol
             ],
             Jc = connection.Jc, Jmin = connection.Jmin, Jmax = connection.Jmax,
             S1 = connection.S1, S2 = connection.S2, S3 = connection.S3, S4 = connection.S4,
-            H1 = connection.H1, H2 = connection.H2, H3 = connection.H3, H4 = connection.H4,
-            I1 = connection.I1, I2 = connection.I2, I3 = connection.I3, I4 = connection.I4, I5 = connection.I5
+            H1 = connection.H1,
+            H2 = connection.H2,
+            H3 = connection.H3,
+            H4 = connection.H4,
+            I1 = connection.I1,
+            I2 = connection.I2,
+            I3 = connection.I3,
+            I4 = connection.I4,
+            I5 = connection.I5
         };
     }
 

@@ -11,56 +11,22 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
     public required string ServerPublicKey { get; set; }
     public required int Mtu { get; set; }
     public required bool IsAmneziaWg { get; set; }
-    public uint Jc { get; set; }
-    public uint Jmin { get; set; }
-    public uint Jmax { get; set; }
-    public int S1 { get; set; }
-    public int S2 { get; set; }
-    public int S3 { get; set; }
-    public int S4 { get; set; }
-    public required string H1 { get; set; }
-    public required string H2 { get; set; }
-    public required string H3 { get; set; }
-    public required string H4 { get; set; }
+    public uint? Jc { get; set; }
+    public uint? Jmin { get; set; }
+    public uint? Jmax { get; set; }
+    public int? S1 { get; set; }
+    public int? S2 { get; set; }
+    public int? S3 { get; set; }
+    public int? S4 { get; set; }
+    public string? H1 { get; set; }
+    public string? H2 { get; set; }
+    public string? H3 { get; set; }
+    public string? H4 { get; set; }
     public string? I1 { get; set; }
     public string? I2 { get; set; }
     public string? I3 { get; set; }
     public string? I4 { get; set; }
     public string? I5 { get; set; }
-
-    public string CreateConfig() {
-        var config =
-            $"""
-             [Interface]
-             PrivateKey = {PrivateKey}
-             Address = {AssignedIp}/32
-             MTU = {Mtu}
-             """;
-        if (IsAmneziaWg)
-            config += $"""
-                       Jc = {Jc}
-                       Jmin = {Jmin}
-                       Jmax = {Jmax}
-                       S1 = {S1}
-                       S2 = {S2}
-                       S3 = {S3}
-                       S4 = {S4}
-                       H1 = {H1}
-                       H2 = {H2}
-                       H3 = {H3}
-                       H4 = {H4}
-
-                       """ + Optional("I1", I1) + Optional("I2", I2) + Optional("I3", I3) +
-                      Optional("I4", I4) + Optional("I5", I5);
-
-        return config + $"""
-                         [Peer]
-                         PublicKey = {ServerPublicKey}
-                         Endpoint = {ServerAddress.ToAddress(ServerPort).FormatWithPort()}
-                         AllowedIPs = 0.0.0.0/0
-                         PersistentKeepalive = 25
-                         """;
-    }
 
     public string CreateShareUrl() {
         return WireGuardShareUrlBuilder.Build(ToContract());
@@ -101,9 +67,5 @@ public sealed class WireGuardConnectionInfo : ProtocolConnectionInfo {
             I4 = I4,
             I5 = I5
         };
-    }
-
-    private static string Optional(string name, string? value) {
-        return string.IsNullOrWhiteSpace(value) ? string.Empty : $"{name} = {value}\n";
     }
 }
