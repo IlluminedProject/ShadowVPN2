@@ -47,41 +47,13 @@ public static class SubscriptionLinkBuilder {
     }
 
     public static string CreateHysteria2ShareUrl(Hysteria2ConnectionInfo connection, string clientName) {
-        var builder = new StringBuilder("hysteria2://")
-            .Append(Uri.EscapeDataString(connection.Password))
-            .Append('@')
-            .Append(connection.ServerAddress.ToAddress(connection.PortBinding.ListenPort).FormatWithPort())
-            .Append("/?insecure=1");
-        AddQuery(builder, "pinSHA256", connection.PinSha256);
-        if (connection.ObfsType is not null and not "none") {
-            AddQuery(builder, "obfs", connection.ObfsType);
-            AddQuery(builder, "obfs-password", connection.ObfsPassword);
-        }
-
-        AddQuery(builder, "sni", connection.Sni?.ToString());
-        AddQuery(builder, "mport",
-            connection.PortBinding.PortRangeEnd.HasValue ? connection.PortBinding.ToString() : null);
-        AddQuery(builder, "name", clientName);
-        return builder.ToString();
+        return Hysteria2ShareUrlBuilder.Build(connection, clientName);
     }
 
     public static string CreateNaiveProxyShareUrl(NaiveProxyConnectionInfo connection, string clientName) {
-        var builder = new StringBuilder(connection.Quic ? "naive+quic://" : "naive+https://")
-            .Append(Uri.EscapeDataString(connection.Username))
-            .Append(':')
-            .Append(Uri.EscapeDataString(connection.Password))
-            .Append('@')
-            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort())
-            .Append("/?");
-        AddQuery(builder, "sni", connection.Sni.ToString());
-        AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
-        AddQuery(builder, "pinSHA256", connection.PinSha256);
-        AddQuery(builder, "insecure-concurrency", "2");
-        AddQuery(builder, "uot", "1");
-        AddQuery(builder, "udp_over_tcp", "1");
-        AddQuery(builder, "name", clientName);
-        return builder.ToString();
+        return NaiveProxyShareUrlBuilder.Build(connection, clientName);
     }
+
 
     public static string CreateFreeTurnShareUrl(FreeTurnConnectionInfo transport, string clientName,
         string? wireGuardConfig) {
@@ -172,12 +144,6 @@ public static class SubscriptionLinkBuilder {
         return string.IsNullOrWhiteSpace(value) ? string.Empty : $"{key} = {value}\n";
     }
 
-    private static void AddQuery(StringBuilder builder, string key, string? value) {
-        if (!string.IsNullOrEmpty(value)) {
-            builder.Append(builder[^1] == '?' ? string.Empty : "&")
-                .Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
-        }
-    }
 
     private static string? GetObfuscationName(string? profile) {
         return profile switch {

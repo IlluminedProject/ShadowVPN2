@@ -2,7 +2,6 @@ using System.Text;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.WebUtilities;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Data.Subscription.Models.Common;
 using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Data.Subscription.Services;
@@ -75,7 +74,7 @@ public sealed class SubscriptionFormatServiceTests {
         var naiveLinks = Encoding.UTF8.GetString(Convert.FromBase64String(
             service.Render(response, SubscriptionFormat.Base64)));
 
-        naiveLinks.Should().Contain("naive+https://user:password@[2001:db8::1]:443/?sni=vpn.example.com");
+        naiveLinks.Should().Contain("naive+https://user:password@[2001:db8::1]:443?sni=vpn.example.com");
     }
 
     [Theory]

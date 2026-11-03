@@ -1,13 +1,12 @@
-using System.Text;
 using ShadowVPN2.Data.SingBox.Models;
-using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Data.Subscription.Models.Mihomo;
 using Contract = ShadowVPN2.Contracts.Subscriptions;
+using NaiveConnection = ShadowVPN2.Data.Subscription.Models.Connections.NaiveProxyConnectionInfo;
 
 namespace ShadowVPN2.Data.Subscription.Exporters;
 
-public sealed class NaiveProxySubscriptionProtocolExporter : SubscriptionProtocolExporter<NaiveProxyConnectionInfo> {
-    public override OutboundConfig? CreateSingBoxOutbound(NaiveProxyConnectionInfo connection) {
+public sealed class NaiveProxySubscriptionProtocolExporter : SubscriptionProtocolExporter<NaiveConnection> {
+    public override OutboundConfig? CreateSingBoxOutbound(NaiveConnection connection) {
         // Cronet's TLS options cannot preserve the server certificate pin or insecure mode.
         if (connection.Insecure || connection.PinSha256 is not null)
             return null;
@@ -19,7 +18,7 @@ public sealed class NaiveProxySubscriptionProtocolExporter : SubscriptionProtoco
         };
     }
 
-    public override Contract.ProtocolConnectionInfo ToContract(NaiveProxyConnectionInfo connection) {
+    public override Contract.ProtocolConnectionInfo ToContract(NaiveConnection connection) {
         return new Contract.NaiveProxyConnectionInfo {
             ServerAddress = connection.ServerAddress,
             ServerPort = connection.ServerPort,
@@ -32,22 +31,12 @@ public sealed class NaiveProxySubscriptionProtocolExporter : SubscriptionProtoco
         };
     }
 
-    public override string CreateShareUrl(NaiveProxyConnectionInfo connection, string clientName) {
-        var builder = new StringBuilder(connection.Quic ? "naive+quic://" : "naive+https://")
-            .Append(Uri.EscapeDataString(connection.Username)).Append(':')
-            .Append(Uri.EscapeDataString(connection.Password)).Append('@')
-            .Append(connection.ServerAddress.ToAddress(connection.ServerPort).FormatWithPort()).Append("/?");
-        AddQuery(builder, "sni", connection.Sni.ToString());
-        AddQuery(builder, "insecure", connection.Insecure ? "1" : null);
-        AddQuery(builder, "pinSHA256", connection.PinSha256);
-        AddQuery(builder, "insecure-concurrency", "2");
-        AddQuery(builder, "uot", "1");
-        AddQuery(builder, "udp_over_tcp", "1");
-        AddQuery(builder, "name", clientName);
-        return builder.ToString().TrimEnd('&');
+    public override string CreateShareUrl(NaiveConnection connection, string clientName) {
+        return Contract.NaiveProxyShareUrlBuilder.Build((Contract.NaiveProxyConnectionInfo)ToContract(connection),
+            clientName);
     }
 
-    public override MihomoProxy? CreateMihomoProxy(NaiveProxyConnectionInfo connection, string endpointName) {
+    public override MihomoProxy? CreateMihomoProxy(NaiveConnection connection, string endpointName) {
         if (connection.Quic)
             return null;
         return new MihomoProxy(endpointName + " · NaiveProxy", "naive") {
@@ -57,10 +46,5 @@ public sealed class NaiveProxySubscriptionProtocolExporter : SubscriptionProtoco
             SkipCertVerify = connection.Insecure && connection.PinSha256 is null,
             Fingerprint = connection.PinSha256
         };
-    }
-
-    private static void AddQuery(StringBuilder builder, string key, string? value) {
-        if (!string.IsNullOrEmpty(value))
-            builder.Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value)).Append('&');
     }
 }

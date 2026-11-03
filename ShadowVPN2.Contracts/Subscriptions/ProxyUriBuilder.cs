@@ -1,10 +1,11 @@
 using System.Text;
 using ShadowVPN2.Contracts.Networking;
 
-namespace ShadowVPN2.Data.Subscription.Links;
+namespace ShadowVPN2.Contracts.Subscriptions;
 
 public sealed class ProxyUriBuilder {
     private readonly Dictionary<string, string> _queryParams = new(StringComparer.OrdinalIgnoreCase);
+    private bool _includePathSeparator = true;
 
     public ProxyUriBuilder(string scheme, HostName host, int port) {
         ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
@@ -32,10 +33,8 @@ public sealed class ProxyUriBuilder {
 
     public ProxyUriBuilder AddQuery(string key, string? value) {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-
         if (!string.IsNullOrEmpty(value))
             _queryParams[key] = value;
-
         return this;
     }
 
@@ -48,43 +47,42 @@ public sealed class ProxyUriBuilder {
         return this;
     }
 
-    public string Build() {
-        var builder = new StringBuilder()
-            .Append(Scheme)
-            .Append("://");
+    public ProxyUriBuilder WithoutPathSeparator() {
+        _includePathSeparator = false;
+        return this;
+    }
 
+
+    public string Build() {
+        var builder = new StringBuilder(Scheme).Append("://");
         if (!string.IsNullOrEmpty(UserName) || !string.IsNullOrEmpty(Password)) {
             if (!string.IsNullOrEmpty(UserName)) {
                 builder.Append(Uri.EscapeDataString(UserName));
                 if (!string.IsNullOrEmpty(Password))
                     builder.Append(':').Append(Uri.EscapeDataString(Password));
             }
-            else {
+            else
                 builder.Append(Uri.EscapeDataString(Password!));
-            }
 
             builder.Append('@');
         }
 
-        builder.Append(Host.ToAddress(Port).FormatWithPort()).Append('/');
-
+        builder.Append(Host.ToAddress(Port).FormatWithPort());
+        if (_includePathSeparator)
+            builder.Append('/');
         if (_queryParams.Count > 0) {
             builder.Append('?');
             var first = true;
             foreach (var (key, value) in _queryParams) {
                 if (!first)
                     builder.Append('&');
-
-                builder.Append(Uri.EscapeDataString(key))
-                    .Append('=')
-                    .Append(Uri.EscapeDataString(value));
+                builder.Append(Uri.EscapeDataString(key)).Append('=').Append(Uri.EscapeDataString(value));
                 first = false;
             }
         }
 
         if (!string.IsNullOrEmpty(Fragment))
             builder.Append('#').Append(Uri.EscapeDataString(Fragment));
-
         return builder.ToString();
     }
 }
