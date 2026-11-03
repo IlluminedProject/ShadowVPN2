@@ -182,7 +182,7 @@
         return protocol switch
         {
             Hysteria2ProtocolSettingsDto hysteria => $"Hysteria2 : {hysteria.PortBinding}",
-            AwgProtocolSettingsDto awg => $"WireGuard / AmneziaWG : {awg.ListenPort}",
+            AwgProtocolSettingsDto awg => $"WireGuard / AmneziaWG : {awg.PortBinding}",
             NaiveProxyProtocolSettingsDto naive => $"NaiveProxy : {naive.ListenPort}",
             NaiveProxyQuicProtocolSettingsDto naive => $"NaiveProxy HTTP/3 (UDP) : {naive.ListenPort}",
             _ => "Unknown"

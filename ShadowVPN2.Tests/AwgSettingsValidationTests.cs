@@ -145,7 +145,7 @@ public sealed class AwgSettingsValidationTests {
 
     [Fact]
     public void Junk_parameters_preserve_full_uint_range_in_json() {
-        const string json = "{\"Jc\":4294967295,\"Jmin\":2147483648,\"Jmax\":4294967295}";
+        const string json = "{\"PortBinding\":51821,\"Jc\":4294967295,\"Jmin\":2147483648,\"Jmax\":4294967295}";
         var protocol = JsonSerializer.Deserialize<AwgProtocolSettingsDto>(json)!;
         var roundTrip = JsonSerializer.Deserialize<AwgProtocolSettingsDto>(
             JsonSerializer.Serialize(protocol))!;
@@ -159,12 +159,12 @@ public sealed class AwgSettingsValidationTests {
     [InlineData(typeof(AwgClusterSettings))]
     [InlineData(typeof(AwgGlobalSettings))]
     public void Json_preserves_absent_null_and_zero_awg_parameters(Type settingsType) {
-        var absent = (IAwgSettings)JsonSerializer.Deserialize("{}", settingsType)!;
+        var absent = (IAwgSettings)JsonSerializer.Deserialize("{\"PortBinding\":51821}", settingsType)!;
         var explicitNull = (IAwgSettings)JsonSerializer.Deserialize(
-            "{\"Jc\":null,\"Jmin\":null,\"Jmax\":null,\"S1\":null,\"S2\":null,\"S3\":null,\"S4\":null,\"H1\":null,\"H2\":null,\"H3\":null,\"H4\":null}",
+            "{\"PortBinding\":51821,\"Jc\":null,\"Jmin\":null,\"Jmax\":null,\"S1\":null,\"S2\":null,\"S3\":null,\"S4\":null,\"H1\":null,\"H2\":null,\"H3\":null,\"H4\":null}",
             settingsType)!;
         var explicitZero = (IAwgSettings)JsonSerializer.Deserialize(
-            "{\"Jc\":0,\"Jmin\":0,\"Jmax\":0,\"S1\":0,\"S2\":0,\"S3\":0,\"S4\":0,\"H1\":\"0\",\"H2\":\"0\",\"H3\":\"0\",\"H4\":\"0\"}",
+            "{\"PortBinding\":51821,\"Jc\":0,\"Jmin\":0,\"Jmax\":0,\"S1\":0,\"S2\":0,\"S3\":0,\"S4\":0,\"H1\":\"0\",\"H2\":\"0\",\"H3\":\"0\",\"H4\":\"0\"}",
             settingsType)!;
 
         using var absentJson = JsonDocument.Parse(JsonSerializer.Serialize(absent, settingsType));

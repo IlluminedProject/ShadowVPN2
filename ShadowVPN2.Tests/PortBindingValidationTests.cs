@@ -46,26 +46,28 @@ public sealed class PortBindingValidationTests {
         Assert.Throws<ArgumentException>(() => GlobalConfigurationValidator.Validate(configuration));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Rejects_ranges_for_non_hysteria_protocols(bool naive) {
-        ProtocolGlobalSettings protocol;
-        if (naive) {
-            var settings = new NaiveProxyGlobalSettings();
-            settings.GenerateSelfSignedCertificate();
-            protocol = settings;
-        }
-        else {
-            protocol = new AwgGlobalSettings();
-        }
+    [Fact]
+    public void Accepts_ranges_for_awg_protocol() {
+        var protocol = new AwgGlobalSettings {
+            Id = Guid.NewGuid(),
+            ListenPort = new PortBinding(5000, 5010)
+        };
+        var configuration = new EntityGlobalConfiguration { Protocols = [protocol] };
 
+        GlobalConfigurationValidator.Validate(configuration);
+    }
+
+    [Fact]
+    public void Rejects_ranges_for_non_range_protocol() {
+        var settings = new NaiveProxyGlobalSettings();
+        settings.GenerateSelfSignedCertificate();
+        var protocol = (ProtocolGlobalSettings)settings;
         protocol.Id = Guid.NewGuid();
         protocol.ListenPort = new PortBinding(5000, 5010);
         var configuration = new EntityGlobalConfiguration { Protocols = [protocol] };
 
         var exception = Assert.Throws<ArgumentException>(() => GlobalConfigurationValidator.Validate(configuration));
 
-        Assert.Contains("Only Hysteria2", exception.Message);
+        Assert.Contains("Only Hysteria2 and AWG", exception.Message);
     }
 }

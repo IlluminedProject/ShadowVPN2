@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
+using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Contracts.Protocols;
 
-public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSettings, IAwgSettings {
+public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IPortBindingSettings, IAwgSettings {
     [JsonIgnore]
     public bool IsAmneziaWg {
         get => Jc.HasValue || Jmin.HasValue || Jmax.HasValue
@@ -31,5 +32,5 @@ public sealed class AwgProtocolSettingsDto : ProtocolSettingsDto, IListenPortSet
     public string? I4 { get; set; }
     public string? I5 { get; set; }
 
-    public int ListenPort { get; set; }
+    public PortBinding PortBinding { get; set; }
 }

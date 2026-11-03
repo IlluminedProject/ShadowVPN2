@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Entities;
@@ -22,7 +23,7 @@ public sealed class WireGuardSubscriptionContributor(
         var mtu = client.WireGuard?.Mtu ?? wg.Mtu;
         return new WireGuardConnectionInfo {
             ServerAddress = host,
-            ServerPort = wg.ListenPort.ListenPort,
+            ServerPort = SelectPort(wg.ListenPort),
             PrivateKey = client.WireGuard!.PrivateKey!,
             AssignedIp = client.GetAssignedIp().ToString(),
             ServerPublicKey = serverPublicKey,
@@ -44,5 +45,10 @@ public sealed class WireGuardSubscriptionContributor(
             I4 = wg.I4,
             I5 = wg.I5
         };
+    }
+
+    private static int SelectPort(PortBinding binding) {
+        var end = binding.PortRangeEnd ?? binding.ListenPort;
+        return RandomNumberGenerator.GetInt32(binding.ListenPort, end + 1);
     }
 }

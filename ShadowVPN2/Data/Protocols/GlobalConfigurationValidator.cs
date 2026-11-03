@@ -23,8 +23,11 @@ public static class GlobalConfigurationValidator {
                 ValidateAwg(awg);
 
             var binding = ValidateBinding(protocol.ListenPort, $"protocol {protocol.Protocol}");
-            if (protocol is not Hysteria2GlobalSettings && binding.PortRangeEnd.HasValue)
-                throw new ArgumentException("Only Hysteria2 protocols support port ranges", nameof(configuration));
+            if (protocol is not (Hysteria2GlobalSettings or AwgGlobalSettings) && binding.PortRangeEnd.HasValue) {
+                throw new ArgumentException("Only Hysteria2 and AWG protocols support port ranges",
+                    nameof(configuration));
+            }
+
             if (protocol switch {
                     NaiveProxyGlobalSettings naiveProxy => string.IsNullOrWhiteSpace(naiveProxy.TlsCertificatePem) ||
                                                            string.IsNullOrWhiteSpace(naiveProxy.TlsKeyPem),

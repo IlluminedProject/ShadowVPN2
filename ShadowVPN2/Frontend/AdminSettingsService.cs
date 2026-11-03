@@ -201,7 +201,7 @@ public sealed class AdminSettingsService(
                                     !string.IsNullOrEmpty(hysteria2.TlsKeyPem)
             },
             AwgGlobalSettings awg => new AwgProtocolSettingsDto {
-                Id = awg.Id, ListenPort = awg.ListenPort.ListenPort, Enabled = awg.Enabled, MainDomain = awg.MainDomain,
+                Id = awg.Id, PortBinding = awg.ListenPort, Enabled = awg.Enabled, MainDomain = awg.MainDomain,
                 PublishDirectConnection = awg.PublishDirectConnection,
                 H1 = awg.H1, H2 = awg.H2, H3 = awg.H3, H4 = awg.H4, Jc = awg.Jc, Jmin = awg.Jmin,
                 Jmax = awg.Jmax, S1 = awg.S1, S2 = awg.S2, S3 = awg.S3, S4 = awg.S4, I1 = awg.I1,
@@ -264,7 +264,7 @@ public sealed class AdminSettingsService(
             case AwgProtocolSettingsDto awg:
                 return new AwgGlobalSettings {
                     Id = awg.Id,
-                    ListenPort = new PortBinding(awg.ListenPort),
+                    ListenPort = awg.PortBinding,
                     Enabled = awg.Enabled,
                     PublishDirectConnection = awg.PublishDirectConnection,
                     MainDomain = awg.MainDomain,

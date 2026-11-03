@@ -48,24 +48,17 @@ public sealed class ProtocolContractSerializationTests {
         Assert.Equal(FreeTurnTurnTransportDto.Udp, transport.TurnTransport);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Single_port_protocols_expose_numeric_listener_without_binding(bool naive) {
-        ProtocolSettingsDto protocol = naive
-            ? new NaiveProxyProtocolSettingsDto { ListenPort = 443 }
-            : new AwgProtocolSettingsDto { ListenPort = 51821 };
-        var json = JsonSerializer.Serialize(protocol);
+    [Fact]
+    public void Protocol_settings_preserve_awg_port_binding() {
+        var protocol = new AwgProtocolSettingsDto { PortBinding = new PortBinding(51821, 51831) };
+        var json = JsonSerializer.Serialize<ProtocolSettingsDto>(protocol);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
-        Assert.Equal(naive ? 443 : 51821, root.GetProperty("ListenPort").GetInt32());
-        Assert.False(root.TryGetProperty("PortBinding", out _));
-        Assert.False(root.TryGetProperty("PortRangeEnd", out _));
+        Assert.Equal("wireguard", root.GetProperty("$type").GetString());
+        Assert.Equal(51821, root.GetProperty("PortBinding").GetProperty("ListenPort").GetInt32());
+        Assert.Equal(51831, root.GetProperty("PortBinding").GetProperty("PortRangeEnd").GetInt32());
         var restored = JsonSerializer.Deserialize<ProtocolSettingsDto>(json);
-        if (naive)
-            Assert.Equal(443, Assert.IsType<NaiveProxyProtocolSettingsDto>(restored).ListenPort);
-        else
-            Assert.Equal(51821, Assert.IsType<AwgProtocolSettingsDto>(restored).ListenPort);
+        Assert.Equal(new PortBinding(51821, 51831), Assert.IsType<AwgProtocolSettingsDto>(restored).PortBinding);
     }
 }

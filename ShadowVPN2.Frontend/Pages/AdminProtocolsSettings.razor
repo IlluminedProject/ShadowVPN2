@@ -316,7 +316,7 @@
         {
                 Id = Guid.NewGuid(),
                 Enabled = true,
-                ListenPort = port.Value
+                PortBinding = new PortBinding(port.Value)
         });
     }
 

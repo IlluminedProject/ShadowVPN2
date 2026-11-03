@@ -60,7 +60,7 @@ public class ProtocolsController(
             },
             AwgGlobalSettings awg => new AwgProtocolSettingsDto {
                 Id = awg.Id,
-                ListenPort = awg.ListenPort.ListenPort,
+                PortBinding = awg.ListenPort,
                 Enabled = awg.Enabled,
                 MainDomain = awg.MainDomain,
                 H1 = awg.H1,
@@ -123,7 +123,7 @@ public class ProtocolsController(
                 var current = existing as AwgGlobalSettings;
                 return new AwgGlobalSettings {
                     Id = awg.Id,
-                    ListenPort = new PortBinding(awg.ListenPort),
+                    ListenPort = awg.PortBinding,
                     Enabled = awg.Enabled,
                     MainDomain = awg.MainDomain,
                     PrivateKey = current?.PrivateKey ?? new AwgGlobalSettings().PrivateKey,

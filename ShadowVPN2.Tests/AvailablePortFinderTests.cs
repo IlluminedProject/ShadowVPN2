@@ -21,7 +21,7 @@ public sealed class AvailablePortFinderTests {
     [Fact]
     public void Skips_reserved_and_single_protocol_ports_after_wrapping() {
         Assert.Equal(3, AvailablePortFinder.Find(65535,
-            [new AwgProtocolSettingsDto { ListenPort = 1 }],
+            [new AwgProtocolSettingsDto { PortBinding = new PortBinding(1) }],
             [new FreeTurnTransportSettingsDto { PortBinding = new PortBinding(65535) }], 2));
     }
 }
