@@ -68,7 +68,7 @@ public sealed class NaiveProxyTests {
         var link = SubscriptionLinkBuilder.CreateNaiveProxyShareUrl(connection, "my device");
 
         link.Should().Be("naive+https://user:pass%20word@203.0.113.10:443/?sni=shadowvpn.local" +
-                         "&insecure=1&pinSHA256=AA%3ABB&name=my%20device");
+                         "&insecure=1&pinSHA256=AA%3ABB&insecure-concurrency=2&uot=1&udp_over_tcp=1&name=my%20device");
     }
 
     [Fact]
