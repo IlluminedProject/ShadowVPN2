@@ -202,20 +202,30 @@ h1:focus {
 }
 
 .port-binding-input {
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
+    position: relative;
+    display: block;
+    font-size: .875rem;
+    line-height: 1.5;
 }
 
 .port-binding-hint {
+    position: absolute;
+    left: calc(.5rem + 1px);
+    top: 50%;
+    transform: translateY(-50%);
     color: var(--bs-secondary-color);
     font: inherit;
     pointer-events: none;
-    white-space: nowrap;
+    white-space: pre;
+}
+
+.port-binding-measure {
+    visibility: hidden;
 }
 
 .port-binding-input .form-control {
-    width: 8.5rem;
+    width: 100%;
+    font: inherit;
 }
 
 .settings-item-publication {

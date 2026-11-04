@@ -4,10 +4,11 @@
 <span class="port-binding-input">
     <input @attributes="AdditionalAttributes" name="@NameAttributeValue" class="@CssClass"
            aria-invalid="@(EditContext.GetValidationMessages(FieldIdentifier).Any() ? "true" : null)"
-           @bind="CurrentValueAsString"/>
+           @bind="CurrentValueAsString" @bind:event="oninput"/>
     @if (!CurrentValueAsString.Contains('-', StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(CurrentValueAsString))
     {
-        <span class="port-binding-hint" aria-hidden="true">-@CurrentValueAsString</span>
+        <span class="port-binding-hint" aria-hidden="true"><span
+                    class="port-binding-measure">@CurrentValueAsString</span>-@CurrentValueAsString</span>
     }
 </span>
 @code {
