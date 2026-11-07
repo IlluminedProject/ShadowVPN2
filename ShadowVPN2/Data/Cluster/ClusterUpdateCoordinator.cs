@@ -142,18 +142,20 @@ public sealed class ClusterUpdateCoordinator(
         var localTag = topology.NodeTag;
         var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
         var desiredDigest = update.DesiredImageDigest ?? update.ImageDigest;
-        if (localNode?.Status == "Skipped" &&
+        if (localNode?.Status == Contracts.Networking.ClusterUpdateNodeStatus.Skipped &&
             await ReconcileLocalDigestAsync(update, localTag, desiredDigest, cancellationToken))
             return true;
         if (update.Status is not ("Preparing" or "Running"))
             return false;
         _activeNode = (update.Status == "Preparing" &&
-                       update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Preparing")) ||
+                       update.Nodes.Any(node =>
+                           node.NodeTag == localTag &&
+                           node.Status == Contracts.Networking.ClusterUpdateNodeStatus.Preparing)) ||
                       (update.Status == "Running" && update.CurrentNodeTag == localTag)
             ? (update.Id, localTag)
             : null;
         if (update.Status == "Preparing") {
-            if (localNode?.Status == "Preparing") {
+            if (localNode?.Status == Contracts.Networking.ClusterUpdateNodeStatus.Preparing) {
                 var prepared = await SendAsync("prepare", update, cancellationToken);
                 if (!Matches(update, prepared) || prepared.Status is not ("Prepared" or "Succeeded" or "Failed"))
                     throw new InvalidOperationException(
@@ -212,7 +214,8 @@ public sealed class ClusterUpdateCoordinator(
     private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,
         ClusterTopologyResponse topology, CancellationToken cancellationToken) {
         var status = await SendAsync("status", update, cancellationToken);
-        var ownsStep = update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Claimed");
+        var ownsStep = update.Nodes.Any(node =>
+            node.NodeTag == localTag && node.Status == Contracts.Networking.ClusterUpdateNodeStatus.Claimed);
         if (ownsStep && await CompleteAsync(update, localTag, status, cancellationToken))
             return;
         if (Matches(update, status) && status.Status == "Running")

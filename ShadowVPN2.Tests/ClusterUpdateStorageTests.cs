@@ -8,6 +8,7 @@ using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Migrations;
 using ShadowVPN2.Exceptions;
 using Xunit;
+using ClusterUpdateNodeStatus = ShadowVPN2.Contracts.Networking.ClusterUpdateNodeStatus;
 
 namespace ShadowVPN2.Tests;
 
@@ -90,7 +91,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
                 previous.Status = ClusterUpdateStatus.Completed;
                 previous.CurrentNodeIndex = previous.Nodes.Count;
                 foreach (var node in previous.Nodes)
-                    node.Status = ClusterUpdateNodeStatus.Completed;
+                    node.Status = Data.Cluster.ClusterUpdateNodeStatus.Completed;
                 await StoreStateAsync(store, previous, timeout.Token);
             }
 
@@ -150,7 +151,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         state.Status = ClusterUpdateStatus.Preparing;
         state.CurrentNodeIndex = 0;
         foreach (var node in state.Nodes) {
-            node.Status = ClusterUpdateNodeStatus.Preparing;
+            node.Status = Data.Cluster.ClusterUpdateNodeStatus.Preparing;
             node.Error = null;
         }
 
@@ -173,9 +174,9 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         Assert.NotNull(response);
         Assert.Equal(state.Id, response.Id);
         Assert.Equal("Running", response.Status);
-        Assert.All(response.Nodes, node => Assert.Equal("Prepared", node.Status));
+        Assert.All(response.Nodes, node => Assert.Equal(ClusterUpdateNodeStatus.Prepared, node.Status));
         var persisted = await LoadStateAsync(store, timeout.Token);
-        Assert.All(persisted.Nodes, node => Assert.Equal(ClusterUpdateNodeStatus.Prepared, node.Status));
+        Assert.All(persisted.Nodes, node => Assert.Equal(Data.Cluster.ClusterUpdateNodeStatus.Prepared, node.Status));
         Assert.Equal(state.StartedAt, persisted.StartedAt);
     }
 
@@ -186,8 +187,8 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         var state = CreateState();
         state.Status = ClusterUpdateStatus.Running;
         state.CurrentNodeIndex = 1;
-        state.Nodes[0].Status = ClusterUpdateNodeStatus.Completed;
-        state.Nodes[1].Status = ClusterUpdateNodeStatus.Claimed;
+        state.Nodes[0].Status = Data.Cluster.ClusterUpdateNodeStatus.Completed;
+        state.Nodes[1].Status = Data.Cluster.ClusterUpdateNodeStatus.Claimed;
         state.Nodes[1].ReconciliationFailures = 0;
         await StoreStateAsync(store, state, timeout.Token);
         using var writes = new Barrier(2);
@@ -208,8 +209,8 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         Assert.NotNull(response);
         Assert.Equal("Failed", response.Status);
         Assert.Contains("2 attempts", response.Error);
-        Assert.Equal("Completed", response.Nodes[0].Status);
-        Assert.Equal("Failed", response.Nodes[1].Status);
+        Assert.Equal(ClusterUpdateNodeStatus.Completed, response.Nodes[0].Status);
+        Assert.Equal(ClusterUpdateNodeStatus.Failed, response.Nodes[1].Status);
         Assert.Equal(2, (await LoadStateAsync(store, timeout.Token)).Nodes[1].ReconciliationFailures);
     }
 
@@ -275,12 +276,12 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
             StartedAt = started, UpdatedAt = started.AddMinutes(9),
             Nodes = [
                 new ClusterUpdateNodeState {
-                    NodeTag = "A", Status = ClusterUpdateNodeStatus.Completed, ReconciliationFailures = 1,
+                    NodeTag = "A", Status = Data.Cluster.ClusterUpdateNodeStatus.Completed, ReconciliationFailures = 1,
                     ClaimedAt = started.AddMinutes(1), CompletedAt = started.AddMinutes(4),
                     Error = "Retained node detail"
                 },
                 new ClusterUpdateNodeState {
-                    NodeTag = "B", Status = ClusterUpdateNodeStatus.Claimed, ReconciliationFailures = 2,
+                    NodeTag = "B", Status = Data.Cluster.ClusterUpdateNodeStatus.Claimed, ReconciliationFailures = 2,
                     ClaimedAt = started.AddMinutes(5), CompletedAt = null, Error = "Retained retry detail"
                 }
             ]

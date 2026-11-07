@@ -137,7 +137,7 @@ else
         <AuthorizeView Policy="Settings.Manage">
             <Authorized>
                     <div class="form-actions">
-                        @if (_availability?.UpdateAvailable == true)
+                        @if (CanStartUpdate)
                         {
                             <button class="btn btn-primary" type="button" @onclick="StartAsync"
                                     disabled="@(_busy || _checking || IsActive(_status))">
@@ -378,8 +378,11 @@ else
     }
 
 
+    private bool CanStartUpdate => _availability?.UpdateAvailable == true &&
+                                   (_status is null || _status.Nodes.Any(node =>
+                                       node.Status is not ClusterUpdateNodeStatus.Completed and not ClusterUpdateNodeStatus.Skipped));
     private ClusterUpdateNodeResponse? CurrentNode => _status?.Status == "Running"
-        ? _status.Nodes.FirstOrDefault(node => node.NodeTag == _status.CurrentNodeTag && node.Status == "Claimed")
+        ? _status.Nodes.FirstOrDefault(node => node.NodeTag == _status.CurrentNodeTag && node.Status == ClusterUpdateNodeStatus.Claimed)
         : null;
 
     private static string NodeLabel(ClusterUpdateNodeResponse node)

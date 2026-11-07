@@ -63,9 +63,6 @@ public sealed class ApplicationUpdateService(
 
     public async Task<ClusterUpdateResponse> StartAsync(bool backwardCompatible,
         CancellationToken cancellationToken = default) {
-        var current = await GetStatusAsync(cancellationToken);
-        if (current?.Status == "Running")
-            throw new AppException(StatusCodes.Status409Conflict, "A cluster update is already active");
         var available = await CheckAsync(cancellationToken);
         if (!available.Enabled || available.Error is not null || !available.UpdateAvailable ||
             available.AvailableDigest is null)

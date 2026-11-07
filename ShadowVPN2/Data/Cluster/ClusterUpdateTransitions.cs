@@ -131,7 +131,8 @@ public static class ClusterUpdateTransitions {
             Status = state.Status.ToString(),
             Nodes = state.Nodes.Select(node => new ClusterUpdateNodeResponse {
                 NodeTag = node.NodeTag,
-                Status = GetTerminalNodeStatus(state.Status, node.Status).ToString(),
+                Status = Enum.Parse<Contracts.Networking.ClusterUpdateNodeStatus>(
+                    GetTerminalNodeStatus(state.Status, node.Status).ToString()),
                 Error = node.Error
             }).ToArray(),
             CurrentNodeTag = state.Status is ClusterUpdateStatus.Preparing or ClusterUpdateStatus.Running &&
