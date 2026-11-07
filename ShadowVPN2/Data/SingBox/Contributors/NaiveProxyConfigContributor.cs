@@ -20,7 +20,6 @@ public sealed class NaiveProxyConfigContributor(
         if (settingsList.Length == 0) return;
 
         var globalConfiguration = await globalConfigurationService.GetAsync();
-        var managedCertificate = managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
         foreach (var settings in settingsList) {
             var (fallbackCertificatePem, fallbackKeyPem) = settings switch {
                 NaiveProxyGlobalSettings naive => (naive.TlsCertificatePem, naive.TlsKeyPem),
@@ -29,8 +28,9 @@ public sealed class NaiveProxyConfigContributor(
             };
             var quicEnabled = settings is NaiveProxyQuicGlobalSettings;
             var configuredDomain = settings.MainDomain ?? globalConfiguration.MainDomain;
-            HostName? certificateDomain = configuredDomain is { } domain &&
-                                          managedCertificate?.Domains.Contains(domain) == true
+            var managedCertificate = managedCertificateService.GetForDomain(configuredDomain) ??
+                                     managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
+            HostName? certificateDomain = configuredDomain is { } domain
                 ? domain
                 : configuredDomain is null && managedCertificate?.Domains.Count > 0
                     ? managedCertificate.Domains[0]

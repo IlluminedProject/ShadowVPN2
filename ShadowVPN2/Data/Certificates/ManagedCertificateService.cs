@@ -16,6 +16,9 @@ public sealed class ManagedCertificateService(
     private IReadOnlyDictionary<HostName, X509Certificate2> _certificatesByDomain =
         new Dictionary<HostName, X509Certificate2>();
 
+    private IReadOnlyDictionary<HostName, ManagedCertificateMaterial> _materialsByDomain =
+        new Dictionary<HostName, ManagedCertificateMaterial>();
+
     private IReadOnlyDictionary<Guid, ManagedCertificateMaterial> _materialsByNode =
         new Dictionary<Guid, ManagedCertificateMaterial>();
 
@@ -46,6 +49,12 @@ public sealed class ManagedCertificateService(
         if (serverName is not { } host) return null;
         lock (_lock)
             return _certificatesByDomain.GetValueOrDefault(host);
+    }
+
+    public ManagedCertificateMaterial? GetForDomain(HostName? domain) {
+        if (domain is not { } host) return null;
+        lock (_lock)
+            return _materialsByDomain.GetValueOrDefault(host);
     }
 
     public ManagedCertificateMaterial? GetForNode(Guid nodeId) {
@@ -80,6 +89,52 @@ public sealed class ManagedCertificateService(
         await ReloadAndNotifyAsync(cancellationToken);
     }
 
+    public async Task<bool> TryReuseAsync(Guid nodeId, IReadOnlyList<HostName> domains,
+        CancellationToken cancellationToken = default) {
+        var normalizedDomains = domains.Distinct()
+            .OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList();
+        if (normalizedDomains.Count == 0) return false;
+
+        using var session = documentStore.OpenAsyncSession();
+        var entities = await session.Query<EntityManagedCertificate>().ToListAsync(cancellationToken);
+        var candidate = entities
+            .Where(entity => entity.NodeId != nodeId &&
+                             !string.IsNullOrWhiteSpace(entity.CertificatePem) &&
+                             !string.IsNullOrWhiteSpace(entity.PrivateKeyPem))
+            .Select(entity => new {
+                Entity = entity,
+                Domains = entity.Domains.Intersect(normalizedDomains).ToHashSet()
+            })
+            .Where(candidate => candidate.Domains.Count > 0)
+            .OrderByDescending(candidate => candidate.Domains.Count)
+            .ThenBy(candidate => candidate.Entity.Id, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (candidate is null) return false;
+
+        var target = entities.FirstOrDefault(entity => entity.NodeId == nodeId);
+        if (target is { CertificatePem.Length: > 0, PrivateKeyPem.Length: > 0 }) return false;
+        target ??= new EntityManagedCertificate {
+            Id = GetId(nodeId), NodeId = nodeId
+        };
+
+        target.Domains = candidate.Domains.OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList();
+        target.CertificatePem = candidate.Entity.CertificatePem;
+        target.PrivateKeyPem = candidate.Entity.PrivateKeyPem;
+        target.NotBefore = candidate.Entity.NotBefore;
+        target.NotAfter = candidate.Entity.NotAfter;
+        target.LastAttemptAt = candidate.Entity.LastAttemptAt;
+        target.LastError = null;
+        candidate.Entity.Domains = candidate.Entity.Domains
+            .Where(domain => !candidate.Domains.Contains(domain)).ToList();
+
+        await session.StoreAsync(target, target.Id, cancellationToken);
+        if (candidate.Entity.Domains.Count == 0)
+            session.Delete(candidate.Entity);
+        await session.SaveChangesAsync(cancellationToken);
+        await ReloadAndNotifyAsync(cancellationToken);
+        return true;
+    }
+
     public async Task RecordErrorAsync(Guid nodeId, string error, CancellationToken cancellationToken = default) {
         var id = GetId(nodeId);
         using var session = documentStore.OpenAsyncSession();
@@ -105,6 +160,7 @@ public sealed class ManagedCertificateService(
         using var session = documentStore.OpenAsyncSession();
         var entities = await session.Query<EntityManagedCertificate>().ToListAsync(cancellationToken);
         var byDomain = new Dictionary<HostName, X509Certificate2>();
+        var materialsByDomain = new Dictionary<HostName, ManagedCertificateMaterial>();
         var byNode = new Dictionary<Guid, ManagedCertificateMaterial>();
         var loadedCertificates = new List<X509Certificate2>();
 
@@ -112,10 +168,15 @@ public sealed class ManagedCertificateService(
                                                         !string.IsNullOrWhiteSpace(entity.PrivateKeyPem))) {
             try {
                 var certificate = X509Certificate2.CreateFromPem(entity.CertificatePem, entity.PrivateKeyPem);
-                loadedCertificates.Add(certificate);
-                foreach (var domain in entity.Domains) byDomain[domain] = certificate;
-                byNode[entity.NodeId] = new ManagedCertificateMaterial(entity.NodeId, entity.Domains.AsReadOnly(),
+                var material = new ManagedCertificateMaterial(entity.NodeId, entity.Domains.AsReadOnly(),
                     entity.CertificatePem, entity.PrivateKeyPem, entity.NotAfter);
+                loadedCertificates.Add(certificate);
+                foreach (var domain in entity.Domains) {
+                    byDomain[domain] = certificate;
+                    materialsByDomain[domain] = material;
+                }
+
+                byNode[entity.NodeId] = material;
             }
             catch (Exception ex) {
                 logger.LogError(ex, "Failed to load managed certificate for node {NodeId}", entity.NodeId);
@@ -125,6 +186,7 @@ public sealed class ManagedCertificateService(
         lock (_lock) {
             _certificates.AddRange(loadedCertificates);
             _certificatesByDomain = byDomain;
+            _materialsByDomain = materialsByDomain;
             _materialsByNode = byNode;
         }
     }

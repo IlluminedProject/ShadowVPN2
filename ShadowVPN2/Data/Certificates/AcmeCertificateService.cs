@@ -35,6 +35,11 @@ public sealed class AcmeCertificateService(
 
             var current = await managedCertificateService.GetEntityAsync(nodeId, cancellationToken);
             var domainsChanged = current == null || !current.Domains.ToHashSet().SetEquals(desired.Domains);
+            if (domainsChanged && await managedCertificateService.TryReuseAsync(nodeId, desired.Domains,
+                    cancellationToken))
+                current = await managedCertificateService.GetEntityAsync(nodeId, cancellationToken);
+
+            domainsChanged = current == null || !current.Domains.ToHashSet().SetEquals(desired.Domains);
             var expiresSoon = current == null || current.NotAfter <=
                 DateTimeOffset.UtcNow.AddDays(settings.RenewalThresholdDays);
             if (!domainsChanged && !expiresSoon) return;

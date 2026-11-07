@@ -62,8 +62,9 @@ public class SubscriptionService(
                 var publicHost = await nodeNetworkService.GetManagementHostAsync(node);
                 if (!publicHost.HasValue) continue;
                 var host = publicHost.Value;
-                var certificate = managedCertificateService.GetForNode(node.NodeId);
                 var nodeHost = node.Domain ?? host.Host;
+                var certificate = managedCertificateService.GetForDomain(nodeHost) ??
+                                  managedCertificateService.GetForNode(node.NodeId);
                 var sni = certificate?.Domains.Contains(nodeHost) == true
                     ? nodeHost
                     : certificate?.Domains.Count > 0

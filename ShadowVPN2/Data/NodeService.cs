@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Authentication;
@@ -15,6 +16,7 @@ public class NodeService(
     IOptions<LocalConfiguration> localConfiguration,
     NodeNetworkService nodeNetworkService,
     DomainValidationService domainValidationService,
+    ManagedCertificateService managedCertificateService,
     ILogger<NodeService> logger) : IDisposable {
     private readonly Lock _lock = new();
     private readonly HashSet<NodeSubscription> _subscriptions = new();
@@ -165,13 +167,14 @@ public class NodeService(
                 .AnyAsync(candidate => candidate.NodeId != nodeId && candidate.Domain == normalizedDomain,
                     cancellationToken))
             throw new ArgumentException("Domain is already assigned to another node.");
-
         var node = await session.Query<EntityClusterNode>()
             .FirstOrDefaultAsync(candidate => candidate.NodeId == nodeId, cancellationToken);
         node = node.OrThrowNotFound("Node not found");
         node.Domain = normalizedDomain;
         node.Name = request.Name.Trim();
         await session.SaveChangesAsync(cancellationToken);
+        if (normalizedDomain is { } domain)
+            await managedCertificateService.TryReuseAsync(nodeId, [domain], cancellationToken);
 
         return (await CreateResponsesAsync([node], cancellationToken))[0];
     }

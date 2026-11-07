@@ -9,11 +9,13 @@ namespace ShadowVPN2.Data.SingBox.Contributors;
 
 public class Hysteria2ConfigContributor(
     ManagedCertificateService managedCertificateService,
+    GlobalConfigurationService globalConfigurationService,
     IOptions<LocalConfiguration> localConfiguration) : ISingBoxConfigContributor {
-    public Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
+    public async Task ContributeAsync(SingBoxConfig config, IReadOnlyList<ProtocolGlobalSettings> protocols,
         IReadOnlyList<EntityClient> clients) {
         var h2Instances = protocols.OfType<Hysteria2GlobalSettings>().Where(h => h.Enabled).ToList();
-        if (h2Instances.Count == 0) return Task.CompletedTask;
+        if (h2Instances.Count == 0) return;
+        var globalConfiguration = await globalConfigurationService.GetAsync();
 
         var users = clients
             .Select(c => new Hysteria2User {
@@ -23,7 +25,9 @@ public class Hysteria2ConfigContributor(
             .ToList();
 
         foreach (var h2 in h2Instances) {
-            var managedCertificate = managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
+            var configuredDomain = h2.MainDomain ?? globalConfiguration.MainDomain;
+            var managedCertificate = managedCertificateService.GetForDomain(configuredDomain) ??
+                                     managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
             var inbound = new Hysteria2InboundConfig {
                 Tag = $"hysteria2-{h2.ListenPort.ListenPort}",
                 Listen = "0.0.0.0",
@@ -45,7 +49,7 @@ public class Hysteria2ConfigContributor(
             config.Inbounds.Add(inbound);
         }
 
-        return Task.CompletedTask;
+        return;
     }
 
     private static List<string> PemToLines(string pem) {
