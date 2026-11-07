@@ -78,6 +78,12 @@ public class ClusterController(
         return await clusterService.GenerateJoinTokenAsync(request.Name, request.Domain);
     }
 
+    [HttpGet("nodes/{nodeId:guid}/join-token")]
+    [Authorize(Roles = AppRoles.Administrator)]
+    public async Task<string> GetNodeJoinToken(Guid nodeId, CancellationToken cancellationToken) {
+        return await clusterService.GetJoinTokenAsync(nodeId, cancellationToken);
+    }
+
     [HttpPost("exchange-token")]
     [AllowAnonymous]
     public async Task<ClusterJoinResponse> ExchangeToken([FromBody] ClusterJoinRequest request) {

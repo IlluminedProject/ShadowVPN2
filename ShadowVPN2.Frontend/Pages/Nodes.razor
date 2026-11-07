@@ -81,6 +81,14 @@
                         <td>@(node.IsPending ? "Pending" : "Joined")</td>
                         <td>
                             <div class="actions table-actions">
+                                @if (node.IsPending)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                                            aria-label="View node setup @node.Name" title="View node setup"
+                                            @onclick="() => OpenNodeConfigurationAsync(node)">
+                                        <span class="bi bi-key" aria-hidden="true"></span>
+                                    </button>
+                                }
                                 <button class="btn btn-sm btn-outline-secondary" type="button"
                                         aria-label="Edit node @node.Name" title="Edit node"
                                         @onclick="() => EditNodeAsync(node)"><span class="bi bi-pencil"
@@ -99,70 +107,43 @@
 {
     <AppDialog Title="Add node" OnClose="CloseAddNode" Busy="_busy" LightDismiss="false">
         <ChildContent>
-            @if (_joinToken is null)
-            {
-                <EditForm Model="_newNode" OnValidSubmit="GenerateTokenAsync">
-                    <DataAnnotationsValidator/>
-                    <div class="app-dialog__body">
-                        @if (!string.IsNullOrEmpty(_dialogError))
-                        {
-                            <div class="alert alert-danger" role="alert">@_dialogError</div>
-                        }
-                        <ValidationSummary/>
-                        <div class="field">
-                            <label class="form-label" for="node-name">Node name</label>
-                            <InputText id="node-name" class="form-control" @bind-Value="_newNode.Name"/>
-                        </div>
-                        <div class="field">
-                            <label class="form-label" for="node-domain">Domain (optional)</label>
-                            <InputHostName id="node-domain" class="form-control" @bind-Value="_newNode.Domain"/>
-                            <ValidationMessage For="() => _newNode.Domain"/>
-                        </div>
-                    </div>
-                    <div class="app-dialog__footer">
-                        <div class="actions">
-                            <button class="btn btn-outline-secondary" type="button" @onclick="CloseAddNode"
-                                    disabled="@_busy">Cancel
-                            </button>
-                            <button class="btn btn-primary" type="submit" disabled="@_busy">
-                                @(_busy ? "Generating…" : "Generate join token")
-                            </button>
-                        </div>
-                    </div>
-                </EditForm>
-            }
-            else
-            {
+            <EditForm Model="_newNode" OnValidSubmit="GenerateTokenAsync">
+                <DataAnnotationsValidator/>
                 <div class="app-dialog__body">
                     @if (!string.IsNullOrEmpty(_dialogError))
                     {
                         <div class="alert alert-danger" role="alert">@_dialogError</div>
                     }
-                    <p>Set this token as <code>JoinToken</code> on the new node.</p>
-                    <label class="form-label" for="join-token">Join token</label>
-                    <div class="d-flex align-items-start gap-2">
-                        <textarea id="join-token" class="form-control font-monospace text-break" rows="5"
-                                  readonly>@_joinToken</textarea>
-                        <button class="btn btn-outline-secondary flex-shrink-0" type="button" @onclick="CopyTokenAsync">
-                            Copy token
-                        </button>
+                    <ValidationSummary/>
+                    <div class="field">
+                        <label class="form-label" for="node-name">Node name</label>
+                        <InputText id="node-name" class="form-control" @bind-Value="_newNode.Name"/>
                     </div>
-                    @if (!string.IsNullOrEmpty(_copyStatus))
-                    {
-                        <div class="text-secondary small" role="status">@_copyStatus</div>
-                        <ExceptionDetails Exception="_copyException"/>
-                    }
+                    <div class="field">
+                        <label class="form-label" for="node-domain">Domain (optional)</label>
+                        <InputHostName id="node-domain" class="form-control" @bind-Value="_newNode.Domain"/>
+                        <ValidationMessage For="() => _newNode.Domain"/>
+                    </div>
                 </div>
                 <div class="app-dialog__footer">
                     <div class="actions">
                         <button class="btn btn-outline-secondary" type="button" @onclick="CloseAddNode"
-                                disabled="@_busy">Close
+                                disabled="@_busy">Cancel
+                        </button>
+                        <button class="btn btn-primary" type="submit" disabled="@_busy">
+                            @(_busy ? "Generating…" : "Generate join token")
                         </button>
                     </div>
                 </div>
-            }
+            </EditForm>
         </ChildContent>
     </AppDialog>
+}
+
+@if (_showSetup)
+{
+    <NodeSetupDialog JoinToken="@_setupJoinToken" NodeName="@_setupNodeName"
+                     DefaultWebPort="@_setupWebPort" OnClose="CloseSetup"/>
 }
 
 @if (_editingNode is not null)
@@ -304,18 +285,18 @@
     private NodeResponse? _editingNode;
     private UpdateNodeRequest _domainRequest = new();
     private EditContext? _domainEditContext;
-    private readonly GenerateNodeJoinTokenRequest _newNode = new() { Name = "new-node" };
-    private string? _joinToken;
+    private readonly AddNodeForm _newNode = new();
+    private string? _setupJoinToken;
+    private string _setupNodeName = string.Empty;
+    private int _setupWebPort;
     private bool _showAddNode;
+    private bool _showSetup;
     private bool _loading = true;
     private bool _busy;
     private string? _operation;
     private bool _authenticationRequired;
     private string? _error;
     private string? _dialogError;
-    private string? _copyStatus;
-    private Exception? _copyException;
-
     private string LoginUrl =>
         $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
 
@@ -355,31 +336,22 @@
     private void OpenAddNode()
     {
         _showAddNode = true;
-        _joinToken = null;
         _dialogError = null;
-        _copyStatus = null;
-        _copyException = null;
+        _newNode.WebPort = Navigation.GetCurrentWebPort();
+        _setupWebPort = _newNode.WebPort;
     }
 
     private void CloseAddNode()
     {
-        if (_busy)
-            return;
-
-        _showAddNode = false;
-        _dialogError = null;
-        _copyStatus = null;
-        _copyException = null;
+        if (!_busy)
+            _showAddNode = false;
     }
 
-    private void CloseEditNode()
+    private void CloseSetup()
     {
-        if (_busy)
-            return;
-
-        _editingNode = null;
-        _dialogError = null;
+        _showSetup = false;
     }
+
 
     private async Task GenerateTokenAsync()
     {
@@ -387,7 +359,11 @@
         _dialogError = null;
         try
         {
-            _joinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNode.Name.Trim(), _newNode.Domain);
+            _setupJoinToken = await ClusterApi.GenerateNodeJoinTokenAsync(_newNode.Name.Trim(), _newNode.Domain);
+            _setupNodeName = _newNode.Name.Trim();
+            _setupWebPort = Navigation.GetCurrentWebPort();
+            _showAddNode = false;
+            _showSetup = true;
         }
         catch (ApplicationServiceException exception)
         {
@@ -402,25 +378,37 @@
         }
     }
 
-    private async Task CopyTokenAsync()
+    private async Task OpenNodeConfigurationAsync(NodeResponse node)
     {
-        if (_joinToken is null)
-            return;
-
-        _copyStatus = null;
-        _copyException = null;
+        _busy = true;
+        _dialogError = null;
         try
         {
-            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _joinToken);
-            _copyStatus = "Copied";
+            _setupJoinToken = await ClusterApi.GetNodeJoinTokenAsync(node.NodeId);
+            _setupNodeName = node.Name;
+            _setupWebPort = Navigation.GetCurrentWebPort();
+            _showSetup = true;
         }
-        catch (JSException exception)
+        catch (ApplicationServiceException exception)
         {
-            Logger.LogWarning(exception, "Unable to copy node join token");
-            _copyException = exception;
-            _copyStatus = "Could not copy token.";
+            Logger.LogError(exception, "Unable to load node join configuration");
+            _dialogError = "Could not load the node join configuration.";
+        }
+        finally
+        {
+            _busy = false;
         }
     }
+
+    private void CloseEditNode()
+    {
+        if (_busy)
+            return;
+
+        _editingNode = null;
+        _dialogError = null;
+    }
+
 
     private async Task EditNodeAsync(NodeResponse node)
     {

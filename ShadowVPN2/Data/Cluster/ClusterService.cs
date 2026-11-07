@@ -29,8 +29,37 @@ public class ClusterService(
         if (domain != null && existingNodes.Any(node => node.Domain == domain))
             throw new ArgumentException("Domain is already assigned to another node.");
 
+        var seeds = await GetJoinSeedsAsync(existingNodes);
+        var node = new EntityClusterNode {
+            Id = "EntityClusterNodes|",
+            NodeId = Guid.NewGuid(),
+            Name = name,
+            Domain = domain,
+            JoinSecret = Guid.NewGuid()
+        };
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
+            { TransactionMode = TransactionMode.ClusterWide });
+        await session.StoreAsync(node);
+        await session.SaveChangesAsync();
+
+        return SerializeJoinToken(node, seeds);
+    }
+
+    public async Task<string> GetJoinTokenAsync(Guid nodeId, CancellationToken cancellationToken = default) {
+        var nodes = await nodeService.GetNodesAsync();
+        var node = nodes.FirstOrDefault(candidate => candidate.NodeId == nodeId)
+                   ?? throw new KeyNotFoundException("Node not found");
+        if (!node.JoinSecret.HasValue)
+            throw new InvalidOperationException("The node join token is no longer available.");
+
+        return SerializeJoinToken(node, await GetJoinSeedsAsync(nodes, cancellationToken));
+    }
+
+    private async Task<IReadOnlyList<JoinSeed>> GetJoinSeedsAsync(
+        IReadOnlyList<EntityClusterNode> existingNodes, CancellationToken cancellationToken = default) {
         var seeds = new List<JoinSeed>();
         foreach (var existingNode in existingNodes.Where(candidate => !candidate.JoinSecret.HasValue)) {
+            cancellationToken.ThrowIfCancellationRequested();
             var host = await nodeNetworkService.GetManagementHostAsync(existingNode);
             if (!host.HasValue || string.IsNullOrEmpty(existingNode.CertificatePem))
                 continue;
@@ -43,27 +72,17 @@ public class ClusterService(
             }
         }
 
-        if (seeds.Count == 0) {
+        if (seeds.Count == 0)
             throw new InvalidOperationException(
                 "No reachable seed with a trusted management TLS certificate is available.");
-        }
+        return seeds;
+    }
 
-        using var session = documentStore.OpenAsyncSession(new SessionOptions
-            { TransactionMode = TransactionMode.ClusterWide });
-        var node = new EntityClusterNode {
-            Id = "EntityClusterNodes|",
-            NodeId = Guid.NewGuid(),
-            Name = name,
-            Domain = domain,
-            JoinSecret = Guid.NewGuid()
-        };
-        await session.StoreAsync(node);
-        await session.SaveChangesAsync();
-
+    private static string SerializeJoinToken(EntityClusterNode node, IReadOnlyList<JoinSeed> seeds) {
         var token = new JoinToken {
-            Seeds = seeds,
-            Secret = node.JoinSecret.Value,
-            Name = name,
+            Seeds = seeds.ToList(),
+            Secret = node.JoinSecret!.Value,
+            Name = node.Name,
             NodeId = node.NodeId,
             NodeNumber = node.Number
         };

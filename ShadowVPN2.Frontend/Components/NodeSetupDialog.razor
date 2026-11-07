@@ -1,0 +1,140 @@
+@inject IJSRuntime JsRuntime
+@inject ILogger<NodeSetupDialog> Logger
+@implements IAsyncDisposable
+
+<AppDialog Title="Node setup" OnClose="OnClose" LightDismiss="false">
+    <ChildContent>
+        <div class="app-dialog__body">
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="alert alert-danger" role="alert">@_error</div>
+            }
+            <p>Set this token as <code>JoinToken</code> on the new node, or use the generated files below.</p>
+            <label class="form-label" for="join-token">Join token</label>
+            <div class="d-flex align-items-start gap-2">
+                <textarea id="join-token" class="form-control font-monospace text-break" rows="5"
+                          readonly>@JoinToken</textarea>
+                <button class="btn btn-outline-secondary flex-shrink-0" type="button"
+                        @onclick="() => CopyAsync(JoinToken)">Copy token
+                </button>
+            </div>
+            <div class="field mt-3">
+                <label class="form-label" for="node-web-port">HTTPS port</label>
+                <input id="node-web-port" type="number" class="form-control" @bind="_webPort"
+                       @bind:after="RefreshConfiguration" min="1" max="65535"/>
+                <div class="form-text">Defaults to the port of this UI.</div>
+            </div>
+            <div class="field">
+                <label class="form-label" for="node-env">.env</label>
+                <textarea id="node-env" class="form-control font-monospace text-break" rows="7"
+                          readonly>@_environmentFile</textarea>
+                <button class="btn btn-outline-secondary mt-2" type="button"
+                        @onclick="() => CopyAsync(_environmentFile)">Copy .env
+                </button>
+            </div>
+            <details class="field">
+                <summary>compose.yaml</summary>
+                <textarea id="node-compose" aria-label="compose.yaml" class="form-control font-monospace mt-2" rows="10"
+                          readonly>@_composeFile</textarea>
+            </details>
+            <div class="actions">
+                <button class="btn btn-outline-secondary" type="button" @onclick="() => CopyAsync(_composeFile)">Copy
+                    compose.yaml
+                </button>
+                <button class="btn btn-primary" type="button" @onclick="() => CopyAsync(_startupCommand)">Copy Linux
+                    startup command
+                </button>
+            </div>
+            <details class="field">
+                <summary>Linux startup command</summary>
+                <textarea aria-label="Linux startup command" class="form-control font-monospace text-break mt-2"
+                          rows="5" readonly>@_startupCommand</textarea>
+            </details>
+            <p class="form-text">The command writes compose.yaml and .env in the current directory and starts the node.
+                The .env file contains the join token; keep it private.</p>
+            @if (!string.IsNullOrEmpty(_copyStatus))
+            {
+                <div class="text-secondary small" role="status">@_copyStatus</div>
+                <ExceptionDetails Exception="_copyException"/>
+            }
+        </div>
+        <div class="app-dialog__footer">
+            <div class="actions">
+                <button class="btn btn-outline-secondary" type="button" @onclick="OnClose">Close</button>
+            </div>
+        </div>
+    </ChildContent>
+</AppDialog>
+
+@code {
+    [Parameter] [EditorRequired] public string JoinToken { get; set; } = string.Empty;
+    [Parameter] [EditorRequired] public string NodeName { get; set; } = string.Empty;
+    [Parameter] [EditorRequired] public EventCallback OnClose { get; set; }
+    [Parameter] public int DefaultWebPort { get; set; }
+
+    private IJSObjectReference? _clipboardModule;
+    private int _webPort;
+    private string? _environmentFile;
+    private string? _composeFile;
+    private string? _startupCommand;
+    private string? _error;
+    private string? _copyStatus;
+    private Exception? _copyException;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _webPort = DefaultWebPort;
+        try
+        {
+            _composeFile = await AddNodeForm.ReadComposeAsync();
+            RefreshConfiguration();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unable to prepare node setup configuration");
+            _error = "Could not prepare node setup configuration.";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _clipboardModule = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/subscription-copy.js");
+    }
+
+    private void RefreshConfiguration()
+    {
+        if (_webPort is < 1 or > 65535 || string.IsNullOrEmpty(_composeFile))
+            return;
+
+        var form = new AddNodeForm { Name = NodeName, WebPort = _webPort };
+        _environmentFile = form.GenerateEnvironment(JoinToken);
+        _startupCommand = AddNodeForm.GenerateStartupCommand(_composeFile, _environmentFile);
+    }
+
+    private async Task CopyAsync(string? content)
+    {
+        if (content is null || _clipboardModule is null)
+            return;
+
+        try
+        {
+            await _clipboardModule.InvokeVoidAsync("copyText", content);
+            _copyStatus = "Copied";
+            _copyException = null;
+        }
+        catch (JSException exception)
+        {
+            Logger.LogWarning(exception, "Unable to copy node setup configuration");
+            _copyException = exception;
+            _copyStatus = "Could not copy configuration. Select and copy the text manually.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_clipboardModule is not null)
+            await _clipboardModule.DisposeAsync();
+    }
+
+}

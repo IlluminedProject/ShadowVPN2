@@ -13,4 +13,9 @@ public sealed class ClusterApplicationService(
         await userContext.RequireRoleAsync(AppRoles.Administrator, cancellationToken);
         return await clusterService.GenerateJoinTokenAsync(name, domain);
     }
+
+    public async Task<string> GetNodeJoinTokenAsync(Guid nodeId, CancellationToken cancellationToken = default) {
+        await userContext.RequireRoleAsync(AppRoles.Administrator, cancellationToken);
+        return await clusterService.GetJoinTokenAsync(nodeId, cancellationToken);
+    }
 }

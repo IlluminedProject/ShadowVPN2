@@ -13,4 +13,8 @@
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
     <PackageReference Include="RandomFriendlyNameGenerator" Version="1.0.9"/>
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\docker-compose.ghcr.yml" LogicalName="ShadowVPN2.Frontend.NodeCompose.yaml"/>
+  </ItemGroup>
 </Project>

@@ -23,7 +23,7 @@ export function initialize(id) {
     pages.set(id, {root, click});
 }
 
-async function copyText(text) {
+export async function copyText(text) {
     if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
         return;
