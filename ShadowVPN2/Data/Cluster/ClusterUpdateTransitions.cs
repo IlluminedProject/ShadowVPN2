@@ -7,7 +7,7 @@ public static class ClusterUpdateTransitions {
         return state.Status == ClusterUpdateStatus.Running &&
                state.Nodes.All(node => node.Status is ClusterUpdateNodeStatus.Pending
                    or ClusterUpdateNodeStatus.Prepared or ClusterUpdateNodeStatus.Claimed
-                   or ClusterUpdateNodeStatus.Completed) &&
+                   or ClusterUpdateNodeStatus.Completed or ClusterUpdateNodeStatus.Skipped) &&
                state.CurrentNodeIndex < state.Nodes.Count &&
                state.Nodes[state.CurrentNodeIndex].NodeTag == localNodeTag &&
                state.Nodes[state.CurrentNodeIndex].Status is ClusterUpdateNodeStatus.Pending
@@ -38,8 +38,37 @@ public static class ClusterUpdateTransitions {
             updated.Error = node.Error;
             FinishRemainingNodes(updated);
         }
-        else if (updated.Nodes.All(node => node.Status == ClusterUpdateNodeStatus.Prepared)) {
+        else if (updated.Nodes.All(node => node.Status is ClusterUpdateNodeStatus.Prepared
+                     or ClusterUpdateNodeStatus.Skipped)) {
             updated.Status = ClusterUpdateStatus.Running;
+        }
+
+        return updated;
+    }
+
+    public static ClusterUpdateState TimeoutPreparing(ClusterUpdateState state, DateTimeOffset now,
+        TimeSpan timeout) {
+        var updated = Copy(state);
+        var changed = false;
+        foreach (var node in updated.Nodes.Where(node => node.Status == ClusterUpdateNodeStatus.Preparing &&
+                                                         (node.PreparingAt ?? state.StartedAt) is { } started &&
+                                                         now - started >= timeout)) {
+            node.Status = ClusterUpdateNodeStatus.Skipped;
+            node.Error = "Node did not become available during preparation timeout";
+            node.CompletedAt = now;
+            changed = true;
+        }
+
+        if (changed) {
+            updated.UpdatedAt = now;
+            while (updated.CurrentNodeIndex < updated.Nodes.Count &&
+                   updated.Nodes[updated.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Skipped)
+                updated.CurrentNodeIndex++;
+            if (updated.CurrentNodeIndex == updated.Nodes.Count)
+                updated.Status = ClusterUpdateStatus.Completed;
+            else if (updated.Nodes.All(node => node.Status is ClusterUpdateNodeStatus.Prepared
+                         or ClusterUpdateNodeStatus.Skipped))
+                updated.Status = ClusterUpdateStatus.Running;
         }
 
         return updated;
@@ -143,6 +172,7 @@ public static class ClusterUpdateTransitions {
                 Status = node.Status,
                 Error = node.Error,
                 ReconciliationFailures = node.ReconciliationFailures,
+                PreparingAt = node.PreparingAt,
                 ClaimedAt = node.ClaimedAt,
                 CompletedAt = node.CompletedAt
             }).ToList(),

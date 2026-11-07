@@ -5,6 +5,7 @@ public sealed class ClusterUpdateNodeState {
     public ClusterUpdateNodeStatus Status { get; set; }
     public string? Error { get; set; }
     public int ReconciliationFailures { get; set; }
+    public DateTimeOffset? PreparingAt { get; set; }
     public DateTimeOffset? ClaimedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }

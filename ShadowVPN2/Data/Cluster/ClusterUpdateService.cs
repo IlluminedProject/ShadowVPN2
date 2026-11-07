@@ -11,9 +11,11 @@ using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
 namespace ShadowVPN2.Data.Cluster;
 
-public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<ClusterUpdateService> logger) {
+public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<ClusterUpdateService>? logger = null) {
     private const string HistoryPrefix = "ShadowVPN2/ClusterUpdate/History/";
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+
+    private static readonly TimeSpan PreparationTimeout = TimeSpan.FromMinutes(5);
 
     public async Task RecordReconciliationFailureAsync(Guid updateId, string localTag, string error,
         int maxAttempts, CancellationToken cancellationToken) {
@@ -85,7 +87,8 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
             Id = Guid.NewGuid(),
             ImageDigest = request.ImageDigest,
             Nodes = orderedMembers.Select(tag => new ClusterUpdateNodeState
-                { NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing }).ToList(),
+                    { NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing, PreparingAt = DateTimeOffset.UtcNow })
+                .ToList(),
             Status = ClusterUpdateStatus.Preparing,
             StartedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -108,7 +111,31 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
         return ClusterUpdateTransitions.ToResponse(state);
     }
 
-    public async Task<ClusterUpdateResponse?> GetAsync(CancellationToken cancellationToken) {
+    private async Task TimeoutPreparingAsync(CancellationToken cancellationToken) {
+        while (true) {
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { Status: ClusterUpdateStatus.Preparing } state)
+                return;
+            var updated = ClusterUpdateTransitions.TimeoutPreparing(state, DateTimeOffset.UtcNow,
+                PreparationTimeout);
+            if (updated.UpdatedAt == state.UpdatedAt)
+                return;
+            current.State = updated;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (ConcurrencyException) {
+            }
+        }
+    }
+
+    public async Task<ClusterUpdateResponse?> GetAsync(CancellationToken cancellationToken = default) {
+        await TimeoutPreparingAsync(cancellationToken);
         using var session = documentStore.OpenAsyncSession();
         var result = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
             cancellationToken);
@@ -196,7 +223,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
                 throw new InvalidOperationException("RavenDB voting membership changed during cluster update");
             var connected = await GetConnectedMembersAsync(topology, cancellationToken);
             if (!UpdateSafetyPolicy.HasRestartQuorum(members.Length, connected)) {
-                logger.LogWarning(
+                logger?.LogWarning(
                     "Cluster update waiting for restart quorum: {ConnectedMembers}/{VotingMembers} voting nodes connected",
                     connected,
                     members.Length);

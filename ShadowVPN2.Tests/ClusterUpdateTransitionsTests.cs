@@ -175,6 +175,23 @@ public sealed class ClusterUpdateTransitionsTests {
         ClusterUpdateTransitions.IsClaimable(ready, "NAA").Should().BeTrue();
     }
 
+    [Fact]
+    public void Preparation_timeout_skips_unavailable_nodes_and_starts_rollout() {
+        var state = CreateState("NAA", "NAB");
+        state.Status = ClusterUpdateStatus.Preparing;
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Prepared;
+        state.Nodes[1].Status = ClusterUpdateNodeStatus.Preparing;
+        state.Nodes[1].PreparingAt = DateTimeOffset.UtcNow.AddMinutes(-6);
+
+        var updated = ClusterUpdateTransitions.TimeoutPreparing(state, DateTimeOffset.UtcNow,
+            TimeSpan.FromMinutes(5));
+
+        updated.Status.Should().Be(ClusterUpdateStatus.Running);
+        updated.Nodes[0].Status.Should().Be(ClusterUpdateNodeStatus.Prepared);
+        updated.Nodes[1].Status.Should().Be(ClusterUpdateNodeStatus.Skipped);
+        updated.Nodes[1].Error.Should().Contain("timeout");
+    }
+
     [Theory]
     [InlineData(ClusterUpdateNodeStatus.Pending)]
     [InlineData(ClusterUpdateNodeStatus.Prepared)]
