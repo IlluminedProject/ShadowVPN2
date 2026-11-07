@@ -136,15 +136,22 @@ else
 
         <AuthorizeView Policy="Settings.Manage">
             <Authorized>
-                @if (_availability?.UpdateAvailable == true)
-                {
                     <div class="form-actions">
-                        <button class="btn btn-primary" type="button" @onclick="StartAsync"
-                                disabled="@(_busy || _checking || IsActive(_status))">
-                            @(_busy ? "Starting…" : "Start update")
-                        </button>
+                        @if (_availability?.UpdateAvailable == true)
+                        {
+                            <button class="btn btn-primary" type="button" @onclick="StartAsync"
+                                    disabled="@(_busy || _checking || IsActive(_status))">
+                                @(_busy ? "Starting…" : "Start update")
+                            </button>
+                        }
+                        @if (IsActive(_status))
+                        {
+                            <button class="btn btn-outline-danger" type="button" @onclick="CancelAsync"
+                                    disabled="@(_busy || _checking)">
+                                @(_busy ? "Cancelling…" : "Cancel update")
+                            </button>
+                        }
                     </div>
-                }
             </Authorized>
         </AuthorizeView>
     </section>
@@ -305,6 +312,30 @@ else
         }
     }
 
+    private async Task CancelAsync()
+    {
+        if (_status is null || !IsActive(_status)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            _status = await Updates.CancelAsync(_status.Id, _cancellation.Token);
+        }
+        catch (ApplicationServiceException ex)
+        {
+            Logger.LogWarning(ex, "Could not cancel the cluster update");
+            _error = ex.StatusCode switch
+            {
+                HttpStatusCode.Forbidden => "You do not have permission to cancel an update.",
+                HttpStatusCode.Conflict => ex.Message,
+                _ => "Could not cancel the cluster update."
+            };
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
     private void StartPolling()
     {
         if (_polling is null || _polling.IsCompleted)

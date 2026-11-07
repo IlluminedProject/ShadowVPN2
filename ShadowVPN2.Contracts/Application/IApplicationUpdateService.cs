@@ -12,4 +12,5 @@ public interface IApplicationUpdateService {
         GetHistoryAsync(CancellationToken cancellationToken = default);
 
     Task<ClusterUpdateResponse> StartAsync(bool backwardCompatible, CancellationToken cancellationToken = default);
+    Task<ClusterUpdateResponse> CancelAsync(Guid updateId, CancellationToken cancellationToken = default);
 }

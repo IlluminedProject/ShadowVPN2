@@ -78,6 +78,10 @@ public sealed class ApplicationUpdateService(
         }, topology, topology.NodeTag, cancellationToken);
     }
 
+    public Task<ClusterUpdateResponse> CancelAsync(Guid updateId, CancellationToken cancellationToken = default) {
+        return clusterUpdates.CancelAsync(updateId, cancellationToken);
+    }
+
     private async Task<UpdateAvailabilityResponse> DiscoverAsync() {
         var reference = options.Value.ImageReference?.Trim();
         var result = new UpdateAvailabilityResponse {

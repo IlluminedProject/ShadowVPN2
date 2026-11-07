@@ -1,8 +1,9 @@
 using System.Net;
 using Raven.Client.Documents;
-using ShadowVPN2.Entities;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Entities;
 using ShadowVPN2.Exceptions;
 using ShadowVPN2.Infrastructure.Authentication;
 
@@ -43,12 +44,25 @@ public sealed class ApplicationUpdateService(
         }
     }
 
+    public async Task<ClusterUpdateResponse> CancelAsync(Guid updateId,
+        CancellationToken cancellationToken = default) {
+        await userContext.RequirePolicyAsync(AppPermissions.Settings.Manage, cancellationToken);
+        try {
+            var status = await updates.CancelAsync(updateId, cancellationToken);
+            return (await AddNodeMetadataAsync(status, cancellationToken))!;
+        }
+        catch (AppException exception) when (exception.StatusCode == StatusCodes.Status409Conflict) {
+            logger.LogWarning(exception, "Cluster update cancellation rejected: {Reason}", exception.Message);
+            throw new ApplicationServiceException(HttpStatusCode.Conflict, exception.Message, exception);
+        }
+    }
+
     private async Task<ClusterUpdateResponse?> AddNodeMetadataAsync(ClusterUpdateResponse? status,
         CancellationToken cancellationToken) {
         if (status is null || status.Nodes.Count == 0) return status;
         try {
             var topology = await documentStore.Maintenance.Server.SendAsync(
-                new Data.Cluster.GetClusterTopologyOperation(), cancellationToken);
+                new GetClusterTopologyOperation(), cancellationToken);
             using var session = documentStore.OpenAsyncSession();
             var nodes = await session.Query<EntityClusterNode>().ToListAsync(cancellationToken);
             foreach (var node in status.Nodes) {
