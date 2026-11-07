@@ -61,6 +61,17 @@ public sealed class ClusterUpdateTransitionsTests {
     }
 
     [Fact]
+    public void Rollout_can_claim_prepared_node_after_previous_node_completed() {
+        var state = CreateState("NAA", "NAB");
+        state.Status = ClusterUpdateStatus.Running;
+        state.Nodes[0].Status = ClusterUpdateNodeStatus.Completed;
+        state.Nodes[1].Status = ClusterUpdateNodeStatus.Prepared;
+        state.CurrentNodeIndex = 1;
+
+        ClusterUpdateTransitions.IsClaimable(state, "NAB").Should().BeTrue();
+    }
+
+    [Fact]
     public void Legacy_rollout_can_resume_after_claim_and_completion() {
         var state = CreateState("NAA", "NAB");
         state.Nodes[0].Status = ClusterUpdateNodeStatus.Completed;

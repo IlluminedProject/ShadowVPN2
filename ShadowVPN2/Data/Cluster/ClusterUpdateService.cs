@@ -11,7 +11,7 @@ using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
 namespace ShadowVPN2.Data.Cluster;
 
-public sealed class ClusterUpdateService(IDocumentStore documentStore) {
+public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<ClusterUpdateService> logger) {
     private const string HistoryPrefix = "ShadowVPN2/ClusterUpdate/History/";
     private static readonly Regex DigestPattern = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
 
@@ -195,8 +195,13 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore) {
             if (!members.SequenceEqual(state.Nodes.Select(node => node.NodeTag), StringComparer.Ordinal))
                 throw new InvalidOperationException("RavenDB voting membership changed during cluster update");
             var connected = await GetConnectedMembersAsync(topology, cancellationToken);
-            if (!UpdateSafetyPolicy.HasRestartQuorum(members.Length, connected))
+            if (!UpdateSafetyPolicy.HasRestartQuorum(members.Length, connected)) {
+                logger.LogWarning(
+                    "Cluster update waiting for restart quorum: {ConnectedMembers}/{VotingMembers} voting nodes connected",
+                    connected,
+                    members.Length);
                 return null;
+            }
 
             if (state.Nodes[state.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Claimed)
                 return ClusterUpdateTransitions.ToResponse(state);
