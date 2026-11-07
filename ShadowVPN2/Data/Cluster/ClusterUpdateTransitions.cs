@@ -127,6 +127,7 @@ public static class ClusterUpdateTransitions {
         return new ClusterUpdateResponse {
             Id = state.Id,
             ImageDigest = state.ImageDigest,
+            DesiredImageDigest = state.DesiredImageDigest ?? state.ImageDigest,
             Status = state.Status.ToString(),
             Nodes = state.Nodes.Select(node => new ClusterUpdateNodeResponse {
                 NodeTag = node.NodeTag,
@@ -167,6 +168,7 @@ public static class ClusterUpdateTransitions {
         return new ClusterUpdateState {
             Id = state.Id,
             ImageDigest = state.ImageDigest,
+            DesiredImageDigest = state.DesiredImageDigest,
             Nodes = state.Nodes.Select(node => new ClusterUpdateNodeState {
                 NodeTag = node.NodeTag,
                 Status = node.Status,

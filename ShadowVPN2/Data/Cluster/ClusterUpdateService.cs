@@ -86,8 +86,12 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
         var state = new ClusterUpdateState {
             Id = Guid.NewGuid(),
             ImageDigest = request.ImageDigest,
-            Nodes = orderedMembers.Select(tag => new ClusterUpdateNodeState
-                    { NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing, PreparingAt = DateTimeOffset.UtcNow })
+            DesiredImageDigest = request.ImageDigest,
+            Nodes = orderedMembers.Select(tag =>
+                    new ClusterUpdateNodeState {
+                        NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing,
+                        PreparingAt = DateTimeOffset.UtcNow
+                    })
                 .ToList(),
             Status = ClusterUpdateStatus.Preparing,
             StartedAt = DateTimeOffset.UtcNow,

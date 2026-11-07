@@ -135,18 +135,24 @@ public sealed class ClusterUpdateCoordinator(
 
         var update = await updateService.GetAsync(cancellationToken);
         _activeNode = null;
-        if (update is null || update.Status is not ("Preparing" or "Running"))
+        if (update is null)
             return false;
         var topology = await documentStore.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(),
             cancellationToken);
         var localTag = topology.NodeTag;
+        var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
+        var desiredDigest = update.DesiredImageDigest ?? update.ImageDigest;
+        if (localNode?.Status == "Skipped" &&
+            await ReconcileLocalDigestAsync(update, localTag, desiredDigest, cancellationToken))
+            return true;
+        if (update.Status is not ("Preparing" or "Running"))
+            return false;
         _activeNode = (update.Status == "Preparing" &&
                        update.Nodes.Any(node => node.NodeTag == localTag && node.Status == "Preparing")) ||
                       (update.Status == "Running" && update.CurrentNodeTag == localTag)
             ? (update.Id, localTag)
             : null;
         if (update.Status == "Preparing") {
-            var localNode = update.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
             if (localNode?.Status == "Preparing") {
                 var prepared = await SendAsync("prepare", update, cancellationToken);
                 if (!Matches(update, prepared) || prepared.Status is not ("Prepared" or "Succeeded" or "Failed"))
@@ -163,6 +169,44 @@ public sealed class ClusterUpdateCoordinator(
             return true;
         await ReconcileNodeAsync(update, localTag, topology, cancellationToken);
         return true;
+    }
+
+    private async Task<bool> ReconcileLocalDigestAsync(ClusterUpdateResponse update, string localTag,
+        string desiredDigest, CancellationToken cancellationToken) {
+        var local = await SendAsync("local-status", CreateRequest(update, desiredDigest, update.Id), cancellationToken);
+        if (local.Status == "Failed")
+            throw new InvalidOperationException($"Updater could not inspect local image: {local.Error}");
+        if (string.Equals(local.ImageDigest, desiredDigest, StringComparison.Ordinal))
+            return false;
+
+        var catchup = CreateRequest(update, desiredDigest, Guid.NewGuid());
+        var status = await SendAsync("status", catchup, cancellationToken);
+        if (Matches(catchup, status) && status.Status == "Running")
+            return true;
+        if (Matches(catchup, status) && status.Status == "Prepared")
+            return await StartCatchupAsync(catchup, cancellationToken);
+
+        var prepared = await SendAsync("prepare", catchup, cancellationToken);
+        if (prepared.Status is "Prepared" or "Succeeded")
+            return await StartCatchupAsync(catchup, cancellationToken);
+        throw new InvalidOperationException($"Updater could not prepare catch-up image: {prepared.Error}");
+    }
+
+    private static ClusterUpdateResponse CreateRequest(ClusterUpdateResponse source, string imageDigest, Guid id) {
+        return new ClusterUpdateResponse {
+            Id = id, ImageDigest = imageDigest, DesiredImageDigest = imageDigest,
+            Status = source.Status, Nodes = source.Nodes, CurrentNodeTag = source.CurrentNodeTag,
+            Error = source.Error
+        };
+    }
+
+    private async Task<bool> StartCatchupAsync(ClusterUpdateResponse catchup,
+        CancellationToken cancellationToken) {
+        var started = await SendAsync("start", catchup, cancellationToken);
+        if (started.Status is "Running") return true;
+        if (started.Status is "Succeeded" or "Failed")
+            return false;
+        throw new InvalidOperationException($"Updater could not start catch-up: {started.Error}");
     }
 
     private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,

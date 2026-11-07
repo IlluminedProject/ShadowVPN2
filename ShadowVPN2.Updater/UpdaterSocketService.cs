@@ -95,12 +95,13 @@ public sealed class UpdaterSocketService(
                                   ?? throw new JsonException("An updater request is required");
                     response = request.Operation switch {
                         "status" => Volatile.Read(ref _state),
+                        "local-status" => await GetLocalStatusAsync(request, timeout.Token),
                         "prepare" => await PrepareAsync(request, timeout.Token),
                         "start" => await StartAsync(request, stoppingToken),
                         "info" => await GetImageInfoAsync(timeout.Token),
                         _ => new UpdaterSocketResponse {
                             UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = "Failed",
-                            Error = "Operation must be prepare, start, status or info"
+                            Error = "Operation must be prepare, start, status, local-status or info"
                         }
                     };
                 }
@@ -134,6 +135,25 @@ public sealed class UpdaterSocketService(
             logger.LogWarning(exception, "Could not inspect the running application image");
             return new UpdaterSocketResponse {
                 Status = "Failed", Error = "The updater could not inspect the running application image"
+            };
+        }
+    }
+
+    private async Task<UpdaterSocketResponse> GetLocalStatusAsync(UpdaterSocketRequest request,
+        CancellationToken cancellationToken) {
+        try {
+            var image = await containerUpdater.GetImageInfoAsync(cancellationToken);
+            var digest = image.RepoDigests.Select(value => value.Split('@', 2))
+                .Where(parts => parts.Length == 2)
+                .Select(parts => parts[1])
+                .FirstOrDefault(value => string.Equals(value, request.ImageDigest, StringComparison.Ordinal)) ?? "";
+            return new UpdaterSocketResponse {
+                UpdateId = request.UpdateId, ImageDigest = digest, Status = "Succeeded", ImageInfo = image
+            };
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) {
+            return new UpdaterSocketResponse {
+                UpdateId = request.UpdateId, Status = "Failed", Error = exception.Message
             };
         }
     }
