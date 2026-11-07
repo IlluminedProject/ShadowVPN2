@@ -13,7 +13,7 @@ public sealed class AddNodeForm {
 
     public string GenerateEnvironment(string joinToken) {
         return $"""
-                SHADOWVPN_WEB_PORT={WebPort}
+                WebPort={WebPort}
                 JoinToken={joinToken}
                 """.ReplaceLineEndings("\n");
     }

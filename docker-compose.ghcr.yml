@@ -18,10 +18,10 @@ services:
                 required: false
         environment:
             ASPNETCORE_ENVIRONMENT: Production
-            ASPNETCORE_URLS: https://+:${SHADOWVPN_WEB_PORT:-5172}
+            ASPNETCORE_URLS: https://+:${WebPort:-5172}
             Updater__ImageReference: ghcr.io/illuminedproject/shadowvpn2:${SHADOWVPN_IMAGE_TAG:-latest}
         healthcheck:
-            test: [ "CMD", "curl", "-fk", "https://localhost:${SHADOWVPN_WEB_PORT:-5172}/api/node/status" ]
+            test: [ "CMD", "curl", "-fk", "https://localhost:${WebPort:-5172}/api/node/status" ]
             interval: 30s
             timeout: 5s
             start_period: 15s

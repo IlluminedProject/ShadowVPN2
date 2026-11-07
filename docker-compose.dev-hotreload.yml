@@ -24,12 +24,12 @@ services:
       - shadowvpn2-bin:/src/ShadowVPN2/bin
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=https://+:${SHADOWVPN_WEB_PORT:-5172}
+      - ASPNETCORE_URLS=https://+:${WebPort:-5172}
       - DOTNET_USE_POLLING_FILE_WATCHER=true
       - SHADOWVPN_DATA_DIR=/data
       - DOTNET_WATCH_SUPPRESS_BROWSER_REFRESH=1
     healthcheck:
-      test: ["CMD", "curl", "-fk", "https://localhost:${SHADOWVPN_WEB_PORT:-5172}/api/node/status"]
+        test: [ "CMD", "curl", "-fk", "https://localhost:${WebPort:-5172}/api/node/status" ]
       interval: 5s
       timeout: 5s
       start_period: 40s
