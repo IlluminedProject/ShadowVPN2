@@ -13,6 +13,7 @@ using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb;
 using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 using TransactionMode = Raven.Client.Documents.Session.TransactionMode;
 
@@ -23,6 +24,7 @@ public class ClusterService(
     NodeService nodeService,
     NodeNetworkService nodeNetworkService,
     GlobalConfigurationService globalConfigurationService,
+    RavenDbClusterAdminClient ravenDbClusterAdminClient,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<ClusterService> logger) {
     public async Task<string> GenerateJoinTokenAsync(string name, HostName? domain) {
@@ -244,38 +246,21 @@ public class ClusterService(
     }
 
     private async Task AddNodeToRavenDbClusterAsync(string nodeAddress, string nodeTag) {
-        logger.LogInformation("Adding node {NodeUrl} to RavenDB cluster", nodeAddress);
-        using var certificate =
-            X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null);
-        using var handler = new HttpClientHandler();
-        handler.ClientCertificates.Add(certificate);
+        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            LocalConfiguration.CertificatePfxPath.Value, null);
         var peers = await PeerCertificateTrustService.LoadAsync();
         var pins = peers.Select(peer => X509Certificate2.CreateFromPem(peer.CertificatePem)).ToArray();
-        try {
-            handler.ServerCertificateCustomValidationCallback = (request, remote, _, _) => remote != null
-                && pins.Any(pin => RavenDbCertificates.MatchesPin(remote, pin)
-                                   && pin.MatchesHostname(request.RequestUri!.Host, false,
-                                       false));
-            using var httpClient = new HttpClient(handler);
-            var ravenUrl = documentStore.Urls.First();
-            var pendingIndex = Array.FindIndex(peers, peer => $"https://{peer.MeshIp}:8888" == nodeAddress);
-            if (pendingIndex < 0) {
-                throw new InvalidOperationException(
-                    "The joining node certificate is missing from the local trust snapshot.");
-            }
+        var pendingIndex = Array.FindIndex(peers, peer => $"https://{peer.MeshIp}:8888" == nodeAddress);
 
-            var requestUrl =
-                $"{ravenUrl}/admin/cluster/node?url={Uri.EscapeDataString(nodeAddress.TrimEnd('/'))}&tag={Uri.EscapeDataString(nodeTag)}&expectedThumbprint={pins[pendingIndex].Thumbprint}";
-            using var response = await httpClient.PutAsync(requestUrl, null);
-            if (!response.IsSuccessStatusCode) {
-                throw new InvalidOperationException(
-                    $"Failed to add node to cluster: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
-            }
-        }
-        finally {
+        if (pendingIndex < 0) {
             foreach (var pin in pins)
                 pin.Dispose();
+            throw new InvalidOperationException(
+                "The joining node certificate is missing from the local trust snapshot.");
         }
+
+        await ravenDbClusterAdminClient.AddNodeToClusterAsync(nodeAddress, nodeTag, certificate, pins,
+            pins[pendingIndex].Thumbprint, (remote, pin) => RavenDbCertificates.MatchesPin(remote, pin));
     }
 
     public async Task DeleteNodeAsync(Guid nodeId, CancellationToken cancellationToken = default) {
@@ -332,30 +317,13 @@ public class ClusterService(
     }
 
     private async Task RemoveNodeFromRavenDbClusterAsync(string nodeTag, CancellationToken cancellationToken) {
-        logger.LogInformation("Removing node {NodeTag} from RavenDB cluster topology", nodeTag);
-        using var certificate =
-            X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null);
-        using var handler = new HttpClientHandler();
-        handler.ClientCertificates.Add(certificate);
+        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            LocalConfiguration.CertificatePfxPath.Value, null);
         var peers = await PeerCertificateTrustService.LoadAsync(cancellationToken);
         var pins = peers.Select(peer => X509Certificate2.CreateFromPem(peer.CertificatePem)).ToArray();
-        try {
-            handler.ServerCertificateCustomValidationCallback = (request, remote, _, _) => remote != null
-                && pins.Any(pin => RavenDbCertificates.MatchesPin(remote, pin)
-                                   && pin.MatchesHostname(request.RequestUri!.Host, false, false));
-            using var httpClient = new HttpClient(handler);
-            var ravenUrl = documentStore.Urls.First();
-            var requestUrl = $"{ravenUrl}/admin/cluster/node?nodeTag={Uri.EscapeDataString(nodeTag)}";
-            using var response = await httpClient.DeleteAsync(requestUrl, cancellationToken);
-            if (!response.IsSuccessStatusCode) {
-                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                throw new InvalidOperationException(
-                    $"Failed to remove node from cluster: {response.StatusCode} {errorBody}");
-            }
-        }
-        finally {
-            foreach (var pin in pins)
-                pin.Dispose();
-        }
+
+        await ravenDbClusterAdminClient.RemoveNodeFromClusterAsync(nodeTag, certificate, pins,
+            (remote, pin) => RavenDbCertificates.MatchesPin(remote, pin),
+            cancellationToken);
     }
 }

@@ -14,6 +14,7 @@ using ShadowVPN2.Data.SingBox.Contributors;
 using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb;
 using ShadowVPN2.Infrastructure.RavenDb.Migrations;
 using ApplicationUpdateService = ShadowVPN2.Frontend.ApplicationUpdateService;
 
@@ -107,6 +108,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ISingBoxConfigContributor, Hysteria2ConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, NaiveProxyConfigContributor>();
         builder.Services.AddSingleton<ISingBoxConfigContributor, WireGuardAmneziaConfigContributor>();
+        builder.Services.AddSingleton<RavenDbClusterAdminClient>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddSingleton<ClusterUpdateService>();
         builder.Services.AddSingleton<RegistryImageClient>();
