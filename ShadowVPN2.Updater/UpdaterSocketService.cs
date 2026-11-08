@@ -39,6 +39,7 @@ public sealed class UpdaterSocketService(
         var bound = false;
         try {
             await RemoveStaleSocketAsync(socketPath, lifetime.Token);
+            listener.Bind(new UnixDomainSocketEndPoint(socketPath));
             bound = true;
             File.SetUnixFileMode(socketPath,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.GroupWrite |
