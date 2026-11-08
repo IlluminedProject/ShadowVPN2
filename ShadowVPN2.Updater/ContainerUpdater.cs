@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Updater.Docker;
 
 namespace ShadowVPN2.Updater;
 
@@ -10,48 +10,29 @@ public sealed class ContainerUpdater(
     ILogger<ContainerUpdater> logger,
     IOptions<UpdaterOptions> options) {
     private const string RollbackName = "shadowvpn2-rollback";
+    private const int StopTimeoutSeconds = 30;
+    private const int RollbackStopTimeoutSeconds = 5;
+    private const int HealthCheckIntervalSeconds = 2;
+    private const int HealthCheckTimeoutMinutes = 3;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    private string ContainerName {
-        get => options.Value.ContainerName;
-    }
-
-    private static string Id(JsonObject container) {
-        return container["Id"]!.GetValue<string>();
-    }
-
-    private static bool Running(JsonObject container) {
-        return container["State"]!["Running"]!.GetValue<bool>();
-    }
-
-    private static bool Healthy(JsonObject container, string image) {
-        return Running(container) &&
-               container["State"]?["Health"]?["Status"]
-                   ?.GetValue<string>() == "healthy" &&
-               container["Config"]?["Image"]
-                   ?.GetValue<string>() == image;
-    }
-
-    private Task<JsonObject> Post(string id, string action, CancellationToken token, JsonObject? body = null) {
-        return docker.SendAsync($"containers/{Uri.EscapeDataString(id)}/{action}", body, token);
-    }
+    private string ContainerName => options.Value.ContainerName;
 
     public async Task<ContainerImageInfo> GetImageInfoAsync(CancellationToken cancellationToken) {
         logger.LogDebug("Inspecting application container {ContainerName}", ContainerName);
         var container = await docker.InspectAsync(ContainerName, cancellationToken) ??
                         throw new InvalidOperationException("The ShadowVPN2 container could not be found");
-        var imageId = container["Image"]!.GetValue<string>();
-        var image = await docker.InspectImageAsync(imageId, cancellationToken);
+        var image = await docker.InspectImageAsync(container.Image, cancellationToken);
         var result = new ContainerImageInfo {
-            ImageRepository = GetImageRepository(container["Config"]!["Image"]!.GetValue<string>()),
-            RepoDigests = image["RepoDigests"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? [],
-            Os = image["Os"]?.GetValue<string>(),
-            Architecture = image["Architecture"]?.GetValue<string>(),
-            Variant = image["Variant"]?.GetValue<string>()
+            ImageRepository = GetImageRepository(container.Config.Image),
+            RepoDigests = image.RepoDigests,
+            Os = image.Os,
+            Architecture = image.Architecture,
+            Variant = image.Variant
         };
         logger.LogDebug(
             "Inspected application container {ContainerName}: image {ImageId}, repository {Repository}, digests {RepoDigests}",
-            ContainerName, imageId, result.ImageRepository, string.Join(",", result.RepoDigests));
+            ContainerName, container.Image, result.ImageRepository, string.Join(",", result.RepoDigests));
         return result;
     }
 
@@ -61,7 +42,7 @@ public sealed class ContainerUpdater(
         logger.LogInformation("Preparing image {ImageDigest} for container {ContainerName}", digest, ContainerName);
         var original = await docker.InspectAsync(ContainerName, cancellationToken) ??
                        throw new InvalidOperationException("The ShadowVPN2 container could not be found");
-        var repository = GetImageRepository(original["Config"]!["Image"]!.GetValue<string>());
+        var repository = GetImageRepository(original.Config.Image);
         var image = $"{repository}@{digest}";
         logger.LogInformation("Pulling image {ImageReference}", image);
         var stopwatch = Stopwatch.StartNew();
@@ -69,7 +50,6 @@ public sealed class ContainerUpdater(
         logger.LogInformation("Prepared image {ImageReference} in {ElapsedMilliseconds} ms", image,
             stopwatch.ElapsedMilliseconds);
     }
-
 
     public async Task UpdateAsync(string digest, CancellationToken cancellationToken) {
         logger.LogInformation("Container update started for {ContainerName}, digest {ImageDigest}",
@@ -82,98 +62,87 @@ public sealed class ContainerUpdater(
     private async Task UpdateCoreAsync(string digest, CancellationToken token) {
         if (!ImageDigest.IsValid(digest))
             throw new ArgumentException("A canonical sha256 image digest is required", nameof(digest));
-        logger.LogInformation("Inspecting current and rollback containers for {ContainerName}", ContainerName);
-        var original = await docker.InspectAsync(ContainerName, token);
         var rollback = await docker.InspectAsync(RollbackName, token);
-        var source = rollback ?? original ??
-            throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
-        var image = $"{GetImageRepository(source["Config"]!["Image"]!.GetValue<string>())}@{digest}";
+        var original = await docker.InspectAsync(ContainerName, token);
+        var source = original ?? rollback ??
+                     throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
+        var image = $"{GetImageRepository(source.Config.Image)}@{digest}";
         logger.LogInformation(
             "Updating container {ContainerName} to {ImageReference}; rollback present: {RollbackPresent}",
             ContainerName, image, rollback is not null);
-        await docker.PullAsync(image, token);
-        if (rollback is not null) {
-            if (original is not null && Healthy(original, image)) {
-                logger.LogInformation(
-                    "Current container is already healthy at {ImageReference}; removing stale rollback", image);
-                await RemoveAsync(RollbackName, token);
-                return;
-            }
-
-            if (original is not null) {
-                logger.LogWarning("Removing failed current container before restoring rollback");
-                await RemoveAsync(Id(original), CancellationToken.None);
-            }
-
-            logger.LogInformation("Restoring rollback container {RollbackName}", RollbackName);
-            await Post(RollbackName, $"rename?name={Uri.EscapeDataString(ContainerName)}", token);
-            await Post(Id(rollback), "start", token);
-            original = await docker.InspectAsync(ContainerName, token);
+        if (rollback is not null) await RemoveAsync(rollback.Id, token);
+        if (original is null) {
+            logger.LogWarning("Primary container is missing; restoring from rollback {RollbackName}", RollbackName);
+            await docker.PostActionAsync(source.Id, $"rename?name={Uri.EscapeDataString(ContainerName)}", null, token);
+            await docker.PostActionAsync(source.Id, "start", null, token);
+            original = await docker.InspectAsync(ContainerName, token) ??
+                       throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
         }
 
-        if (original is null)
-            throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
-        if (original["Config"]?["Labels"]?["com.docker.compose.service"]?.GetValue<string>() != "shadowvpn2")
+        if (original.Config.Labels?.TryGetValue("com.docker.compose.service", out var service) != true || service != "shadowvpn2")
             throw new InvalidOperationException("Target container is not the ShadowVPN2 Compose service");
-        if (Healthy(original, image)) {
-            logger.LogInformation("Container {ContainerName} is already healthy at {ImageReference}", ContainerName,
-                image);
+        if (IsHealthy(original, image)) {
+            logger.LogInformation("Container {ContainerName} is already healthy at {ImageReference}", ContainerName, image);
             return;
         }
 
-        var oldId = Id(original);
+        var oldId = original.Id;
         string? candidateId = null;
         var moved = false;
         try {
             logger.LogInformation("Stopping current container {ContainerId}", oldId);
-            await Post(oldId, "stop?t=30", token);
+            await docker.PostActionAsync(oldId, $"stop?t={StopTimeoutSeconds}", null, token);
             logger.LogInformation("Moving current container to rollback name {RollbackName}", RollbackName);
-            await Post(oldId, $"rename?name={RollbackName}", token);
+            await docker.PostActionAsync(oldId, $"rename?name={RollbackName}", null, token);
             moved = true;
-            var config = original["Config"]!.DeepClone().AsObject();
-            config["Image"] = image;
-            var host = original["HostConfig"]!.DeepClone().AsObject();
-            host["RestartPolicy"] = new JsonObject { ["Name"] = "no", ["MaximumRetryCount"] = 0 };
-            config["HostConfig"] = host;
+
+            var createRequest = new {
+                Image = image,
+                HostConfig = new {
+                    original.HostConfig.RestartPolicy.Name,
+                    MaximumRetryCount = 0
+                },
+                Labels = original.Config.Labels
+            };
+
             logger.LogInformation("Creating candidate container from {ImageReference}", image);
-            var created = await docker.SendAsync($"containers/create?name={Uri.EscapeDataString(ContainerName)}",
-                config, token);
-            candidateId = created["Id"]!.GetValue<string>();
+            var created = await docker.CreateContainerAsync(
+                $"containers/create?name={Uri.EscapeDataString(ContainerName)}", createRequest, token);
+            candidateId = created.Id;
             logger.LogInformation("Starting candidate container {ContainerId}", candidateId);
-            await Post(candidateId, "start", token);
+            await docker.PostActionAsync(candidateId, "start", null, token);
+
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeout.CancelAfter(TimeSpan.FromMinutes(3));
+            timeout.CancelAfter(TimeSpan.FromMinutes(HealthCheckTimeoutMinutes));
             while (true) {
                 var state = await docker.InspectAsync(candidateId, timeout.Token) ??
                             throw new InvalidOperationException("Updated container disappeared");
-                var health = state["State"]?["Health"]?["Status"]?.GetValue<string>();
+                var health = state.State.Health?.Status;
                 logger.LogDebug("Candidate container {ContainerId} state: running {Running}, health {Health}",
-                    candidateId, Running(state), health);
-                if (!Running(state))
+                    candidateId, state.State.Running, health);
+                if (!state.State.Running)
                     throw new InvalidOperationException("Updated ShadowVPN2 container stopped before becoming healthy");
-                if (Healthy(state, image)) break;
+                if (IsHealthy(state, image)) break;
                 if (health == "unhealthy")
                     throw new InvalidOperationException("Updated ShadowVPN2 container reported unhealthy");
-                await Task.Delay(TimeSpan.FromSeconds(2), timeout.Token);
+                await Task.Delay(TimeSpan.FromSeconds(HealthCheckIntervalSeconds), timeout.Token);
             }
 
-            logger.LogInformation("Candidate container {ContainerId} is healthy; restoring restart policy",
-                candidateId);
-            await Post(candidateId, "update", token,
-                new JsonObject { ["RestartPolicy"] = original["HostConfig"]!["RestartPolicy"]!.DeepClone() });
+            logger.LogInformation("Candidate container {ContainerId} is healthy; restoring restart policy", candidateId);
+            await docker.PostActionAsync(candidateId, "update", original.HostConfig.RestartPolicy, token);
         }
         catch (Exception exception) {
             try {
                 if (candidateId is not null) await RemoveAsync(candidateId, CancellationToken.None);
                 else {
                     var candidate = await docker.InspectAsync(ContainerName, CancellationToken.None);
-                    if (candidate is not null && Id(candidate) != oldId)
-                        await RemoveAsync(Id(candidate), CancellationToken.None);
+                    if (candidate is not null && candidate.Id != oldId)
+                        await RemoveAsync(candidate.Id, CancellationToken.None);
                 }
 
                 if (moved)
-                    await Post(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", CancellationToken.None);
-                await Post(oldId, "start", CancellationToken.None);
+                    await docker.PostActionAsync(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", null, CancellationToken.None);
+                await docker.PostActionAsync(oldId, "start", null, CancellationToken.None);
             }
             catch (Exception rollbackException) {
                 logger.LogError(exception, "Container update failed before rollback could complete");
@@ -194,20 +163,23 @@ public sealed class ContainerUpdater(
     private async Task RemoveAsync(string id, CancellationToken token) {
         var container = await docker.InspectAsync(id, token);
         if (container is null) return;
-        if (Running(container)) await Post(Id(container), "stop?t=5", token);
-        await docker.RemoveAsync(Id(container), token);
+        if (container.State.Running)
+            await docker.PostActionAsync(container.Id, $"stop?t={RollbackStopTimeoutSeconds}", null, token);
+        await docker.RemoveAsync(container.Id, token);
     }
+
+    private static bool IsHealthy(DockerContainer container, string image) =>
+        container.State.Running &&
+        container.State.Health?.Status == "healthy" &&
+        container.Config.Image == image;
 
     private static string GetImageRepository(string reference) {
         if (string.IsNullOrWhiteSpace(reference) || reference.StartsWith("sha256:", StringComparison.Ordinal) ||
             (reference.Length == 64 && reference.All(Uri.IsHexDigit))) {
-            throw new InvalidOperationException(
-                "Cannot determine image repository from a container started by image ID");
+            throw new InvalidOperationException("Cannot determine image repository from a container started by image ID");
         }
 
-        var separator = reference.IndexOf('@');
-        if (separator >= 0) reference = reference[..separator];
-        separator = reference.LastIndexOf(':');
-        return separator > reference.LastIndexOf('/') ? reference[..separator] : reference;
+        var atIndex = reference.IndexOf('@');
+        return atIndex >= 0 ? reference[..atIndex] : reference.Split(':')[0];
     }
 }

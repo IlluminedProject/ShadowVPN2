@@ -146,7 +146,7 @@ public static class ClusterUpdateTransitions {
             Id = state.Id,
             ImageDigest = state.ImageDigest,
             DesiredImageDigest = state.DesiredImageDigest ?? state.ImageDigest,
-            Status = state.Status.ToString(),
+            Status = state.Status,
             Nodes = state.Nodes.Select(node => new ClusterUpdateNodeResponse {
                 NodeTag = node.NodeTag,
                 Status = Enum.Parse<Contracts.Networking.ClusterUpdateNodeStatus>(

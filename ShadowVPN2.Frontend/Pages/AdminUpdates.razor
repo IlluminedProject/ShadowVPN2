@@ -1,6 +1,6 @@
 @page "/admin/updates"
 @using System.Net
-@implements IAsyncDisposable
+@using ShadowVPN2.Contracts.Networking
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IApplicationUpdateService Updates
@@ -259,7 +259,7 @@ else
         try
         {
             _history = (await Updates.GetHistoryAsync(_cancellation.Token))
-                .Where(update => update.Status.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                .Where(update => update.Status == ClusterUpdateStatus.Completed)
                 .ToArray();
             _historyError = null;
         }
@@ -381,7 +381,7 @@ else
     private bool CanStartUpdate => _availability?.UpdateAvailable == true &&
                                    (_status is null || _status.Nodes.Any(node =>
                                        node.Status is not ClusterUpdateNodeStatus.Completed and not ClusterUpdateNodeStatus.Skipped));
-    private ClusterUpdateNodeResponse? CurrentNode => _status?.Status == "Running"
+    private ClusterUpdateNodeResponse? CurrentNode => _status?.Status == ClusterUpdateStatus.Running
         ? _status.Nodes.FirstOrDefault(node => node.NodeTag == _status.CurrentNodeTag && node.Status == ClusterUpdateNodeStatus.Claimed)
         : null;
 
@@ -395,8 +395,8 @@ else
     }
     private static bool IsActive(ClusterUpdateResponse? status)
     {
-        return status?.Status.Equals("Running", StringComparison.OrdinalIgnoreCase) == true ||
-               status?.Status.Equals("Preparing", StringComparison.OrdinalIgnoreCase) == true;
+        return status?.Status == ClusterUpdateStatus.Running ||
+               status?.Status == ClusterUpdateStatus.Preparing;
     }
 
     private static string FormatTimestamp(DateTimeOffset? timestamp)

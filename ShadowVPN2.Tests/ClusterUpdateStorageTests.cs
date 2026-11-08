@@ -23,7 +23,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         using var store = await server.CreateStoreAsync(timeout.Token);
         var legacy = CreateState();
         var history = new ApplicationUpdateHistoryResponse {
-            Id = Guid.NewGuid(), ImageDigest = OtherDigest, Status = "Completed",
+            Id = Guid.NewGuid(), ImageDigest = OtherDigest, Status = ClusterUpdateStatus.Completed,
             StartedAt = legacy.StartedAt.AddDays(-2), CompletedAt = legacy.StartedAt.AddDays(-1)
         };
         var seeded = await store.Operations.SendAsync(new PutCompareExchangeValueOperation<ClusterUpdateState>(
@@ -112,7 +112,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
             Assert.NotNull(current);
             Assert.Equal(winner.Id, current.Id);
             Assert.Equal(winner.ImageDigest, current.ImageDigest);
-            Assert.Equal("Preparing", current.Status);
+            Assert.Equal(ClusterUpdateStatus.Preparing, current.Status);
             Assert.Equal(2, writeCount);
             Assert.Null(await store.Operations.SendAsync(new GetCompareExchangeValueOperation<ClusterUpdateState>(
                 ClusterUpdateDocument.DocumentId), token: timeout.Token));
@@ -124,7 +124,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
                 var archived = Assert.Single(history);
                 Assert.Equal(previous.Id, archived.Id);
                 Assert.Equal(previous.ImageDigest, archived.ImageDigest);
-                Assert.Equal("Completed", archived.Status);
+                Assert.Equal(ClusterUpdateStatus.Completed, archived.Status);
             }
 
             Task<(ClusterUpdateResponse? Update, AppException? Error)> StartAsync(string digest) {
@@ -173,7 +173,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         var response = await service.GetAsync(timeout.Token);
         Assert.NotNull(response);
         Assert.Equal(state.Id, response.Id);
-        Assert.Equal("Running", response.Status);
+        Assert.Equal(ClusterUpdateStatus.Running, response.Status);
         Assert.All(response.Nodes, node => Assert.Equal(ClusterUpdateNodeStatus.Prepared, node.Status));
         var persisted = await LoadStateAsync(store, timeout.Token);
         Assert.All(persisted.Nodes, node => Assert.Equal(Data.Cluster.ClusterUpdateNodeStatus.Prepared, node.Status));
@@ -207,7 +207,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         Assert.True(writeCount >= 3, "One conflicting write must retry its increment");
         var response = await service.GetAsync(timeout.Token);
         Assert.NotNull(response);
-        Assert.Equal("Failed", response.Status);
+        Assert.Equal(ClusterUpdateStatus.Failed, response.Status);
         Assert.Contains("2 attempts", response.Error);
         Assert.Equal(ClusterUpdateNodeStatus.Completed, response.Nodes[0].Status);
         Assert.Equal(ClusterUpdateNodeStatus.Failed, response.Nodes[1].Status);
@@ -240,7 +240,7 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         notification = new TaskCompletionSource<DocumentChange>(TaskCreationOptions.RunContinuationsAsynchronously);
         await service.CancelAsync(started.Id, timeout.Token);
         Assert.Equal(ClusterUpdateDocument.DocumentId, (await notification.Task.WaitAsync(timeout.Token)).Id);
-        Assert.Equal("Cancelled", (await service.GetAsync(timeout.Token))!.Status);
+        Assert.Equal(ClusterUpdateStatus.Cancelled, (await service.GetAsync(timeout.Token))!.Status);
     }
 
     private static async Task MigrateAsync(IDocumentStore store, CancellationToken cancellationToken) {

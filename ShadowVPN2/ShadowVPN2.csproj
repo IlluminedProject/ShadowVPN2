@@ -38,18 +38,4 @@
       <Link>.dockerignore</Link>
     </Content>
   </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="Data\ravendb\Databases\ShadowVPN\Raven.voron"/>
-    <None Remove="Data\ravendb\Databases\ShadowVPN\headers.two"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Data\Migrations\AddUserDisplayNameMigration.cs"/>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Data\local\"/>
-  </ItemGroup>
-
 </Project>

@@ -1,5 +1,6 @@
-namespace ShadowVPN2.Data.Cluster;
+using ShadowVPN2.Contracts.Networking;
 
+namespace ShadowVPN2.Data.Cluster;
 public sealed class ClusterUpdateState {
     public Guid Id { get; set; }
     public required string ImageDigest { get; set; }

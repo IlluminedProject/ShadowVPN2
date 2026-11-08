@@ -10,8 +10,10 @@ using Polly.Registry;
 using Polly.Retry;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
+using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure.Configurations;
+using ClusterUpdateNodeStatus = ShadowVPN2.Data.Cluster.ClusterUpdateNodeStatus;
 using Xunit;
 
 namespace ShadowVPN2.Tests;
@@ -52,7 +54,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             };
             await SaveAsync(state);
             await attempts.WaitAsync(timeout.Token);
-            Assert.Equal("Running", (await updateService.GetAsync(timeout.Token))!.Status);
+            Assert.Equal(ClusterUpdateStatus.Running, (await updateService.GetAsync(timeout.Token))!.Status);
             // There are no more document writes: this pass must be driven by the active-operation timer.
             await attempts.WaitAsync(timeout.Token);
 
@@ -62,7 +64,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             await SaveAsync(state);
             await attempts.WaitAsync(timeout.Token);
             var history = await updateService.GetHistoryAsync(timeout.Token);
-            Assert.Contains(history, entry => entry.Id == state.Id && entry.Status == "Failed");
+            Assert.Contains(history, entry => entry.Id == state.Id && entry.Status == ClusterUpdateStatus.Failed);
             await AssertIdleAsync();
         }
         finally {
@@ -139,7 +141,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
         await coordinator.StartAsync(timeout.Token);
         try {
             await rejected.Task.WaitAsync(timeout.Token);
-            Assert.Equal("Running", (await service.GetAsync(timeout.Token))!.Status);
+            Assert.Equal(ClusterUpdateStatus.Running, (await service.GetAsync(timeout.Token))!.Status);
             await attempts.WaitAsync(timeout.Token);
             await attempts.WaitAsync(timeout.Token);
 
@@ -148,7 +150,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             await SaveAsync();
             await attempts.WaitAsync(timeout.Token);
             Assert.Contains(await service.GetHistoryAsync(timeout.Token),
-                entry => entry.Id == state.Id && entry.Status == "Failed");
+                entry => entry.Id == state.Id && entry.Status == ClusterUpdateStatus.Failed);
             Assert.Empty(attempts.Errors);
         }
         finally {

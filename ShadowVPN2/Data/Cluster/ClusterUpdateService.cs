@@ -177,7 +177,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
             new GetCompareExchangeValueOperation<ApplicationUpdateHistoryResponse>(key), token: cancellationToken);
         if (existing?.Value is not null) return;
         var entry = new ApplicationUpdateHistoryResponse {
-            Id = state.Id, ImageDigest = state.ImageDigest, Status = state.Status.ToString(),
+            Id = state.Id, ImageDigest = state.ImageDigest, Status = state.Status,
             StartedAt = state.StartedAt, CompletedAt = state.UpdatedAt
         };
         await documentStore.Operations.SendAsync(
