@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Exceptions;
 using ShadowVPN2.Infrastructure.Configurations;
 
@@ -10,7 +11,7 @@ namespace ShadowVPN2.Data.Cluster;
 
 public sealed class ApplicationUpdateService(
     RegistryImageClient registry,
-    UpdaterImageClient updater,
+    UpdaterClient updater,
     ClusterUpdateService clusterUpdates,
     IDocumentStore documentStore,
     IOptions<UpdaterOptions> options,
@@ -88,7 +89,7 @@ public sealed class ApplicationUpdateService(
             return result;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try {
-            var image = await updater.GetAsync(timeout.Token);
+            var image = await updater.GetImageInfoAsync(timeout.Token);
             result.ImageReference ??= image.ImageRepository;
             var actual = RegistryImageClient.ParseReference(image.ImageRepository ?? "");
             var digests = image.RepoDigests.Where(x => {

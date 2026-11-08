@@ -33,8 +33,10 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             .AddTimeout(TimeSpan.FromSeconds(10)));
         await using var provider = services.BuildServiceProvider();
         var updateService = new ClusterUpdateService(store);
-        using var coordinator = new ClusterUpdateCoordinator(updateService, store,
-            Options.Create(new UpdaterOptions { SocketPath = "unused-updater-socket" }),
+        var mockUpdaterClient = new UpdaterClient(
+            Options.Create(new UpdaterOptions { SocketPath = "/nonexistent/updater.sock" }),
+            provider.GetRequiredService<ILogger<UpdaterClient>>());
+        using var coordinator = new ClusterUpdateCoordinator(updateService, store, mockUpdaterClient,
             provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
             provider.GetRequiredService<ILogger<ClusterUpdateCoordinator>>());
         var requests = 0;
@@ -127,8 +129,10 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             .AddTimeout(TimeSpan.FromSeconds(10)));
         await using var provider = services.BuildServiceProvider();
         var service = new ClusterUpdateService(store);
-        using var coordinator = new ClusterUpdateCoordinator(service, store,
-            Options.Create(new UpdaterOptions { SocketPath = "unused-updater-socket" }),
+        var mockUpdaterClient = new UpdaterClient(
+            Options.Create(new UpdaterOptions { SocketPath = "/nonexistent/updater.sock" }),
+            provider.GetRequiredService<ILogger<UpdaterClient>>());
+        using var coordinator = new ClusterUpdateCoordinator(service, store, mockUpdaterClient,
             provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
             provider.GetRequiredService<ILogger<ClusterUpdateCoordinator>>());
         var state = new ClusterUpdateState {
