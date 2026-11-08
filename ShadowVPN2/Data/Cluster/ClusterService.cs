@@ -9,6 +9,7 @@ using Raven.Client.Documents;
 using Raven.Client.ServerWide.Operations;
 using Raven.Client.ServerWide.Operations.Certificates;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -269,6 +270,87 @@ public class ClusterService(
             if (!response.IsSuccessStatusCode) {
                 throw new InvalidOperationException(
                     $"Failed to add node to cluster: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        finally {
+            foreach (var pin in pins)
+                pin.Dispose();
+        }
+    }
+
+    public async Task DeleteNodeAsync(Guid nodeId, CancellationToken cancellationToken = default) {
+        if (nodeId == localConfiguration.Value.NodeId)
+            throw new InvalidOperationException("Cannot delete the local node.");
+
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
+            { TransactionMode = TransactionMode.ClusterWide });
+        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
+            pageSize: int.MaxValue, token: cancellationToken);
+        var node = nodes.FirstOrDefault(n => n.NodeId == nodeId);
+        if (node == null)
+            throw new KeyNotFoundException("Node not found");
+
+        var isPending = node.JoinSecret.HasValue;
+
+        if (!isPending) {
+            // Joined node: remove from RavenDB topology first
+            var nodeTag = GetNodeTag(node.Number);
+            logger.LogInformation("Removing joined node {NodeId} (tag {NodeTag}) from cluster", nodeId, nodeTag);
+
+            // Remove database replica from this node
+            await documentStore.Maintenance.Server.SendAsync(
+                new DeleteDatabasesOperation(documentStore.Database, false, nodeTag),
+                cancellationToken);
+
+            // Remove server node from cluster topology
+            await RemoveNodeFromRavenDbClusterAsync(nodeTag, cancellationToken);
+
+            // Delete client certificate
+            await documentStore.Maintenance.Server.SendAsync(
+                new DeleteCertificateOperation($"{node.Name}-{node.Number}"), cancellationToken);
+        }
+        else {
+            logger.LogInformation("Cancelling pending node {NodeId}", nodeId);
+        }
+
+        // Delete node-scoped documents
+        session.Delete(node);
+
+        var statusId = NodeNetworkService.GetStatusId(nodeId);
+        var status = await session.LoadAsync<EntityNodeNetworkStatus>(statusId, cancellationToken);
+        if (status != null)
+            session.Delete(status);
+
+        var certificateId = ManagedCertificateService.GetId(nodeId);
+        var certificate = await session.LoadAsync<EntityManagedCertificate>(certificateId, cancellationToken);
+        if (certificate != null)
+            session.Delete(certificate);
+
+        await session.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Node {NodeId} deleted", nodeId);
+    }
+
+    private async Task RemoveNodeFromRavenDbClusterAsync(string nodeTag, CancellationToken cancellationToken) {
+        logger.LogInformation("Removing node {NodeTag} from RavenDB cluster topology", nodeTag);
+        using var certificate =
+            X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null);
+        using var handler = new HttpClientHandler();
+        handler.ClientCertificates.Add(certificate);
+        var peers = await PeerCertificateTrustService.LoadAsync(cancellationToken);
+        var pins = peers.Select(peer => X509Certificate2.CreateFromPem(peer.CertificatePem)).ToArray();
+        try {
+            handler.ServerCertificateCustomValidationCallback = (request, remote, _, _) => remote != null
+                && pins.Any(pin => RavenDbCertificates.MatchesPin(remote, pin)
+                                   && pin.MatchesHostname(request.RequestUri!.Host, false, false));
+            using var httpClient = new HttpClient(handler);
+            var ravenUrl = documentStore.Urls.First();
+            var requestUrl = $"{ravenUrl}/admin/cluster/node?nodeTag={Uri.EscapeDataString(nodeTag)}";
+            using var response = await httpClient.DeleteAsync(requestUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode) {
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException(
+                    $"Failed to remove node from cluster: {response.StatusCode} {errorBody}");
             }
         }
         finally {

@@ -191,7 +191,7 @@ public sealed class ManagedCertificateService(
         }
     }
 
-    private static string GetId(Guid nodeId) {
+    internal static string GetId(Guid nodeId) {
         return $"ManagedCertificates/{nodeId:D}";
     }
 }

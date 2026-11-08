@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ShadowVPN2.Data;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Authentication;
@@ -13,7 +14,8 @@ namespace ShadowVPN2.Controllers;
 public sealed class NodesController(
     NodeService nodeService,
     NodeNetworkService nodeNetworkService,
-    ProtocolDomainService protocolDomainService) : ControllerBase {
+    ProtocolDomainService protocolDomainService,
+    ClusterService clusterService) : ControllerBase {
     [HttpGet]
     public async Task<IReadOnlyList<NodeResponse>> Get(CancellationToken cancellationToken) {
         return await nodeService.GetNodeResponsesAsync(cancellationToken);
@@ -29,6 +31,12 @@ public sealed class NodesController(
     [HttpPost("{nodeId:guid}/check-domain")]
     public async Task<DomainCheckResponse> CheckDomain(Guid nodeId, CancellationToken cancellationToken) {
         return await nodeService.CheckDomainAsync(nodeId, cancellationToken);
+    }
+
+    [HttpDelete("{nodeId:guid}")]
+    [Authorize(Policy = AppPermissions.Nodes.Manage)]
+    public async Task Delete(Guid nodeId, CancellationToken cancellationToken) {
+        await clusterService.DeleteNodeAsync(nodeId, cancellationToken);
     }
 
     [HttpPost("local/refresh-network")]

@@ -14,6 +14,8 @@ public interface INodeApplicationService {
 
     Task<DomainCheckResponse> CheckDomainAsync(Guid nodeId, CancellationToken cancellationToken = default);
 
+    Task DeleteAsync(Guid nodeId, CancellationToken cancellationToken = default);
+
     Task<NodeCertificateDomainsResponse> GetCertificateDomainsAsync(Guid nodeId,
         CancellationToken cancellationToken = default);
 }

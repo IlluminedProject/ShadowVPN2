@@ -1,5 +1,6 @@
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Data;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Protocols;
 using ShadowVPN2.Infrastructure.Authentication;
 
@@ -8,6 +9,7 @@ namespace ShadowVPN2.Frontend;
 public sealed class NodeApplicationService(
     NodeService nodeService,
     ProtocolDomainService protocolDomainService,
+    ClusterService clusterService,
     FrontendUserContext userContext) : INodeApplicationService {
     public async Task<IReadOnlyList<NodeResponse>> GetNodesAsync(CancellationToken cancellationToken = default) {
         await userContext.RequirePolicyAsync(AppPermissions.Nodes.View, cancellationToken);
@@ -36,5 +38,10 @@ public sealed class NodeApplicationService(
         CancellationToken cancellationToken = default) {
         await userContext.RequirePolicyAsync(AppPermissions.Nodes.View, cancellationToken);
         return await protocolDomainService.GetCertificateDomainsAsync(nodeId, cancellationToken);
+    }
+
+    public async Task DeleteAsync(Guid nodeId, CancellationToken cancellationToken = default) {
+        await userContext.RequirePolicyAsync(AppPermissions.Nodes.Manage, cancellationToken);
+        await clusterService.DeleteNodeAsync(nodeId, cancellationToken);
     }
 }
