@@ -258,13 +258,22 @@ public class ClusterService(
 
         logger.LogInformation("Starting node deletion for {NodeId}", nodeId);
 
+        EntityClusterNode? nodeDocument;
+        using (var lookupSession = documentStore.OpenAsyncSession()) {
+            nodeDocument = await lookupSession.Query<EntityClusterNode>()
+                .FirstOrDefaultAsync(node => node.NodeId == nodeId, cancellationToken);
+        }
+
+        if (nodeDocument == null) {
+            logger.LogWarning("Node {NodeId} not found", nodeId);
+            throw new KeyNotFoundException("Node not found");
+        }
+
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
-        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-            pageSize: int.MaxValue, token: cancellationToken);
-        var node = nodes.FirstOrDefault(n => n.NodeId == nodeId);
+        var node = await session.LoadAsync<EntityClusterNode>(nodeDocument.Id, cancellationToken);
         if (node == null) {
-            logger.LogWarning("Node {NodeId} not found", nodeId);
+            logger.LogWarning("Node {NodeId} disappeared during deletion", nodeId);
             throw new KeyNotFoundException("Node not found");
         }
 
