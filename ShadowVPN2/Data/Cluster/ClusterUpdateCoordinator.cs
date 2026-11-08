@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Channels;
-using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Registry;
 using Raven.Client.Documents;
@@ -10,7 +8,6 @@ using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Infrastructure.Authentication;
-using ShadowVPN2.Infrastructure.Configurations;
 
 namespace ShadowVPN2.Data.Cluster;
 
@@ -150,7 +147,7 @@ public sealed class ClusterUpdateCoordinator(
         _activeNode = (update.Status == ClusterUpdateStatus.Preparing &&
                        update.Nodes.Any(node =>
                            node.NodeTag == localTag &&
-                           node.Status == ShadowVPN2.Contracts.Networking.ClusterUpdateNodeStatus.Preparing)) ||
+                           node.Status == Contracts.Networking.ClusterUpdateNodeStatus.Preparing)) ||
                       (update.Status == ClusterUpdateStatus.Running && update.CurrentNodeTag == localTag)
             ? (update.Id, localTag)
             : null;
@@ -163,11 +160,13 @@ public sealed class ClusterUpdateCoordinator(
                 logger.LogInformation(
                     "Cluster update prepare response for node {NodeTag}: update {UpdateId}, status {Status}, error {Error}",
                     localTag, update.Id, prepared.Status, prepared.Error);
-                if (!Matches(update, prepared) || prepared.Status is not (UpdaterStatus.Prepared or UpdaterStatus.Succeeded or UpdaterStatus.Failed))
+                if (!Matches(update, prepared) ||
+                    prepared.Status is not (UpdaterStatus.Prepared or UpdaterStatus.Succeeded or UpdaterStatus.Failed))
                     throw new InvalidOperationException(
                         $"Updater did not prepare update {update.Id}: {prepared.Status}; {prepared.Error}");
                 await updateService.PrepareLocalAsync(localTag, update.Id,
-                    prepared.Status is UpdaterStatus.Prepared or UpdaterStatus.Succeeded, prepared.Error, cancellationToken);
+                    prepared.Status is UpdaterStatus.Prepared or UpdaterStatus.Succeeded, prepared.Error,
+                    cancellationToken);
             }
 
             return true;
@@ -237,7 +236,7 @@ public sealed class ClusterUpdateCoordinator(
 
         var claimed = await updateService.ClaimLocalAsync(localTag, topology, cancellationToken);
         if (claimed is null)
-            throw new InvalidOperationException("Cannot claim update step: RavenDB restart quorum is unavailable");
+            return;
 
         // The cluster-wide claim may observe a newer rollout than the initial read.
         if (claimed.Id != update.Id || claimed.ImageDigest != update.ImageDigest)
@@ -282,5 +281,4 @@ public sealed class ClusterUpdateCoordinator(
         return update.Id == status.UpdateId &&
                string.Equals(update.ImageDigest, status.ImageDigest, StringComparison.Ordinal);
     }
-
 }

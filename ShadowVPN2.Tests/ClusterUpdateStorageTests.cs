@@ -144,6 +144,33 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
     }
 
     [RavenServerFact]
+    public async Task Claim_uses_restart_quorum_of_non_skipped_nodes() {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        using var store = await server.CreateStoreAsync(timeout.Token);
+        var topology = await store.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(), timeout.Token);
+        var localTag = topology.NodeTag;
+        topology.Topology.Members["B"] = "http://offline-b";
+        topology.Topology.Members["C"] = "http://offline-c";
+        var state = new ClusterUpdateState {
+            Id = Guid.NewGuid(), ImageDigest = Digest, CurrentNodeIndex = 0,
+            Status = ClusterUpdateStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow,
+            Nodes = [
+                new ClusterUpdateNodeState
+                    { NodeTag = localTag, Status = Data.Cluster.ClusterUpdateNodeStatus.Prepared },
+                new ClusterUpdateNodeState { NodeTag = "B", Status = Data.Cluster.ClusterUpdateNodeStatus.Skipped },
+                new ClusterUpdateNodeState { NodeTag = "C", Status = Data.Cluster.ClusterUpdateNodeStatus.Skipped }
+            ]
+        };
+        await StoreStateAsync(store, state, timeout.Token);
+
+        var claimed = await new ClusterUpdateService(store).ClaimLocalAsync(localTag, topology, timeout.Token);
+
+        Assert.NotNull(claimed);
+        Assert.Equal(ClusterUpdateNodeStatus.Claimed, claimed.Nodes[0].Status);
+    }
+
+    [RavenServerFact]
     public async Task Concurrent_node_preparations_retry_without_losing_either_transition() {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         using var store = await server.CreateStoreAsync(timeout.Token);

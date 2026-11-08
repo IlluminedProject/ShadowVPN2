@@ -225,12 +225,16 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
             var members = topology.Topology.Members.Keys.OrderBy(tag => tag, StringComparer.Ordinal).ToArray();
             if (!members.SequenceEqual(state.Nodes.Select(node => node.NodeTag), StringComparer.Ordinal))
                 throw new InvalidOperationException("RavenDB voting membership changed during cluster update");
-            var connected = await GetConnectedMembersAsync(topology, cancellationToken);
-            if (!UpdateSafetyPolicy.HasRestartQuorum(members.Length, connected)) {
+            var activeMembers = state.Nodes
+                .Where(node => node.Status != ClusterUpdateNodeStatus.Skipped)
+                .Select(node => node.NodeTag)
+                .ToHashSet(StringComparer.Ordinal);
+            var connected = await GetConnectedMembersForAsync(topology, activeMembers, cancellationToken);
+            if (!UpdateSafetyPolicy.HasRestartQuorum(activeMembers.Count, connected)) {
                 logger?.LogWarning(
-                    "Cluster update waiting for restart quorum: {ConnectedMembers}/{VotingMembers} voting nodes connected",
+                    "Cluster update waiting for restart quorum: {ConnectedMembers}/{VotingMembers} active voting nodes connected",
                     connected,
-                    members.Length);
+                    activeMembers.Count);
                 return null;
             }
 
@@ -323,6 +327,11 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
 
     private async Task<int> GetConnectedMembersAsync(ClusterTopologyResponse topology,
         CancellationToken cancellationToken) {
+        return await GetConnectedMembersForAsync(topology, null, cancellationToken);
+    }
+
+    private async Task<int> GetConnectedMembersForAsync(ClusterTopologyResponse topology,
+        IReadOnlySet<string>? includedMembers, CancellationToken cancellationToken) {
         if (string.IsNullOrEmpty(topology.Leader)) return 0;
         var leaderTopology = topology;
         if (topology.NodeTag != topology.Leader) {
@@ -343,6 +352,7 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
 
         if (leaderTopology.NodeTag != leaderTopology.Leader) return 0;
         return topology.Topology.Members.Keys.Count(tag =>
+            (includedMembers is null || includedMembers.Contains(tag)) &&
             leaderTopology.Topology.Members.ContainsKey(tag) &&
             (tag == leaderTopology.NodeTag ||
              (leaderTopology.Status.TryGetValue(tag, out var status) && status.Connected)));
