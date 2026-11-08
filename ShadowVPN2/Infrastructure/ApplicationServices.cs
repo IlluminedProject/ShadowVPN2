@@ -33,7 +33,7 @@ public static class ApplicationServices {
         builder.Services.AddResiliencePipeline("cluster-update", pipeline => pipeline
             .AddRetry(new RetryStrategyOptions
                 { MaxRetryAttempts = 5, Delay = TimeSpan.FromSeconds(5), BackoffType = DelayBackoffType.Linear })
-            .AddTimeout(TimeSpan.FromSeconds(30)));
+            .AddTimeout(TimeSpan.FromMinutes(20)));
         builder.Services.AddSingleton<JoinStartupState>();
         builder.Services.AddSingleton<ApplicationBootstrapper>();
         builder.Services.AddSingleton<ManagedCertificateService>();

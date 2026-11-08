@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -21,6 +22,8 @@ public sealed class ClusterUpdateCoordinator(
     ResiliencePipelineProvider<string> resiliencePipelines,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan SocketOperationTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan PrepareOperationTimeout = TimeSpan.FromMinutes(15);
     private (Guid UpdateId, string NodeTag)? _activeNode;
     private (Guid UpdateId, string NodeTag, string Error)? _pendingFailure;
 
@@ -156,7 +159,13 @@ public sealed class ClusterUpdateCoordinator(
             : null;
         if (update.Status == "Preparing") {
             if (localNode?.Status == Contracts.Networking.ClusterUpdateNodeStatus.Preparing) {
+                logger.LogInformation(
+                    "Cluster update preparing node {NodeTag}: update {UpdateId}, digest {ImageDigest}",
+                    localTag, update.Id, update.ImageDigest);
                 var prepared = await SendAsync("prepare", update, cancellationToken);
+                logger.LogInformation(
+                    "Cluster update prepare response for node {NodeTag}: update {UpdateId}, status {Status}, error {Error}",
+                    localTag, update.Id, prepared.Status, prepared.Error);
                 if (!Matches(update, prepared) || prepared.Status is not ("Prepared" or "Succeeded" or "Failed"))
                     throw new InvalidOperationException(
                         $"Updater did not prepare update {update.Id}: {prepared.Status}; {prepared.Error}");
@@ -280,20 +289,39 @@ public sealed class ClusterUpdateCoordinator(
     private async Task<UpdaterResponse> SendAsync(string operation, ClusterUpdateResponse update,
         CancellationToken cancellationToken) {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        await socket.ConnectAsync(new UnixDomainSocketEndPoint(options.Value.SocketPath), timeout.Token);
-        await using var stream = new NetworkStream(socket, false);
-        using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
-        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-        var request =
-            JsonSerializer.Serialize(new UpdaterRequest(operation, update.Id, update.ImageDigest), JsonOptions);
-        await writer.WriteLineAsync(request.AsMemory(), timeout.Token);
-        await writer.FlushAsync(timeout.Token);
-        var response = await reader.ReadLineAsync(timeout.Token);
-        return response is not null
-            ? JsonSerializer.Deserialize<UpdaterResponse>(response, JsonOptions) ??
-              throw new IOException("Updater returned an empty JSON response")
-            : throw new IOException("Updater closed the socket without a response");
+        timeout.CancelAfter(operation == "prepare" ? PrepareOperationTimeout : SocketOperationTimeout);
+        logger.LogDebug(
+            "Sending updater operation {Operation}: update {UpdateId}, digest {ImageDigest}, timeout {Timeout}",
+            operation, update.Id, update.ImageDigest,
+            timeout.Token.CanBeCanceled
+                ? operation == "prepare" ? PrepareOperationTimeout : SocketOperationTimeout
+                : TimeSpan.Zero);
+        var stopwatch = Stopwatch.StartNew();
+        try {
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(options.Value.SocketPath), timeout.Token);
+            await using var stream = new NetworkStream(socket, false);
+            using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
+            using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+            var request =
+                JsonSerializer.Serialize(new UpdaterRequest(operation, update.Id, update.ImageDigest), JsonOptions);
+            await writer.WriteLineAsync(request.AsMemory(), timeout.Token);
+            await writer.FlushAsync(timeout.Token);
+            var response = await reader.ReadLineAsync(timeout.Token);
+            var result = response is not null
+                ? JsonSerializer.Deserialize<UpdaterResponse>(response, JsonOptions) ??
+                  throw new IOException("Updater returned an empty JSON response")
+                : throw new IOException("Updater closed the socket without a response");
+            logger.LogDebug(
+                "Updater operation completed: {Operation}, update {UpdateId}, status {Status}, elapsed {ElapsedMilliseconds} ms",
+                operation, update.Id, result.Status, stopwatch.ElapsedMilliseconds);
+            return result;
+        }
+        catch (Exception exception) {
+            logger.LogError(exception,
+                "Updater operation failed: {Operation}, update {UpdateId}, digest {ImageDigest}, elapsed {ElapsedMilliseconds} ms",
+                operation, update.Id, update.ImageDigest, stopwatch.ElapsedMilliseconds);
+            throw;
+        }
     }
 }

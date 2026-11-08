@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -79,20 +80,39 @@ public sealed class UpdaterSocketService(
     private async Task HandleConnectionAsync(Socket connection, CancellationToken stoppingToken) {
         using (connection)
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken)) {
-            timeout.CancelAfter(TimeSpan.FromSeconds(15));
             try {
                 await using var stream = new NetworkStream(connection, false);
                 using var reader = new StreamReader(stream, Encoding.UTF8, false,
                     1024, true);
                 await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024, true);
+                timeout.CancelAfter(TimeSpan.FromSeconds(15));
                 var line = await reader.ReadLineAsync(timeout.Token);
                 if (line is null)
                     return;
 
+                UpdaterSocketRequest request;
+                try {
+                    request = JsonSerializer.Deserialize(line, UpdaterJsonContext.Default.UpdaterSocketRequest)
+                              ?? throw new JsonException("An updater request is required");
+                    timeout.CancelAfter(request.Operation == "prepare"
+                        ? TimeSpan.FromMinutes(15)
+                        : TimeSpan.FromSeconds(15));
+                    logger.LogInformation(
+                        "Updater request started: operation {Operation}, update {UpdateId}, digest {ImageDigest}",
+                        request.Operation, request.UpdateId, request.ImageDigest);
+                }
+                catch (JsonException exception) {
+                    logger.LogWarning(exception, "Updater socket request could not be read");
+                    await writer.WriteLineAsync(JsonSerializer.Serialize(
+                        new UpdaterSocketResponse { Status = "Failed", Error = exception.Message },
+                        UpdaterJsonContext.Default.UpdaterSocketResponse).AsMemory(), timeout.Token);
+                    await writer.FlushAsync(timeout.Token);
+                    return;
+                }
+
+                var stopwatch = Stopwatch.StartNew();
                 UpdaterSocketResponse response;
                 try {
-                    var request = JsonSerializer.Deserialize(line, UpdaterJsonContext.Default.UpdaterSocketRequest)
-                                  ?? throw new JsonException("An updater request is required");
                     response = request.Operation switch {
                         "status" => Volatile.Read(ref _state),
                         "local-status" => await GetLocalStatusAsync(request, timeout.Token),
@@ -110,6 +130,10 @@ public sealed class UpdaterSocketService(
                     response = new UpdaterSocketResponse { Status = "Failed", Error = exception.Message };
                 }
 
+                logger.LogInformation(
+                    "Updater request completed: operation {Operation}, update {UpdateId}, status {Status}, error {Error}, elapsed {ElapsedMilliseconds} ms",
+                    request.Operation, request.UpdateId, response.Status, response.Error,
+                    stopwatch.ElapsedMilliseconds);
                 await writer.WriteLineAsync(
                     JsonSerializer.Serialize(response, UpdaterJsonContext.Default.UpdaterSocketResponse).AsMemory(),
                     timeout.Token);
