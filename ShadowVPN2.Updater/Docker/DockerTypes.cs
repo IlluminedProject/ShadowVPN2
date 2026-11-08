@@ -38,6 +38,17 @@ public sealed class DockerImage {
     public string? Variant { get; init; }
 }
 
+public sealed class DockerCreateRequest {
+    public required string Image { get; init; }
+    public required DockerCreateHostConfig HostConfig { get; init; }
+    public Dictionary<string, string>? Labels { get; init; }
+}
+
+public sealed class DockerCreateHostConfig {
+    public required string Name { get; init; }
+    public int MaximumRetryCount { get; init; }
+}
+
 public sealed class DockerCreateResponse {
     public required string Id { get; init; }
 }

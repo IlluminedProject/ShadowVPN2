@@ -65,7 +65,7 @@ public sealed class ContainerUpdater(
         var rollback = await docker.InspectAsync(RollbackName, token);
         var original = await docker.InspectAsync(ContainerName, token);
         var source = original ?? rollback ??
-                     throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
+            throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
         var image = $"{GetImageRepository(source.Config.Image)}@{digest}";
         logger.LogInformation(
             "Updating container {ContainerName} to {ImageReference}; rollback present: {RollbackPresent}",
@@ -76,13 +76,16 @@ public sealed class ContainerUpdater(
             await docker.PostActionAsync(source.Id, $"rename?name={Uri.EscapeDataString(ContainerName)}", null, token);
             await docker.PostActionAsync(source.Id, "start", null, token);
             original = await docker.InspectAsync(ContainerName, token) ??
-                       throw new InvalidOperationException("ShadowVPN2 container is missing and no rollback container exists");
+                       throw new InvalidOperationException(
+                           "ShadowVPN2 container is missing and no rollback container exists");
         }
 
-        if (original.Config.Labels?.TryGetValue("com.docker.compose.service", out var service) != true || service != "shadowvpn2")
+        if (original.Config.Labels?.TryGetValue("com.docker.compose.service", out var service) != true ||
+            service != "shadowvpn2")
             throw new InvalidOperationException("Target container is not the ShadowVPN2 Compose service");
         if (IsHealthy(original, image)) {
-            logger.LogInformation("Container {ContainerName} is already healthy at {ImageReference}", ContainerName, image);
+            logger.LogInformation("Container {ContainerName} is already healthy at {ImageReference}", ContainerName,
+                image);
             return;
         }
 
@@ -96,10 +99,10 @@ public sealed class ContainerUpdater(
             await docker.PostActionAsync(oldId, $"rename?name={RollbackName}", null, token);
             moved = true;
 
-            var createRequest = new {
+            var createRequest = new DockerCreateRequest {
                 Image = image,
-                HostConfig = new {
-                    original.HostConfig.RestartPolicy.Name,
+                HostConfig = new DockerCreateHostConfig {
+                    Name = original.HostConfig.RestartPolicy.Name,
                     MaximumRetryCount = 0
                 },
                 Labels = original.Config.Labels
@@ -128,7 +131,8 @@ public sealed class ContainerUpdater(
                 await Task.Delay(TimeSpan.FromSeconds(HealthCheckIntervalSeconds), timeout.Token);
             }
 
-            logger.LogInformation("Candidate container {ContainerId} is healthy; restoring restart policy", candidateId);
+            logger.LogInformation("Candidate container {ContainerId} is healthy; restoring restart policy",
+                candidateId);
             await docker.PostActionAsync(candidateId, "update", original.HostConfig.RestartPolicy, token);
         }
         catch (Exception exception) {
@@ -141,7 +145,8 @@ public sealed class ContainerUpdater(
                 }
 
                 if (moved)
-                    await docker.PostActionAsync(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", null, CancellationToken.None);
+                    await docker.PostActionAsync(oldId, $"rename?name={Uri.EscapeDataString(ContainerName)}", null,
+                        CancellationToken.None);
                 await docker.PostActionAsync(oldId, "start", null, CancellationToken.None);
             }
             catch (Exception rollbackException) {
@@ -176,7 +181,8 @@ public sealed class ContainerUpdater(
     private static string GetImageRepository(string reference) {
         if (string.IsNullOrWhiteSpace(reference) || reference.StartsWith("sha256:", StringComparison.Ordinal) ||
             (reference.Length == 64 && reference.All(Uri.IsHexDigit))) {
-            throw new InvalidOperationException("Cannot determine image repository from a container started by image ID");
+            throw new InvalidOperationException(
+                "Cannot determine image repository from a container started by image ID");
         }
 
         var atIndex = reference.IndexOf('@');

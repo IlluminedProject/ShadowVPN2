@@ -13,15 +13,14 @@ public sealed class UpdaterSocketService(
     IOptions<UpdaterOptions> options,
     IHostApplicationLifetime applicationLifetime,
     ILogger<UpdaterSocketService> logger) : BackgroundService {
+    private const int DefaultSocketTimeoutSeconds = 15;
+    private const int PrepareSocketTimeoutMinutes = 15;
     private readonly HashSet<Task> _connections = [];
     private readonly object _connectionsGate = new();
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private Task _operation = Task.CompletedTask;
     private UpdaterResponse _state = new();
     private string _statePath = "";
-
-    private const int DefaultSocketTimeoutSeconds = 15;
-    private const int PrepareSocketTimeoutMinutes = 15;
 
     private static TimeSpan GetOperationTimeout(UpdaterOperation operation) =>
         operation == UpdaterOperation.Prepare
@@ -148,7 +147,7 @@ public sealed class UpdaterSocketService(
         }
         catch (Exception exception) when (exception is not OperationCanceledException) {
             return new UpdaterResponse {
-                Status = UpdaterStatus.Failed, Error = "The updater could not inspect the running application image"
+                Status = UpdaterStatus.Failed, Error = exception.Message
             };
         }
     }

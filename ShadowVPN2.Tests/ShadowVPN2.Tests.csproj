@@ -21,5 +21,6 @@
     <ProjectReference Include="..\ShadowVPN2\ShadowVPN2.csproj"/>
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
     <ProjectReference Include="..\ShadowVPN2.Frontend\ShadowVPN2.Frontend.csproj"/>
+    <ProjectReference Include="..\ShadowVPN2.Updater\ShadowVPN2.Updater.csproj"/>
   </ItemGroup>
 </Project>
