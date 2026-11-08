@@ -18,7 +18,7 @@ public sealed class ApplicationUpdateService(
     private readonly object _cacheGate = new();
     private Task<UpdateAvailabilityResponse>? _check;
     private DateTimeOffset _expires;
-    private (Guid Id, string Status)? _lastTerminal;
+    private (Guid Id, ClusterUpdateStatus Status)? _lastTerminal;
 
     public async Task<UpdateAvailabilityResponse> CheckAsync(CancellationToken cancellationToken = default,
         bool forceRefresh = false) {
@@ -44,7 +44,7 @@ public sealed class ApplicationUpdateService(
 
     public async Task<ClusterUpdateResponse?> GetStatusAsync(CancellationToken cancellationToken = default) {
         var status = await clusterUpdates.GetAsync(cancellationToken);
-        if (status is { Status: not "Running" }) {
+        if (status is { Status: not ClusterUpdateStatus.Running }) {
             lock (_cacheGate) {
                 if (_lastTerminal != (status.Id, status.Status)) {
                     _lastTerminal = (status.Id, status.Status);
