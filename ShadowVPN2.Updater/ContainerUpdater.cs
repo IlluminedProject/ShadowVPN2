@@ -51,6 +51,19 @@ public sealed class ContainerUpdater(
             stopwatch.ElapsedMilliseconds);
     }
 
+    public async Task<bool> IsPreparedAsync(string digest, CancellationToken cancellationToken) {
+        var original = await docker.InspectAsync(ContainerName, cancellationToken) ??
+                       throw new InvalidOperationException("The ShadowVPN2 container could not be found");
+        var image = $"{GetImageRepository(original.Config.Image)}@{digest}";
+        try {
+            var inspected = await docker.InspectImageAsync(image, cancellationToken);
+            return inspected.RepoDigests.Contains(image, StringComparer.Ordinal);
+        }
+        catch (InvalidOperationException) {
+            return false;
+        }
+    }
+
     public async Task UpdateAsync(string digest, CancellationToken cancellationToken) {
         logger.LogInformation("Container update started for {ContainerName}, digest {ImageDigest}",
             ContainerName, digest);

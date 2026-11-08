@@ -11,16 +11,14 @@ namespace ShadowVPN2.Updater;
 public sealed class UpdaterSocketService(
     ContainerUpdater containerUpdater,
     IOptions<UpdaterOptions> options,
-    IHostApplicationLifetime applicationLifetime,
     ILogger<UpdaterSocketService> logger) : BackgroundService {
     private const int DefaultSocketTimeoutSeconds = 15;
     private const int PrepareSocketTimeoutMinutes = 15;
     private readonly HashSet<Task> _connections = [];
-    private readonly object _connectionsGate = new();
+    private readonly Lock _connectionsGate = new();
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private Task _operation = Task.CompletedTask;
     private UpdaterResponse _state = new();
-    private string _statePath = "";
 
     private static TimeSpan GetOperationTimeout(UpdaterOperation operation) =>
         operation == UpdaterOperation.Prepare
@@ -36,25 +34,16 @@ public sealed class UpdaterSocketService(
         File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
                                         UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead |
                                         UnixFileMode.OtherExecute);
-        _statePath = Path.Combine(directory, "update.json");
-        await using var ownership = new FileStream(Path.Combine(directory, "updater.lock"), FileMode.OpenOrCreate,
-            FileAccess.ReadWrite, FileShare.None);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         var bound = false;
         try {
-            await LoadStateAsync(lifetime.Token);
             await RemoveStaleSocketAsync(socketPath, lifetime.Token);
-            listener.Bind(new UnixDomainSocketEndPoint(socketPath));
             bound = true;
             File.SetUnixFileMode(socketPath,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.GroupWrite |
                 UnixFileMode.OtherRead | UnixFileMode.OtherWrite);
             listener.Listen(16);
-            if (_state.Status == UpdaterStatus.Running) {
-                var resumed = _state;
-                _operation = Task.Run(() => RunOperationAsync(resumed, lifetime.Token), CancellationToken.None);
-            }
 
             logger.LogInformation("Updater listening on {SocketPath}", socketPath);
             while (!lifetime.IsCancellationRequested) {
@@ -169,22 +158,11 @@ public sealed class UpdaterSocketService(
 
     private async Task<UpdaterResponse> PrepareAsync(UpdaterRequest request, CancellationToken token) {
         if (request.UpdateId == Guid.Empty || !ImageDigest.IsValid(request.ImageDigest)) return Invalid(request);
-        await _startGate.WaitAsync(token);
         try {
-            var current = Volatile.Read(ref _state);
-            if (current.UpdateId == request.UpdateId && current.ImageDigest == request.ImageDigest &&
-                current.Status == UpdaterStatus.Prepared) return current;
-            if (current.Status == UpdaterStatus.Running)
-                return current with {
-                    UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Failed,
-                    Error = "Another update is running"
-                };
             await containerUpdater.PrepareAsync(request.ImageDigest, token);
-            var prepared = new UpdaterResponse
-                { UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Prepared };
-            await PersistStateAsync(prepared, token);
-            Volatile.Write(ref _state, prepared);
-            return prepared;
+            return new UpdaterResponse {
+                UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Prepared
+            };
         }
         catch (Exception exception) when (exception is not OperationCanceledException) {
             return new UpdaterResponse {
@@ -192,7 +170,6 @@ public sealed class UpdaterSocketService(
                 Error = exception.Message
             };
         }
-        finally { _startGate.Release(); }
     }
 
     private async Task<UpdaterResponse> StartAsync(UpdaterRequest request, CancellationToken stoppingToken) {
@@ -200,18 +177,22 @@ public sealed class UpdaterSocketService(
         await _startGate.WaitAsync(stoppingToken);
         try {
             var current = Volatile.Read(ref _state);
-            if (current.UpdateId != request.UpdateId || current.ImageDigest != request.ImageDigest ||
-                current.Status != UpdaterStatus.Prepared)
+            if (current.Status == UpdaterStatus.Running) {
+                return current with {
+                    UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Failed,
+                    Error = "Another update is running"
+                };
+            }
+
+            if (!await containerUpdater.IsPreparedAsync(request.ImageDigest, stoppingToken))
                 return new UpdaterResponse {
                     UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Failed,
-                    Error = "The requested image was not prepared for this update"
+                    Error = "The requested image has not been prepared"
                 };
-            var running = new UpdaterResponse
-                { UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Running };
-            try { await PersistStateAsync(running, stoppingToken); }
-            catch (Exception exception) when (exception is not OperationCanceledException) {
-                return running with { Status = UpdaterStatus.Failed, Error = exception.Message };
-            }
+
+            var running = new UpdaterResponse {
+                UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Running
+            };
 
             Volatile.Write(ref _state, running);
             _operation = Task.Run(() => RunOperationAsync(running, stoppingToken), CancellationToken.None);
@@ -226,54 +207,11 @@ public sealed class UpdaterSocketService(
     };
 
     private async Task RunOperationAsync(UpdaterResponse running, CancellationToken token) {
-        UpdaterResponse completed;
         try {
             await containerUpdater.UpdateAsync(running.ImageDigest, token);
-            completed = running with { Status = UpdaterStatus.Succeeded };
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
-        catch (Exception exception) {
-            completed = running with { Status = UpdaterStatus.Failed, Error = exception.Message };
-        }
-
-        await _startGate.WaitAsync(CancellationToken.None);
-        try {
-            await PersistStateAsync(completed, CancellationToken.None);
-            Volatile.Write(ref _state, completed);
-        }
-        catch (Exception exception) {
-            logger.LogCritical(exception, "Could not persist updater result; stopping to resume the durable operation");
-            applicationLifetime.StopApplication();
-        }
-        finally { _startGate.Release(); }
-    }
-
-    private async Task LoadStateAsync(CancellationToken token) {
-        if (!File.Exists(_statePath)) return;
-        await using var stream = File.OpenRead(_statePath);
-        var state = await JsonSerializer.DeserializeAsync(stream, UpdaterJsonContext.Default.UpdaterResponse, token) ??
-                    throw new InvalidDataException("Updater state is empty");
-        if (state.UpdateId == Guid.Empty || !ImageDigest.IsValid(state.ImageDigest) ||
-            state.Status is not (UpdaterStatus.Prepared or UpdaterStatus.Running or UpdaterStatus.Succeeded
-                or UpdaterStatus.Failed)) throw new InvalidDataException("Updater state contains an invalid operation");
-        Volatile.Write(ref _state, state);
-    }
-
-    private async Task PersistStateAsync(UpdaterResponse state, CancellationToken token) {
-        var temporaryPath = _statePath + ".tmp";
-        try {
-            await using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None,
-                             4096, FileOptions.Asynchronous | FileOptions.WriteThrough)) {
-                await JsonSerializer.SerializeAsync(stream, state, UpdaterJsonContext.Default.UpdaterResponse, token);
-                await stream.FlushAsync(token);
-                stream.Flush(true);
-            }
-
-            File.Move(temporaryPath, _statePath, true);
-        }
-        finally {
-            try { File.Delete(temporaryPath); }
-            catch (Exception exception) { logger.LogWarning(exception, "Could not remove temporary updater state"); }
+        catch (Exception) {
+            // ignored
         }
     }
 
