@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -94,9 +95,9 @@ public static class FirstLaunchExperienceHelpers {
         var pin = X509Certificate2.CreateFromPem(seed.CertificatePem);
         var handler = new SeedHttpClientHandler(pin) {
             AllowAutoRedirect = false,
-            ServerCertificateCustomValidationCallback = (request, certificate, _, _) =>
+            ServerCertificateCustomValidationCallback = (request, certificate, _, errors) =>
                 request.RequestUri!.Host.Equals(seed.Address.Host.Value, StringComparison.OrdinalIgnoreCase) &&
-                RavenDbCertificates.MatchesPin(certificate, pin)
+                (errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(certificate, pin))
         };
         return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
     }

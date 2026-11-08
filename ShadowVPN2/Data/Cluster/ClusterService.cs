@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Security;
-using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -60,24 +59,22 @@ public class ClusterService(
 
     private async Task<IReadOnlyList<JoinSeed>> GetJoinSeedsAsync(
         IReadOnlyList<EntityClusterNode> existingNodes, CancellationToken cancellationToken = default) {
-        var seeds = new List<JoinSeed>();
-        foreach (var existingNode in existingNodes.Where(candidate => !candidate.JoinSecret.HasValue)) {
-            cancellationToken.ThrowIfCancellationRequested();
-            var host = await nodeNetworkService.GetManagementHostAsync(existingNode);
-            if (!host.HasValue || string.IsNullOrEmpty(existingNode.CertificatePem))
+        var joinedNodes = existingNodes.Where(candidate => !candidate.JoinSecret.HasValue).ToArray();
+        var statuses = await nodeNetworkService.GetStatusesAsync(
+            joinedNodes.Select(node => node.NodeId), cancellationToken);
+        var seeds = new List<JoinSeed>(joinedNodes.Length);
+        foreach (var node in joinedNodes) {
+            if (string.IsNullOrEmpty(node.CertificatePem))
                 continue;
-            try {
-                var leafPem = await GetManagementCertificateAsync(host.Value, existingNode.CertificatePem);
-                seeds.Add(new JoinSeed(host.Value, leafPem));
-            }
-            catch (Exception exception) {
-                logger.LogWarning(exception, "Cannot obtain a trusted management certificate for {Address}", host);
-            }
+            statuses.TryGetValue(node.NodeId, out var status);
+            var host = node.Domain ?? HostName.ParseOptional(status?.PublicIpv4 ?? status?.PublicIpv6);
+            if (host.HasValue)
+                seeds.Add(new JoinSeed(host.Value.ToAddress(status?.ManagementPort), node.CertificatePem));
         }
 
         if (seeds.Count == 0)
             throw new InvalidOperationException(
-                "No reachable seed with a trusted management TLS certificate is available.");
+                "No joined node with a management address and trusted TLS certificate is available.");
         return seeds;
     }
 
@@ -93,30 +90,12 @@ public class ClusterService(
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
 
-    private static async Task<string> GetManagementCertificateAsync(HostAddress address, string nodeCertificatePem) {
-        using var pin = X509Certificate2.CreateFromPem(nodeCertificatePem);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        using var tcp = new TcpClient();
-        await tcp.ConnectAsync(address.Host.Value, address.Port ?? 443, timeout.Token);
-        using var tls = new SslStream(tcp.GetStream(), false, (_, certificate, _, errors) => {
-            if (certificate == null)
-                return false;
-            using var leaf = new X509Certificate2(certificate);
-            return errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(leaf, pin);
-        });
-        await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions {
-            TargetHost = address.Host.Value,
-            CertificateRevocationCheckMode = X509RevocationMode.Online
-        }, timeout.Token);
-        using var remote = new X509Certificate2(tls.RemoteCertificate!);
-        return remote.ExportCertificatePem();
-    }
-
-    public async Task<ClusterJoinResponse> ExchangeTokenAsync(ClusterJoinRequest request, string? remoteIp) {
+    public async Task<ClusterJoinResponse> ExchangeTokenAsync(ClusterJoinRequest request, string? remoteIp,
+        CancellationToken cancellationToken = default) {
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
         var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-            pageSize: int.MaxValue);
+            pageSize: int.MaxValue, token: cancellationToken);
         var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
         if (pendingNode == null)
             throw new KeyNotFoundException("Invalid join secret");
@@ -130,24 +109,26 @@ public class ClusterService(
         var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.Value.NodeId);
         if (localNode != null && !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
             localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey);
-        await session.SaveChangesAsync();
-        await nodeNetworkService.RecordObservedPublicIpAsync(pendingNode.NodeId, remoteIp);
-
-        // Both TLS directions must trust the pending node before cluster membership changes.
+        await session.SaveChangesAsync(cancellationToken);
+        await nodeNetworkService.RecordObservedPublicIpAsync(pendingNode.NodeId, remoteIp, cancellationToken);
         await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pendingNode.NodeId,
-            pendingNode.AwgMeshIp, pendingNode.CertificatePem));
+            pendingNode.AwgMeshIp, pendingNode.CertificatePem), cancellationToken);
         await documentStore.Maintenance.Server.SendAsync(new PutClientCertificateOperation(
             $"{pendingNode.Name}-{pendingNode.Number}", certificate, new Dictionary<string, DatabaseAccess>(),
-            SecurityClearance.ClusterNode));
-        await PreparePeersAsync(nodes, new ClusterFinishJoinRequest(request.Secret));
+            SecurityClearance.ClusterNode), cancellationToken);
 
-        var globalConfig = await globalConfigurationService.GetAsync();
-        var peers = new List<AwgPeerInfo>();
-        foreach (var node in nodes.Where(node => node.NodeId != pendingNode.NodeId && !node.JoinSecret.HasValue
-                     && node.AwgPublicKey != null)) {
-            var host = await nodeNetworkService.GetManagementHostAsync(node);
+        var globalConfig = await globalConfigurationService.GetAsync(cancellationToken);
+        var peerNodes = nodes.Where(node => node.NodeId != pendingNode.NodeId && !node.JoinSecret.HasValue
+                                                                              && node.AwgPublicKey != null).ToArray();
+        var statuses = await nodeNetworkService.GetStatusesAsync(peerNodes.Select(node => node.NodeId),
+            cancellationToken);
+        var peers = new List<AwgPeerInfo>(peerNodes.Length);
+        foreach (var node in peerNodes) {
+            statuses.TryGetValue(node.NodeId, out var status);
+            var host = node.Domain ?? HostName.ParseOptional(status?.PublicIpv4 ?? status?.PublicIpv6);
             if (host.HasValue)
-                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp, host.Value));
+                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp,
+                    host.Value.ToAddress(status?.ManagementPort)));
         }
 
         return new ClusterJoinResponse {
@@ -206,8 +187,10 @@ public class ClusterService(
         await session.SaveChangesAsync();
     }
 
-    public async Task PrepareJoinAsync(ClusterFinishJoinRequest request) {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    public async Task PrepareJoinAsync(ClusterFinishJoinRequest request,
+        CancellationToken cancellationToken = default) {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
         while (true) {
             using var session = documentStore.OpenAsyncSession();
             var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
@@ -224,21 +207,27 @@ public class ClusterService(
         }
     }
 
-    private async Task PreparePeersAsync(IEnumerable<EntityClusterNode> nodes, ClusterFinishJoinRequest request) {
-        foreach (var peer in nodes.Where(node => !node.JoinSecret.HasValue
-                                                 && node.NodeId != localConfiguration.Value.NodeId)) {
-            if (peer.CertificatePem == null)
-                throw new InvalidOperationException($"Peer {peer.Name} has no persisted node certificate.");
-            var address = await nodeNetworkService.GetManagementHostAsync(peer)
-                          ?? throw new InvalidOperationException($"Peer {peer.Name} has no management address.");
-            using var pin = X509Certificate2.CreateFromPem(peer.CertificatePem);
-            using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-            handler.ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
-                errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(certificate, pin);
-            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-            using var response = await client.PostAsJsonAsync($"https://{address}/api/cluster/prepare-join", request);
-            response.EnsureSuccessStatusCode();
-        }
+    private async Task PreparePeersAsync(IEnumerable<EntityClusterNode> nodes, ClusterFinishJoinRequest request,
+        CancellationToken cancellationToken = default) {
+        var peers = nodes.Where(node => !node.JoinSecret.HasValue
+                                        && node.NodeId != localConfiguration.Value.NodeId).ToArray();
+        await Task.WhenAll(peers.Select(peer => PreparePeerAsync(peer, request, cancellationToken)));
+    }
+
+    private async Task PreparePeerAsync(EntityClusterNode peer, ClusterFinishJoinRequest request,
+        CancellationToken cancellationToken) {
+        if (peer.CertificatePem == null)
+            throw new InvalidOperationException($"Peer {peer.Name} has no persisted node certificate.");
+        var address = await nodeNetworkService.GetManagementHostAsync(peer, cancellationToken)
+                      ?? throw new InvalidOperationException($"Peer {peer.Name} has no management address.");
+        using var pin = X509Certificate2.CreateFromPem(peer.CertificatePem);
+        using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+        handler.ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
+            errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(certificate, pin);
+        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+        using var response = await client.PostAsJsonAsync($"https://{address}/api/cluster/prepare-join", request,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     internal static string GetNodeTag(int nodeNumber) {
