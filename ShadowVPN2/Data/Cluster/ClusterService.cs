@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -152,7 +151,6 @@ public class ClusterService(
             throw new InvalidOperationException("The join certificate exchange has not completed.");
         await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pendingNode.NodeId,
             pendingNode.AwgMeshIp, pendingNode.CertificatePem));
-        await PreparePeersAsync(nodes, request);
         var nodeTag = GetNodeTag(pendingNode.Number);
         await AddNodeToRavenDbClusterAsync($"https://{pendingNode.AwgMeshIp}:8888", nodeTag);
         await documentStore.Maintenance.Server.SendAsync(new AddDatabaseNodeOperation(documentStore.Database, nodeTag));
@@ -185,49 +183,6 @@ public class ClusterService(
             throw new InvalidOperationException("Join completion credentials do not match the pending node.");
         pendingNode.JoinSecret = null;
         await session.SaveChangesAsync();
-    }
-
-    public async Task PrepareJoinAsync(ClusterFinishJoinRequest request,
-        CancellationToken cancellationToken = default) {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(20));
-        while (true) {
-            using var session = documentStore.OpenAsyncSession();
-            var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-                pageSize: int.MaxValue, token: timeout.Token);
-            var pending =
-                nodes.FirstOrDefault(node => node.JoinSecret == request.Secret && node.CertificatePem != null);
-            if (pending != null) {
-                await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pending.NodeId,
-                    pending.AwgMeshIp, pending.CertificatePem!), timeout.Token);
-                return;
-            }
-
-            await Task.Delay(TimeSpan.FromMilliseconds(250), timeout.Token);
-        }
-    }
-
-    private async Task PreparePeersAsync(IEnumerable<EntityClusterNode> nodes, ClusterFinishJoinRequest request,
-        CancellationToken cancellationToken = default) {
-        var peers = nodes.Where(node => !node.JoinSecret.HasValue
-                                        && node.NodeId != localConfiguration.Value.NodeId).ToArray();
-        await Task.WhenAll(peers.Select(peer => PreparePeerAsync(peer, request, cancellationToken)));
-    }
-
-    private async Task PreparePeerAsync(EntityClusterNode peer, ClusterFinishJoinRequest request,
-        CancellationToken cancellationToken) {
-        if (peer.CertificatePem == null)
-            throw new InvalidOperationException($"Peer {peer.Name} has no persisted node certificate.");
-        var address = await nodeNetworkService.GetManagementHostAsync(peer, cancellationToken)
-                      ?? throw new InvalidOperationException($"Peer {peer.Name} has no management address.");
-        using var pin = X509Certificate2.CreateFromPem(peer.CertificatePem);
-        using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-        handler.ServerCertificateCustomValidationCallback = (_, certificate, _, errors) =>
-            errors == SslPolicyErrors.None || RavenDbCertificates.MatchesPin(certificate, pin);
-        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        using var response = await client.PostAsJsonAsync($"https://{address}/api/cluster/prepare-join", request,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
     }
 
     internal static string GetNodeTag(int nodeNumber) {

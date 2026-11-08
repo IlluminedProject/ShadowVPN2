@@ -96,12 +96,6 @@ public class ClusterController(
         return await clusterService.ExchangeTokenAsync(request, remoteIp, cancellationToken);
     }
 
-    [HttpPost("prepare-join")]
-    [AllowAnonymous]
-    public async Task PrepareJoin([FromBody] ClusterFinishJoinRequest request, CancellationToken cancellationToken) {
-        await clusterService.PrepareJoinAsync(request, cancellationToken);
-    }
-
     [HttpPost("finish-join")]
     [AllowAnonymous]
     public async Task FinishJoin([FromBody] ClusterFinishJoinRequest finishJoinRequest) {
