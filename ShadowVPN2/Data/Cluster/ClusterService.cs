@@ -283,23 +283,10 @@ public class ClusterService(
         var nodeTag = GetNodeTag(node.Number);
 
         if (!isPending) {
-            // Joined node: remove from RavenDB topology first
+            // Removing the cluster member also removes its database replicas from RavenDB topology.
             logger.LogInformation(
                 "Removing joined node {NodeId} (tag {NodeTag}, name {NodeName}) from cluster topology",
                 nodeId, nodeTag, node.Name);
-
-            try {
-                // Remove database replica from this node with hard delete for offline nodes
-                logger.LogInformation("Removing database replica from node {NodeTag}", nodeTag);
-                await documentStore.Maintenance.Server.SendAsync(
-                    new DeleteDatabasesOperation(documentStore.Database, true, nodeTag),
-                    cancellationToken);
-                logger.LogInformation("Database replica removed from node {NodeTag}", nodeTag);
-            }
-            catch (Exception ex) {
-                logger.LogError(ex, "Failed to remove database from node {NodeTag}", nodeTag);
-                throw;
-            }
 
             try {
                 // Remove server node from cluster topology
