@@ -247,6 +247,28 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
         }
     }
 
+    public async Task<ClusterUpdateResponse> CompleteAlreadyUpdatedLocalAsync(string localTag,
+        Guid updateId, CancellationToken cancellationToken) {
+        while (true) {
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != updateId)
+                throw new InvalidOperationException("Cluster update is no longer active");
+
+            var updated = ClusterUpdateTransitions.CompleteAlreadyUpdated(state, localTag);
+            current.State = updated;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
+                return ClusterUpdateTransitions.ToResponse(updated);
+            }
+            catch (ConcurrencyException) {
+            }
+        }
+    }
+
     public async Task<ClusterUpdateResponse> CompleteLocalAsync(string localTag,
         CompleteClusterUpdateRequest request, CancellationToken cancellationToken) {
         while (true) {

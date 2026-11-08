@@ -213,6 +213,14 @@ public sealed class ClusterUpdateCoordinator(
 
     private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,
         ClusterTopologyResponse topology, CancellationToken cancellationToken) {
+        var local = await SendAsync("local-status", update, cancellationToken);
+        if (local.Status == "Failed")
+            throw new InvalidOperationException($"Updater could not inspect local image: {local.Error}");
+        if (string.Equals(local.ImageDigest, update.ImageDigest, StringComparison.Ordinal)) {
+            await updateService.CompleteAlreadyUpdatedLocalAsync(localTag, update.Id, cancellationToken);
+            return;
+        }
+
         var status = await SendAsync("status", update, cancellationToken);
         var ownsStep = update.Nodes.Any(node =>
             node.NodeTag == localTag && node.Status == Contracts.Networking.ClusterUpdateNodeStatus.Claimed);

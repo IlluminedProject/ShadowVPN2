@@ -82,6 +82,24 @@ public static class ClusterUpdateTransitions {
         return cancelled;
     }
 
+    public static ClusterUpdateState CompleteAlreadyUpdated(ClusterUpdateState state, string localTag) {
+        var completed = Copy(state);
+        if (completed.Status != ClusterUpdateStatus.Running ||
+            completed.CurrentNodeIndex >= completed.Nodes.Count ||
+            completed.Nodes[completed.CurrentNodeIndex].NodeTag != localTag)
+            throw new InvalidOperationException("This node does not own the active update step");
+
+        var node = completed.Nodes[completed.CurrentNodeIndex];
+        node.Status = ClusterUpdateNodeStatus.Completed;
+        node.Error = null;
+        node.CompletedAt = DateTimeOffset.UtcNow;
+        completed.CurrentNodeIndex++;
+        completed.UpdatedAt = node.CompletedAt.Value;
+        if (completed.CurrentNodeIndex == completed.Nodes.Count)
+            completed.Status = ClusterUpdateStatus.Completed;
+        return completed;
+    }
+
     public static ClusterUpdateState Complete(ClusterUpdateState state, CompleteClusterUpdateRequest request) {
         var completed = Copy(state);
         var node = completed.Nodes[completed.CurrentNodeIndex];
