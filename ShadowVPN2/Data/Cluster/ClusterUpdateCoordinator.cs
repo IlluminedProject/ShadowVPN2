@@ -1,9 +1,6 @@
 using System.Diagnostics;
-using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using ShadowVPN2.Contracts.Updater;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Registry;
@@ -11,6 +8,7 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
 
@@ -19,17 +17,12 @@ namespace ShadowVPN2.Data.Cluster;
 public sealed class ClusterUpdateCoordinator(
     ClusterUpdateService updateService,
     IDocumentStore documentStore,
-    IOptions<UpdaterOptions> options,
+    UpdaterClient updaterClient,
     ResiliencePipelineProvider<string> resiliencePipelines,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly TimeSpan SocketOperationTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan PrepareOperationTimeout = TimeSpan.FromMinutes(15);
     private (Guid UpdateId, string NodeTag)? _activeNode;
     private (Guid UpdateId, string NodeTag, string Error)? _pendingFailure;
-
-    private static TimeSpan GetOperationTimeout(UpdaterOperation operation) =>
-        operation == UpdaterOperation.Prepare ? PrepareOperationTimeout : SocketOperationTimeout;
 
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
@@ -166,7 +159,7 @@ public sealed class ClusterUpdateCoordinator(
                 logger.LogInformation(
                     "Cluster update preparing node {NodeTag}: update {UpdateId}, digest {ImageDigest}",
                     localTag, update.Id, update.ImageDigest);
-                var prepared = await SendAsync(UpdaterOperation.Prepare, update, cancellationToken);
+                var prepared = await updaterClient.PrepareAsync(update.Id, update.ImageDigest, cancellationToken);
                 logger.LogInformation(
                     "Cluster update prepare response for node {NodeTag}: update {UpdateId}, status {Status}, error {Error}",
                     localTag, update.Id, prepared.Status, prepared.Error);
@@ -188,20 +181,20 @@ public sealed class ClusterUpdateCoordinator(
 
     private async Task<bool> ReconcileLocalDigestAsync(ClusterUpdateResponse update, string localTag,
         string desiredDigest, CancellationToken cancellationToken) {
-        var local = await SendAsync(UpdaterOperation.LocalStatus, CreateRequest(update, desiredDigest, update.Id), cancellationToken);
+        var local = await updaterClient.GetLocalStatusAsync(update.Id, desiredDigest, cancellationToken);
         if (local.Status == UpdaterStatus.Failed)
             throw new InvalidOperationException($"Updater could not inspect local image: {local.Error}");
         if (string.Equals(local.ImageDigest, desiredDigest, StringComparison.Ordinal))
             return false;
 
         var catchup = CreateRequest(update, desiredDigest, Guid.NewGuid());
-        var status = await SendAsync(UpdaterOperation.Status, catchup, cancellationToken);
+        var status = await updaterClient.GetStatusAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
         if (Matches(catchup, status) && status.Status == UpdaterStatus.Running)
             return true;
         if (Matches(catchup, status) && status.Status == UpdaterStatus.Prepared)
             return await StartCatchupAsync(catchup, cancellationToken);
 
-        var prepared = await SendAsync(UpdaterOperation.Prepare, catchup, cancellationToken);
+        var prepared = await updaterClient.PrepareAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
         if (prepared.Status is UpdaterStatus.Prepared or UpdaterStatus.Succeeded)
             return await StartCatchupAsync(catchup, cancellationToken);
         throw new InvalidOperationException($"Updater could not prepare catch-up image: {prepared.Error}");
@@ -217,7 +210,7 @@ public sealed class ClusterUpdateCoordinator(
 
     private async Task<bool> StartCatchupAsync(ClusterUpdateResponse catchup,
         CancellationToken cancellationToken) {
-        var started = await SendAsync(UpdaterOperation.Start, catchup, cancellationToken);
+        var started = await updaterClient.StartAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
         if (started.Status is UpdaterStatus.Running) return true;
         if (started.Status is UpdaterStatus.Succeeded or UpdaterStatus.Failed)
             return false;
@@ -226,7 +219,7 @@ public sealed class ClusterUpdateCoordinator(
 
     private async Task ReconcileNodeAsync(ClusterUpdateResponse update, string localTag,
         ClusterTopologyResponse topology, CancellationToken cancellationToken) {
-        var local = await SendAsync(UpdaterOperation.LocalStatus, update, cancellationToken);
+        var local = await updaterClient.GetLocalStatusAsync(update.Id, update.ImageDigest, cancellationToken);
         if (local.Status == UpdaterStatus.Failed)
             throw new InvalidOperationException($"Updater could not inspect local image: {local.Error}");
         if (string.Equals(local.ImageDigest, update.ImageDigest, StringComparison.Ordinal)) {
@@ -234,7 +227,7 @@ public sealed class ClusterUpdateCoordinator(
             return;
         }
 
-        var status = await SendAsync(UpdaterOperation.Status, update, cancellationToken);
+        var status = await updaterClient.GetStatusAsync(update.Id, update.ImageDigest, cancellationToken);
         var ownsStep = update.Nodes.Any(node =>
             node.NodeTag == localTag && node.Status == Contracts.Networking.ClusterUpdateNodeStatus.Claimed);
         if (ownsStep && await CompleteAsync(update, localTag, status, cancellationToken))
@@ -257,7 +250,7 @@ public sealed class ClusterUpdateCoordinator(
             throw new InvalidOperationException($"Updater is running another operation {status.UpdateId}");
         }
 
-        var started = await SendAsync(UpdaterOperation.Start, claimed, cancellationToken);
+        var started = await updaterClient.StartAsync(claimed.Id, claimed.ImageDigest, cancellationToken);
         if (await CompleteAsync(claimed, localTag, started, cancellationToken))
             return;
         if (Matches(claimed, started) && started.Status == UpdaterStatus.Running) {
@@ -290,40 +283,4 @@ public sealed class ClusterUpdateCoordinator(
                string.Equals(update.ImageDigest, status.ImageDigest, StringComparison.Ordinal);
     }
 
-    private async Task<UpdaterResponse> SendAsync(UpdaterOperation operation, ClusterUpdateResponse update,
-        CancellationToken cancellationToken) {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(GetOperationTimeout(operation));
-        logger.LogDebug(
-            "Sending updater operation {Operation}: update {UpdateId}, digest {ImageDigest}, timeout {Timeout}",
-            operation, update.Id, update.ImageDigest, GetOperationTimeout(operation));
-        var stopwatch = Stopwatch.StartNew();
-        try {
-            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            await socket.ConnectAsync(new UnixDomainSocketEndPoint(options.Value.SocketPath), timeout.Token);
-            await using var stream = new NetworkStream(socket, false);
-            using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
-            using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-            var request = JsonSerializer.Serialize(new UpdaterRequest {
-                Operation = operation, UpdateId = update.Id, ImageDigest = update.ImageDigest
-            }, UpdaterJsonContext.Default.UpdaterRequest);
-            await writer.WriteLineAsync(request.AsMemory(), timeout.Token);
-            await writer.FlushAsync(timeout.Token);
-            var response = await reader.ReadLineAsync(timeout.Token);
-            var result = response is not null
-                ? JsonSerializer.Deserialize(response, UpdaterJsonContext.Default.UpdaterResponse) ??
-                  throw new IOException("Updater returned an empty JSON response")
-                : throw new IOException("Updater closed the socket without a response");
-            logger.LogDebug(
-                "Updater operation completed: {Operation}, update {UpdateId}, status {Status}, elapsed {ElapsedMilliseconds} ms",
-                operation, update.Id, result.Status, stopwatch.ElapsedMilliseconds);
-            return result;
-        }
-        catch (Exception exception) {
-            logger.LogError(exception,
-                "Updater operation failed: {Operation}, update {UpdateId}, digest {ImageDigest}, elapsed {ElapsedMilliseconds} ms",
-                operation, update.Id, update.ImageDigest, stopwatch.ElapsedMilliseconds);
-            throw;
-        }
-    }
 }

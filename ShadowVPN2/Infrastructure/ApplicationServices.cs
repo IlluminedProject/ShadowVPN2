@@ -110,7 +110,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddSingleton<ClusterUpdateService>();
         builder.Services.AddSingleton<RegistryImageClient>();
-        builder.Services.AddSingleton<UpdaterImageClient>();
+        builder.Services.AddSingleton<UpdaterClient>();
         builder.Services.AddSingleton<Data.Cluster.ApplicationUpdateService>();
         builder.Services.AddHostedService<ClusterUpdateCoordinator>();
         builder.Services.AddSingleton<PeerCertificateTrustService>();
