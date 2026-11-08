@@ -605,7 +605,7 @@
         }
         catch (ApplicationServiceException exception)
         {
-            Logger.LogError(exception, "Unable to delete node {NodeId}", _deletingNode.NodeId);
+            Logger.LogError(exception, "Unable to delete node {NodeId}", _deletingNode?.NodeId);
             _dialogError = exception.StatusCode == HttpStatusCode.Forbidden
                 ? "You do not have permission to delete nodes."
                 : $"Could not delete node: {exception.Message}";

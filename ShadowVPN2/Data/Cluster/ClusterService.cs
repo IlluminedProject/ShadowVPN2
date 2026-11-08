@@ -267,53 +267,90 @@ public class ClusterService(
         if (nodeId == localConfiguration.Value.NodeId)
             throw new InvalidOperationException("Cannot delete the local node.");
 
+        logger.LogInformation("Starting node deletion for {NodeId}", nodeId);
+
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
         var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
             pageSize: int.MaxValue, token: cancellationToken);
         var node = nodes.FirstOrDefault(n => n.NodeId == nodeId);
-        if (node == null)
+        if (node == null) {
+            logger.LogWarning("Node {NodeId} not found", nodeId);
             throw new KeyNotFoundException("Node not found");
+        }
 
         var isPending = node.JoinSecret.HasValue;
+        var nodeTag = GetNodeTag(node.Number);
 
         if (!isPending) {
             // Joined node: remove from RavenDB topology first
-            var nodeTag = GetNodeTag(node.Number);
-            logger.LogInformation("Removing joined node {NodeId} (tag {NodeTag}) from cluster", nodeId, nodeTag);
+            logger.LogInformation(
+                "Removing joined node {NodeId} (tag {NodeTag}, name {NodeName}) from cluster topology",
+                nodeId, nodeTag, node.Name);
 
-            // Remove database replica from this node
-            await documentStore.Maintenance.Server.SendAsync(
-                new DeleteDatabasesOperation(documentStore.Database, false, nodeTag),
-                cancellationToken);
+            try {
+                // Remove database replica from this node with hard delete for offline nodes
+                logger.LogInformation("Removing database replica from node {NodeTag}", nodeTag);
+                await documentStore.Maintenance.Server.SendAsync(
+                    new DeleteDatabasesOperation(documentStore.Database, true, nodeTag),
+                    cancellationToken);
+                logger.LogInformation("Database replica removed from node {NodeTag}", nodeTag);
+            }
+            catch (Exception ex) {
+                logger.LogError(ex, "Failed to remove database from node {NodeTag}", nodeTag);
+                throw;
+            }
 
-            // Remove server node from cluster topology
-            await RemoveNodeFromRavenDbClusterAsync(nodeTag, cancellationToken);
+            try {
+                // Remove server node from cluster topology
+                logger.LogInformation("Removing server node {NodeTag} from RavenDB cluster", nodeTag);
+                await RemoveNodeFromRavenDbClusterAsync(nodeTag, cancellationToken);
+                logger.LogInformation("Server node {NodeTag} removed from RavenDB cluster", nodeTag);
+            }
+            catch (Exception ex) {
+                logger.LogError(ex, "Failed to remove server node {NodeTag} from cluster", nodeTag);
+                throw;
+            }
 
-            // Delete client certificate
-            await documentStore.Maintenance.Server.SendAsync(
-                new DeleteCertificateOperation($"{node.Name}-{node.Number}"), cancellationToken);
+            try {
+                // Delete client certificate
+                var certName = $"{node.Name}-{node.Number}";
+                logger.LogInformation("Deleting client certificate {CertificateName}", certName);
+                await documentStore.Maintenance.Server.SendAsync(
+                    new DeleteCertificateOperation(certName), cancellationToken);
+                logger.LogInformation("Client certificate {CertificateName} deleted", certName);
+            }
+            catch (Exception ex) {
+                logger.LogError(ex, "Failed to delete client certificate for node {NodeTag}", nodeTag);
+                throw;
+            }
         }
         else {
-            logger.LogInformation("Cancelling pending node {NodeId}", nodeId);
+            logger.LogInformation("Cancelling pending node {NodeId} (name {NodeName})", nodeId, node.Name);
         }
 
         // Delete node-scoped documents
+        logger.LogInformation("Deleting node-scoped documents for {NodeId}", nodeId);
         session.Delete(node);
 
         var statusId = NodeNetworkService.GetStatusId(nodeId);
         var status = await session.LoadAsync<EntityNodeNetworkStatus>(statusId, cancellationToken);
-        if (status != null)
+        if (status != null) {
+            logger.LogDebug("Deleting network status for node {NodeId}", nodeId);
             session.Delete(status);
+        }
 
         var certificateId = ManagedCertificateService.GetId(nodeId);
         var certificate = await session.LoadAsync<EntityManagedCertificate>(certificateId, cancellationToken);
-        if (certificate != null)
+        if (certificate != null) {
+            logger.LogDebug("Deleting managed certificate for node {NodeId}", nodeId);
             session.Delete(certificate);
+        }
 
         await session.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Node {NodeId} deleted", nodeId);
+        logger.LogInformation("Node {NodeId} (tag {NodeTag}, name {NodeName}) successfully deleted",
+            nodeId, nodeTag, node.Name);
     }
 
     private async Task RemoveNodeFromRavenDbClusterAsync(string nodeTag, CancellationToken cancellationToken) {
