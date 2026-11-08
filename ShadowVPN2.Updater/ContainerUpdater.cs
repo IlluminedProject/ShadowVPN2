@@ -103,6 +103,22 @@ public sealed class ContainerUpdater(
                 Image = image,
                 HostConfig = new DockerCreateHostConfig {
                     Name = original.HostConfig.RestartPolicy.Name,
+                    NetworkMode = original.HostConfig.NetworkMode,
+                    Privileged = original.HostConfig.Privileged,
+                    CapAdd = original.HostConfig.CapAdd,
+                    CapDrop = original.HostConfig.CapDrop,
+                    Devices = original.HostConfig.Devices,
+                    Binds = original.HostConfig.Binds,
+                    PortBindings = original.HostConfig.PortBindings,
+                    PublishAllPorts = original.HostConfig.PublishAllPorts,
+                    Dns = original.HostConfig.Dns,
+                    DnsSearch = original.HostConfig.DnsSearch,
+                    ExtraHosts = original.HostConfig.ExtraHosts,
+                    PidMode = original.HostConfig.PidMode,
+                    IpcMode = original.HostConfig.IpcMode,
+                    UtsMode = original.HostConfig.UtsMode,
+                    Init = original.HostConfig.Init,
+                    SecurityOpt = original.HostConfig.SecurityOpt,
                     MaximumRetryCount = 0
                 },
                 Labels = original.Config.Labels

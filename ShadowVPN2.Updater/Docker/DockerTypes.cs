@@ -24,6 +24,28 @@ public sealed class DockerContainerConfig {
 
 public sealed class DockerHostConfig {
     public required DockerRestartPolicy RestartPolicy { get; init; }
+    public string? NetworkMode { get; init; }
+    public bool Privileged { get; init; }
+    public string[]? CapAdd { get; init; }
+    public string[]? CapDrop { get; init; }
+    public DockerDeviceMapping[]? Devices { get; init; }
+    public string[]? Binds { get; init; }
+    public Dictionary<string, string[]>? PortBindings { get; init; }
+    public bool PublishAllPorts { get; init; }
+    public string[]? Dns { get; init; }
+    public string[]? DnsSearch { get; init; }
+    public string[]? ExtraHosts { get; init; }
+    public string? PidMode { get; init; }
+    public string? IpcMode { get; init; }
+    public string? UtsMode { get; init; }
+    public bool Init { get; init; }
+    public string[]? SecurityOpt { get; init; }
+}
+
+public sealed class DockerDeviceMapping {
+    public required string PathOnHost { get; init; }
+    public required string PathInContainer { get; init; }
+    public required string CgroupPermissions { get; init; }
 }
 
 public sealed class DockerRestartPolicy {
@@ -46,6 +68,22 @@ public sealed class DockerCreateRequest {
 
 public sealed class DockerCreateHostConfig {
     public required string Name { get; init; }
+    public string? NetworkMode { get; init; }
+    public bool Privileged { get; init; }
+    public string[]? CapAdd { get; init; }
+    public string[]? CapDrop { get; init; }
+    public DockerDeviceMapping[]? Devices { get; init; }
+    public string[]? Binds { get; init; }
+    public Dictionary<string, string[]>? PortBindings { get; init; }
+    public bool PublishAllPorts { get; init; }
+    public string[]? Dns { get; init; }
+    public string[]? DnsSearch { get; init; }
+    public string[]? ExtraHosts { get; init; }
+    public string? PidMode { get; init; }
+    public string? IpcMode { get; init; }
+    public string? UtsMode { get; init; }
+    public bool Init { get; init; }
+    public string[]? SecurityOpt { get; init; }
     public int MaximumRetryCount { get; init; }
 }
 

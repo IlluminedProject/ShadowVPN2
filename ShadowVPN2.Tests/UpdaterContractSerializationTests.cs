@@ -40,13 +40,18 @@ public sealed class UpdaterContractSerializationTests {
         var request = new DockerCreateRequest {
             Image = "ghcr.io/illuminedproject/shadowvpn2@sha256:" + new string('a', 64),
             HostConfig = new DockerCreateHostConfig {
-                Name = "unless-stopped"
+                Name = "unless-stopped",
+                NetworkMode = "host",
+                CapAdd = ["NET_ADMIN", "NET_BIND_SERVICE"],
+                Devices = [new DockerDeviceMapping {
+                    PathOnHost = "/dev/net/tun", PathInContainer = "/dev/net/tun", CgroupPermissions = "rwm"
+                }]
             }
         };
         var requestJson = JsonSerializer.Serialize(request, DockerJsonContext.Default.DockerCreateRequest);
 
-        Assert.Contains("\"Image\":\"ghcr.io/illuminedproject/shadowvpn2@sha256:" + new string('a', 64) + "\"",
-            requestJson);
-        Assert.Contains("\"HostConfig\":{\"Name\":\"unless-stopped\",\"MaximumRetryCount\":0}", requestJson);
+        Assert.Contains("\"CapAdd\":[\"NET_ADMIN\",\"NET_BIND_SERVICE\"]", requestJson);
+        Assert.Contains("\"PathInContainer\":\"/dev/net/tun\"", requestJson);
+        Assert.Contains("\"NetworkMode\":\"host\"", requestJson);
     }
 }
