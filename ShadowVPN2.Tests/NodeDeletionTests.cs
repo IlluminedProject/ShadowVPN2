@@ -42,15 +42,24 @@ public sealed class NodeDeletionTests(RavenServerFixture fixture) : IClassFixtur
             Assert.Contains(nodes, n => n.NodeId == nodeId);
         }
 
-        // Delete pending node
-        using (var session = store.OpenAsyncSession(new SessionOptions {
-                   TransactionMode = TransactionMode.ClusterWide
-               })) {
+        // LoadStartingWithAsync does not request the cluster transaction view, so a later
+        // cluster-wide delete must load the document by ID to include its atomic guard.
+        using (var session = store.OpenAsyncSession()) {
             var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>(
                 "EntityClusterNodes/", pageSize: int.MaxValue, token: timeout.Token);
             var node = nodes.FirstOrDefault(n => n.NodeId == nodeId);
             Assert.NotNull(node);
-            Assert.NotNull(node.JoinSecret); // Verify it's pending
+
+            node!.Name = "UpdatedPendingNode";
+            await session.SaveChangesAsync(timeout.Token);
+        }
+
+        using (var session = store.OpenAsyncSession(new SessionOptions {
+                   TransactionMode = TransactionMode.ClusterWide
+               })) {
+            var node = await session.LoadAsync<EntityClusterNode>(pendingNode.Id, timeout.Token);
+            Assert.NotNull(node);
+            Assert.NotNull(node!.JoinSecret); // Verify it's pending
 
             session.Delete(node);
             await session.SaveChangesAsync(timeout.Token);
