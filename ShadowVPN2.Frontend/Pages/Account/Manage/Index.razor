@@ -18,6 +18,14 @@ else if (_profile is null)
 }
 else
 {
+    <dl class="app-details">
+        <dt>Username</dt>
+        <dd>@_profile.UserName</dd>
+        <dt>Email</dt>
+        <dd>@_profile.Email</dd>
+    </dl>
+    @if (AuthOptions.LocalLoginEnabled)
+    {
     <form method="post" action="/api/account/profile">
         <AntiforgeryToken/>
         <div class="field">
@@ -29,10 +37,12 @@ else
             <button type="submit" class="btn btn-primary">Save</button>
         </div>
     </form>
+    }
 }
 
 @code {
     [Inject] private IAccountApplicationService Account { get; set; } = default!;
+    [CascadingParameter] private AuthOptionsResponse AuthOptions { get; set; } = default!;
     [SupplyParameterFromQuery] private string? Message { get; set; }
     private AccountProfileResponse? _profile;
     private string? _phoneNumber;
