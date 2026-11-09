@@ -8,6 +8,8 @@ using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Infrastructure.Authentication;
+using ShadowVPN2.Infrastructure.Containers.Registry;
+using ShadowVPN2.Infrastructure.Containers.Registry.Models;
 
 namespace ShadowVPN2.Data.Cluster;
 
@@ -201,7 +203,8 @@ public sealed class ClusterUpdateCoordinator(
         }
 
         var targetCreated =
-            await registry.GetCreatedAsync(image.ImageRepository, desiredDigest, image, cancellationToken);
+            await registry.GetCreatedAsync(ImageReference.Parse(image.ImageRepository), desiredDigest, image,
+                cancellationToken);
         if (targetCreated is null || targetCreated <= currentCreated) {
             logger.LogInformation(
                 "Skipping automatic catch-up on node {NodeTag}: target image is not known to be newer, current {CurrentCreated}, target {TargetCreated}, digest {ImageDigest}",

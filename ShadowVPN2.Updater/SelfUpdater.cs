@@ -3,7 +3,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Updater;
-using ShadowVPN2.Updater.Docker;
+using ShadowVPN2.Infrastructure.Containers.Docker;
+using ShadowVPN2.Infrastructure.Containers.Docker.Models;
 
 namespace ShadowVPN2.Updater;
 

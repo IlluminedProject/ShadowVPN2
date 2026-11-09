@@ -15,6 +15,7 @@
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
     <ProjectReference Include="..\ShadowVPN2.Frontend\ShadowVPN2.Frontend.csproj"/>
     <ProjectReference Include="../ShadowVPN2.Infrastructure.RavenDb/ShadowVPN2.Infrastructure.RavenDb.csproj"/>
+    <ProjectReference Include="../ShadowVPN2.Infrastructure.Containers/ShadowVPN2.Infrastructure.Containers.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

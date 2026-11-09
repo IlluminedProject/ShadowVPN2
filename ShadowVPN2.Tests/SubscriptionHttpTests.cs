@@ -1,21 +1,21 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Contracts.Subscriptions;
 using ShadowVPN2.Controllers;
-using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Data.Subscription.Exporters;
 using ShadowVPN2.Data.Subscription.Renderers;
 using ShadowVPN2.Data.Subscription.Services;
-using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Middleware;
 using Xunit;
+using SubscriptionApplicationService = ShadowVPN2.Frontend.SubscriptionApplicationService;
 using SubscriptionResponse = ShadowVPN2.Data.Subscription.Models.Common.SubscriptionResponse;
 using SubscriptionEndpoint = ShadowVPN2.Data.Subscription.Models.Common.SubscriptionEndpoint;
 using ProtocolSubscription = ShadowVPN2.Data.Subscription.Models.Common.ProtocolSubscription;
@@ -80,7 +80,7 @@ public sealed class SubscriptionHttpTests {
         await using var host = await SubscriptionHost.StartAsync();
         using var response = await host.Client.GetAsync($"/api/Subscription/{SubscriptionHost.Id}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("device", json.RootElement.GetProperty("clientName").GetString());
         var endpoint = json.RootElement.GetProperty("protocols")[0].GetProperty("endpoints")[0];
         Assert.Equal("hysteria2", endpoint.GetProperty("connection").GetProperty("type").GetString());
@@ -117,6 +117,12 @@ public sealed class SubscriptionHttpTests {
         public static readonly Guid Id = Guid.Parse("b8bba7a4-88e2-4af5-a13b-c40f634eb431");
         public HttpClient Client { get; } = client;
 
+        public async ValueTask DisposeAsync() {
+            Client.Dispose();
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+
         public static async Task<SubscriptionHost> StartAsync() {
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseKestrel().UseUrls("http://127.0.0.1:0");
@@ -129,36 +135,37 @@ public sealed class SubscriptionHttpTests {
             app.UseStatusCodePagesWithReExecute("/browser-error");
             app.UseMiddleware<SubscriptionResponseMiddleware>();
             app.MapControllers();
-            app.MapGet("/s/{id:guid}", () => Microsoft.AspNetCore.Http.Results.Content(
+            app.MapGet("/s/{id:guid}", () => Results.Content(
                 "<html>subscription-browser-endpoint</html>", "text/html"));
             await app.StartAsync();
             var address = app.Services.GetRequiredService<IServer>().Features
                 .Get<IServerAddressesFeature>()!.Addresses.Single();
             return new SubscriptionHost(app, new HttpClient { BaseAddress = new Uri(address) });
         }
-
-        public async ValueTask DisposeAsync() {
-            Client.Dispose();
-            await app.StopAsync();
-            await app.DisposeAsync();
-        }
     }
 
 
     private sealed class SubscriptionSource : ISubscriptionSource {
         public Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) => Task.FromResult(
-            subscriptionId != SubscriptionHost.Id ? null : new SubscriptionResponse {
-                ClientName = "device",
-                Protocols = [new ProtocolSubscription {
-                    Protocol = "Hysteria2",
-                    Endpoints = [new SubscriptionEndpoint {
-                        Name = "Main", Address = HostAddress.Parse("vpn.example.com"),
-                        Connection = new Hysteria2ConnectionInfo {
-                            ServerAddress = HostName.Parse("vpn.example.com"), PortBinding = new PortBinding(443),
-                            Password = "password"
+            subscriptionId != SubscriptionHost.Id
+                ? null
+                : new SubscriptionResponse {
+                    ClientName = "device",
+                    Protocols = [
+                        new ProtocolSubscription {
+                            Protocol = "Hysteria2",
+                            Endpoints = [
+                                new SubscriptionEndpoint {
+                                    Name = "Main", Address = HostAddress.Parse("vpn.example.com"),
+                                    Connection = new Hysteria2ConnectionInfo {
+                                        ServerAddress = HostName.Parse("vpn.example.com"),
+                                        PortBinding = new PortBinding(443),
+                                        Password = "password"
+                                    }
+                                }
+                            ]
                         }
-                    }]
-                }]
-            });
+                    ]
+                });
     }
 }

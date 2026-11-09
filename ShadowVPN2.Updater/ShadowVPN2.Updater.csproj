@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShadowVPN2.Contracts\ShadowVPN2.Contracts.csproj"/>
+    <ProjectReference Include="../ShadowVPN2.Infrastructure.Containers/ShadowVPN2.Infrastructure.Containers.csproj"/>
   </ItemGroup>
 </Project>

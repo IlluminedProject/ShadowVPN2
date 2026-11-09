@@ -14,6 +14,7 @@ using ShadowVPN2.Data.SingBox.Contributors;
 using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Containers;
 using ShadowVPN2.Infrastructure.RavenDb;
 using ShadowVPN2.Infrastructure.RavenDb.Migrations;
 using ApplicationUpdateService = ShadowVPN2.Frontend.ApplicationUpdateService;
@@ -55,7 +56,7 @@ public static class ApplicationServices {
         builder.SetupAuthorization();
         builder.SetupContainerValidation();
 
-        builder.Services.AddHttpClient();
+        builder.Services.AddContainerRegistry();
         builder.Services.AddScoped<HttpClient>(services => new HttpClient {
             BaseAddress = new Uri(services.GetRequiredService<NavigationManager>().BaseUri)
         });
@@ -111,7 +112,6 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<RavenDbClusterAdminClient>();
         builder.Services.AddSingleton<ClusterService>();
         builder.Services.AddSingleton<ClusterUpdateService>();
-        builder.Services.AddSingleton<RegistryImageClient>();
         builder.Services.AddSingleton<UpdaterClient>();
         builder.Services.AddSingleton<Data.Cluster.ApplicationUpdateService>();
         builder.Services.AddHostedService<ClusterUpdateCoordinator>();

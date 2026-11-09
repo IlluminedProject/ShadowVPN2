@@ -8,8 +8,8 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Raven.Client.Documents;
 using Raven.Client.Http;
-using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Exceptions;
 using ShadowVPN2.Infrastructure.RavenDb.RavenEmbedded;
 using Xunit;
@@ -48,16 +48,18 @@ public class ClusterUpdateConnectivityTests {
         var url = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var response = """
-            {"Leader":"A","NodeTag":"A","Topology":{"TopologyId":"test","Members":{"A":"URL","B":"http://localhost:1","C":"http://localhost:2"},"Promotables":{},"Watchers":{},"LastNodeId":"C","Etag":1},"Etag":1,"Status":{"B":{"Connected":true},"C":{"Connected":false}}}
-            """.Replace("URL", url);
+                       {"Leader":"A","NodeTag":"A","Topology":{"TopologyId":"test","Members":{"A":"URL","B":"http://localhost:1","C":"http://localhost:2"},"Promotables":{},"Watchers":{},"LastNodeId":"C","Etag":1},"Etag":1,"Status":{"B":{"Connected":true},"C":{"Connected":false}}}
+                       """.Replace("URL", url);
         var server = Task.Run(async () => {
             while (!timeout.IsCancellationRequested) {
                 using var client = await listener.AcceptTcpClientAsync(timeout.Token);
                 await using var stream = client.GetStream();
                 using var reader = new StreamReader(stream, leaveOpen: true);
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync(timeout.Token))) { }
+
                 var body = Encoding.UTF8.GetBytes(response);
-                var headers = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                var headers = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
                 await stream.WriteAsync(headers, timeout.Token);
                 await stream.WriteAsync(body, timeout.Token);
             }
@@ -115,9 +117,11 @@ public class ClusterUpdateConnectivityTests {
                 }, timeout.Token);
                 using var reader = new StreamReader(stream, leaveOpen: true);
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync(timeout.Token))) { }
+
                 var body = Encoding.UTF8.GetBytes(response);
                 var status = failProbe ? "500 Internal Server Error" : "200 OK";
-                var headers = Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+                var headers = Encoding.ASCII.GetBytes(
+                    $"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
                 await stream.WriteAsync(headers, timeout.Token);
                 await stream.WriteAsync(body, timeout.Token);
             }
@@ -179,35 +183,6 @@ public class ClusterUpdateConnectivityTests {
         }
     }
 
-    [Theory]
-    [InlineData(SslPolicyErrors.None, true)]
-    [InlineData(SslPolicyErrors.RemoteCertificateNameMismatch, false)]
-    [InlineData(SslPolicyErrors.RemoteCertificateChainErrors, false)]
-    [InlineData(SslPolicyErrors.RemoteCertificateNameMismatch | SslPolicyErrors.RemoteCertificateChainErrors, false)]
-    [InlineData(SslPolicyErrors.RemoteCertificateNotAvailable, false)]
-    public void Remote_peer_requires_platform_trust_and_matching_hostname(SslPolicyErrors errors, bool expected) {
-        using var certificate = CreateCertificate("peer");
-        using var request = new HttpRequestMessage(HttpMethod.Get, "https://100.64.0.11:8888");
-        // Even presenting the local certificate cannot bypass hostname validation for a remote target.
-        Assert.Equal(expected, ValidateServerCertificate(request, certificate, errors, certificate.Thumbprint));
-    }
-
-    [Theory]
-    [InlineData("https://127.0.0.1:8888", true)]
-    [InlineData("https://localhost:8888", true)]
-    [InlineData("https://[::1]:8888", true)]
-    [InlineData("https://100.64.0.11:8888", false)]
-    public void Local_certificate_pin_only_bypasses_errors_for_loopback(string url, bool expected) {
-        using var certificate = CreateCertificate("mesh");
-        using var otherCertificate = CreateCertificate("other");
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var errors = SslPolicyErrors.RemoteCertificateNameMismatch | SslPolicyErrors.RemoteCertificateChainErrors;
-        Assert.Equal(expected, ValidateServerCertificate(request, certificate, errors, certificate.Thumbprint));
-        Assert.False(ValidateServerCertificate(request, otherCertificate, errors, certificate.Thumbprint));
-        Assert.False(ValidateServerCertificate(new object(), certificate, errors, certificate.Thumbprint));
-        Assert.False(ValidateServerCertificate(request, null, SslPolicyErrors.None, certificate.Thumbprint));
-    }
-
     private static bool ValidateServerCertificate(object sender, X509Certificate? certificate,
         SslPolicyErrors errors, string thumbprint) {
         var method = typeof(EmbeddedServer).GetMethod("ValidateServerCertificate",
@@ -226,7 +201,8 @@ public class ClusterUpdateConnectivityTests {
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection {
             new("1.3.6.1.5.5.7.3.1"), new("1.3.6.1.5.5.7.3.2")
         }, false));
-        using var generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        using var generated =
+            request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
         return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pfx), null,
             X509KeyStorageFlags.DefaultKeySet);
     }

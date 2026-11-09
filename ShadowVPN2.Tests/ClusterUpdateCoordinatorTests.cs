@@ -13,6 +13,7 @@ using Raven.Client.Documents.Session;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Containers.Registry;
 using Xunit;
 using ClusterUpdateNodeStatus = ShadowVPN2.Data.Cluster.ClusterUpdateNodeStatus;
 

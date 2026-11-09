@@ -1,4 +1,6 @@
-﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-source
+﻿# syntax=docker/dockerfile:1.20
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ravendb-source
 ARG RAVENDB_REVISION=2b692f492db3ebfbe1143433543dc107d176c357
 WORKDIR /src/ravendb
 RUN test -n "$RAVENDB_REVISION" \
@@ -65,11 +67,8 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj", "ShadowVPN2.Contracts/"]
-COPY ["ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj", "ShadowVPN2.Frontend/"]
-COPY ["ShadowVPN2.Infrastructure.RavenDb/ShadowVPN2.Infrastructure.RavenDb.csproj", "ShadowVPN2.Infrastructure.RavenDb/"]
+COPY --parents */*.csproj ./
 COPY ["docker-compose.ghcr.yml", "."]
-COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
 RUN --mount=type=cache,id=shadowvpn2-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj" -r linux-x64
 COPY . .
@@ -100,10 +99,7 @@ ENTRYPOINT ["/usr/local/bin/shadowvpn2-entrypoint"]
 FROM development AS debug
 ARG BUILD_CONFIGURATION=Debug
 WORKDIR /src
-COPY ["ShadowVPN2.Contracts/ShadowVPN2.Contracts.csproj", "ShadowVPN2.Contracts/"]
-COPY ["ShadowVPN2.Frontend/ShadowVPN2.Frontend.csproj", "ShadowVPN2.Frontend/"]
-COPY ["ShadowVPN2.Infrastructure.RavenDb/ShadowVPN2.Infrastructure.RavenDb.csproj", "ShadowVPN2.Infrastructure.RavenDb/"]
-COPY ["ShadowVPN2/ShadowVPN2.csproj", "ShadowVPN2/"]
+COPY --parents */*.csproj ./
 RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj"
 COPY . .

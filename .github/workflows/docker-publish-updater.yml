@@ -7,6 +7,7 @@ on:
         paths:
             - 'ShadowVPN2.Updater/**'
             - 'ShadowVPN2.Contracts/**'
+            - 'ShadowVPN2.Infrastructure.Containers/**'
             - '.github/workflows/docker-publish-updater.yml'
 
 permissions:

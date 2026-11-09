@@ -12,6 +12,7 @@ using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Containers.Registry;
 using Xunit;
 using NodeStatus = ShadowVPN2.Data.Cluster.ClusterUpdateNodeStatus;
 

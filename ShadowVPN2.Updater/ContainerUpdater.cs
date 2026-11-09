@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Updater.Docker;
+using ShadowVPN2.Infrastructure.Containers.Docker;
+using ShadowVPN2.Infrastructure.Containers.Docker.Models;
 
 namespace ShadowVPN2.Updater;
 

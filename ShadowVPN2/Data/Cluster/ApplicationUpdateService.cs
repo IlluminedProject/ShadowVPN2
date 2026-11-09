@@ -3,9 +3,10 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Contracts.Updater;
 using ShadowVPN2.Exceptions;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.Containers.Registry;
+using ShadowVPN2.Infrastructure.Containers.Registry.Models;
 
 namespace ShadowVPN2.Data.Cluster;
 
@@ -91,11 +92,11 @@ public sealed class ApplicationUpdateService(
         try {
             var image = await updater.GetImageInfoAsync(timeout.Token);
             result.ImageReference ??= image.ImageRepository;
-            var actual = RegistryImageClient.ParseReference(image.ImageRepository ?? "");
+            var actual = ImageReference.Parse(image.ImageRepository ?? "");
             var digests = image.RepoDigests.Where(x => {
                 var separator = x.LastIndexOf('@');
                 if (separator < 0 || !ImageDigest.IsValid(x[(separator + 1)..])) return false;
-                var repository = RegistryImageClient.ParseReference(x[..separator]);
+                var repository = ImageReference.Parse(x[..separator]);
                 return repository.Registry == actual.Registry && repository.Repository == actual.Repository;
             }).Select(x => x[(x.LastIndexOf('@') + 1)..]).ToArray();
             if (digests.Length == 0) {
@@ -114,14 +115,14 @@ public sealed class ApplicationUpdateService(
                 return result;
             }
 
-            var configured = RegistryImageClient.ParseReference(reference);
+            var configured = ImageReference.Parse(reference);
             result.Enabled = true;
             if (configured.Registry != actual.Registry || configured.Repository != actual.Repository) {
                 throw new InvalidOperationException(
                     "The configured update image repository does not match the running container");
             }
 
-            var remote = await registry.GetDigestAsync(reference, image, timeout.Token);
+            var remote = await registry.GetDigestAsync(configured, image, timeout.Token);
             result.AvailableDigest = remote.Digest;
             // Docker can retain either the multi-platform index digest or its selected platform manifest digest.
             result.CurrentDigest = digests.FirstOrDefault(x => x == remote.Digest) ??
