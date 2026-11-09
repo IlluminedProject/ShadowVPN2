@@ -1,5 +1,4 @@
 @page "/Account/Manage/TwoFactorAuthentication"
-@using System.Text.Json
 @layout ManageLayout
 @attribute [Authorize]
 <PageTitle>Two-factor authentication</PageTitle>
@@ -43,8 +42,7 @@ else
 }
 
 @code {
-    [Inject] private HttpClient Http { get; set; } = default!;
-    [Inject] private ILogger<TwoFactorAuthentication> Logger { get; set; } = default!;
+    [Inject] private IAccountApplicationService Account { get; set; } = default!;
     [SupplyParameterFromQuery] private string? Message { get; set; }
     private AccountProfileResponse? _profile;
     private string? _loadError;
@@ -54,12 +52,11 @@ else
     {
         try
         {
-            _profile = await Http.GetFromJsonAsync<AccountProfileResponse>("/api/account/profile");
+            _profile = await Account.GetProfileAsync();
             if (_profile is null) _loadError = "Security settings could not be loaded. Reload the page to try again.";
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        catch (ApplicationServiceException exception)
         {
-            Logger.LogError(exception, "Unable to load two-factor settings");
             _loadException = exception;
             _loadError = "Security settings could not be loaded. Reload the page to try again.";
         }

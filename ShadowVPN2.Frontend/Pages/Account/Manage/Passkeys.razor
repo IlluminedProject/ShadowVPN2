@@ -1,5 +1,4 @@
 @page "/Account/Manage/Passkeys"
-@using System.Text.Json
 @layout ManageLayout
 @attribute [Authorize]
 <PageTitle>Passkeys</PageTitle>
@@ -69,8 +68,7 @@ else
 }
 
 @code {
-    [Inject] private HttpClient Http { get; set; } = default!;
-    [Inject] private ILogger<Passkeys> Logger { get; set; } = default!;
+    [Inject] private IAccountApplicationService Account { get; set; } = default!;
     [SupplyParameterFromQuery] private string? Message { get; set; }
     private IReadOnlyList<PasskeyResponse>? _keys;
     private PasskeyResponse? _deleteKey;
@@ -86,12 +84,11 @@ else
     {
         try
         {
-            _keys = await Http.GetFromJsonAsync<IReadOnlyList<PasskeyResponse>>("/api/account/passkeys");
+            _keys = await Account.GetPasskeysAsync();
             if (_keys is null) _loadError = "Passkeys could not be loaded. Reload the page to try again.";
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        catch (ApplicationServiceException exception)
         {
-            Logger.LogError(exception, "Unable to load passkeys");
             _loadException = exception;
             _loadError = "Passkeys could not be loaded. Reload the page to try again.";
         }

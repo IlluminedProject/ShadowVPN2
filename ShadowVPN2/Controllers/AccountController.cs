@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using ShadowVPN2.Frontend;
 using ShadowVPN2.Infrastructure.Authentication;
 
 namespace ShadowVPN2.Controllers;
@@ -13,20 +14,12 @@ namespace ShadowVPN2.Controllers;
 public sealed class AccountController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
+    AccountApplicationService accountService,
     ILogger<AccountController> logger) : ControllerBase {
     [HttpGet("profile")]
     public async Task<AccountProfileResponse> Profile() {
         var user = await RequiredUser();
-        return new AccountProfileResponse {
-            UserName = await userManager.GetUserNameAsync(user) ?? string.Empty,
-            Email = await userManager.GetEmailAsync(user),
-            PhoneNumber = await userManager.GetPhoneNumberAsync(user),
-            HasPassword = await userManager.HasPasswordAsync(user),
-            TwoFactorEnabled = await userManager.GetTwoFactorEnabledAsync(user),
-            HasAuthenticator = await userManager.GetAuthenticatorKeyAsync(user) is not null,
-            RecoveryCodesLeft = await userManager.CountRecoveryCodesAsync(user),
-            IsTwoFactorClientRemembered = await signInManager.IsTwoFactorClientRememberedAsync(user)
-        };
+        return await accountService.GetProfileAsync(user, await signInManager.IsTwoFactorClientRememberedAsync(user));
     }
 
     [HttpPost("profile")]
@@ -88,19 +81,9 @@ public sealed class AccountController(
     }
 
     [HttpGet("2fa/setup")]
-    public async Task<IResult> AuthenticatorSetup() {
+    public async Task<AuthenticatorSetupResponse> AuthenticatorSetup() {
         var user = await RequiredUser();
-        var key = await userManager.GetAuthenticatorKeyAsync(user);
-        if (string.IsNullOrEmpty(key)) {
-            await userManager.ResetAuthenticatorKeyAsync(user);
-            key = await userManager.GetAuthenticatorKeyAsync(user);
-        }
-
-        var email = await userManager.GetEmailAsync(user) ?? user.UserName ?? "user";
-        return Results.Ok(new {
-            SharedKey = key,
-            Uri = $"otpauth://totp/ShadowVPN2:{Uri.EscapeDataString(email)}?secret={key}&issuer=ShadowVPN2&digits=6"
-        });
+        return await accountService.GetAuthenticatorSetupAsync(user);
     }
 
     [HttpPost("2fa/enable")]
@@ -133,9 +116,7 @@ public sealed class AccountController(
     [HttpGet("passkeys")]
     public async Task<IReadOnlyList<PasskeyResponse>> Passkeys() {
         var user = await RequiredUser();
-        return (await userManager.GetPasskeysAsync(user)).Select(passkey => new PasskeyResponse {
-            Id = Base64Url.EncodeToString(passkey.CredentialId), Name = passkey.Name
-        }).ToArray();
+        return await accountService.GetPasskeysAsync(user);
     }
 
     [HttpPost("passkeys/rename")]

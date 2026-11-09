@@ -1,5 +1,4 @@
 @page "/Account/Manage/EnableAuthenticator"
-@using System.Text.Json
 @layout ManageLayout
 @attribute [Authorize]
 <PageTitle>Configure authenticator</PageTitle>
@@ -40,10 +39,9 @@ else
 }
 
 @code {
-    [Inject] private HttpClient Http { get; set; } = default!;
-    [Inject] private ILogger<EnableAuthenticator> Logger { get; set; } = default!;
+    [Inject] private IAccountApplicationService Account { get; set; } = default!;
     [SupplyParameterFromQuery] private string? Message { get; set; }
-    private SetupResponse? _setup;
+    private AuthenticatorSetupResponse? _setup;
     private string? _code;
     private string? _loadError;
     private Exception? _loadException;
@@ -52,20 +50,14 @@ else
     {
         try
         {
-            _setup = await Http.GetFromJsonAsync<SetupResponse>("/api/account/2fa/setup");
+            _setup = await Account.GetAuthenticatorSetupAsync();
             if (_setup is null) _loadError = "Authenticator setup could not be loaded. Reload the page to try again.";
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException or TaskCanceledException)
+        catch (ApplicationServiceException exception)
         {
-            Logger.LogError(exception, "Unable to load authenticator setup");
             _loadException = exception;
             _loadError = "Authenticator setup could not be loaded. Reload the page to try again.";
         }
     }
 
-    private sealed class SetupResponse
-    {
-        public string? SharedKey { get; set; }
-        public string? Uri { get; set; }
-    }
 }

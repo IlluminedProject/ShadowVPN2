@@ -62,6 +62,9 @@ public static class ApplicationServices {
         });
         builder.Services.AddScoped<FrontendUserContext>();
         builder.Services.AddScoped<IAuthApplicationService, AuthApplicationService>();
+        builder.Services.AddScoped<AccountApplicationService>();
+        builder.Services.AddScoped<IAccountApplicationService>(sp =>
+            sp.GetRequiredService<AccountApplicationService>());
         builder.Services.AddScoped<DeviceAuthorizationApplicationService>();
         builder.Services.AddScoped<IDeviceAuthorizationApplicationService>(sp =>
             sp.GetRequiredService<DeviceAuthorizationApplicationService>());
