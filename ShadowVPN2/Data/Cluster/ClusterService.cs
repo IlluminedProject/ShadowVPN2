@@ -105,7 +105,7 @@ public class ClusterService(
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
 
-    public async Task<ClusterJoinResponse> ExchangeTokenAsync(ClusterJoinRequest request, string? remoteIp,
+    public async Task<ClusterJoinResponse> ExchangeTokenAsync(ClusterJoinRequest request,
         CancellationToken cancellationToken = default) {
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
@@ -125,7 +125,6 @@ public class ClusterService(
         if (localNode != null && !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
             localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey);
         await session.SaveChangesAsync(cancellationToken);
-        await nodeNetworkService.RecordObservedPublicIpAsync(pendingNode.NodeId, remoteIp, cancellationToken);
         await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pendingNode.NodeId,
             pendingNode.AwgMeshIp, pendingNode.CertificatePem), cancellationToken);
         await documentStore.Maintenance.Server.SendAsync(new PutClientCertificateOperation(

@@ -88,12 +88,7 @@ public class ClusterController(
     [AllowAnonymous]
     public async Task<ClusterJoinResponse> ExchangeToken([FromBody] ClusterJoinRequest request,
         CancellationToken cancellationToken) {
-        var remoteIpAddress = HttpContext.Connection.RemoteIpAddress;
-        if (remoteIpAddress is { IsIPv4MappedToIPv6: true }) remoteIpAddress = remoteIpAddress.MapToIPv4();
-
-        var remoteIp = remoteIpAddress?.ToString();
-
-        return await clusterService.ExchangeTokenAsync(request, remoteIp, cancellationToken);
+        return await clusterService.ExchangeTokenAsync(request, cancellationToken);
     }
 
     [HttpPost("finish-join")]

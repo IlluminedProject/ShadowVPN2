@@ -93,6 +93,9 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<ClusterSettingsService>();
         builder.Services.AddSingleton<NodeService>();
         builder.Services.AddSingleton<NodeNetworkService>();
+        builder.Services.AddSingleton<INodeStatusCheck, SingBoxStatusCheck>();
+        builder.Services.AddSingleton<NodeStatusReporter>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<NodeStatusReporter>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<NodeNetworkService>());
         builder.Services.AddSingleton(_ => new LookupClient(new LookupClientOptions { ThrowDnsErrors = true }));
         builder.Services.AddSingleton<DomainValidationService>();

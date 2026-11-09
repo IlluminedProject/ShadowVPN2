@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using ShadowVPN2.Contracts.Networking;
 
 namespace ShadowVPN2.Contracts.Nodes;
@@ -11,6 +12,14 @@ public sealed class NodeResponse {
     public string? PublicIpv6 { get; set; }
     public IReadOnlyList<string> InternalAddresses { get; set; } = [];
     public DateTimeOffset? NetworkCheckedAt { get; set; }
+    public DateTimeOffset? RuntimeHeartbeatAt { get; set; }
+    public DateTimeOffset? RuntimeStartedAt { get; set; }
+    public NodeRuntimeMetadata? RuntimeMetadata { get; set; }
+
+    public IReadOnlyDictionary<string, NodeCheckResult> RuntimeChecks { get; set; } =
+        ReadOnlyDictionary<string, NodeCheckResult>.Empty;
+
+    public NodeRuntimeStatus RuntimeStatus { get; set; }
     public DomainCheckResponse? DomainStatus { get; set; }
     public int Number { get; set; }
     public string? AwgPublicKey { get; set; }

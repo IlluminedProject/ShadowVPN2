@@ -58,7 +58,17 @@
                 @foreach (var node in _nodes)
                 {
                     <tr>
-                        <td>@node.Name</td>
+                        <td>
+                            @node.Name
+                            @if (node.RuntimeMetadata is { } metadata)
+                            {
+                                @if (!string.IsNullOrWhiteSpace(metadata.ContainerImageDigest))
+                                {
+                                    <div class="small"><code class="text-break">@metadata.ContainerImageDigest</code>
+                                    </div>
+                                }
+                            }
+                        </td>
                         <td>
                             <code class="text-break">@(node.Domain?.ToString() ?? "—")</code>
                             @if (node.DomainStatus is not null)
@@ -66,7 +76,13 @@
                                 <div class="text-secondary small">@DomainStatusText(node.DomainStatus.State)</div>
                             }
                         </td>
-                        <td><code class="text-break">@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code></td>
+                        <td>
+                            <code class="text-break">@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code>
+                            @if (node.NetworkCheckedAt is { } networkCheckedAt)
+                            {
+                                <div class="text-secondary small">Network: @AgeText(networkCheckedAt)</div>
+                            }
+                        </td>
                         <td><code class="text-break">@node.AwgMeshIp</code></td>
                         <td>
                             @foreach (var route in _protocolRoutes.Where(route => route.NodeId == node.NodeId &&
@@ -76,7 +92,37 @@
                                 <div><code class="text-break">@route.Domain</code></div>
                             }
                         </td>
-                        <td>@(node.IsPending ? "Pending" : "Joined")</td>
+                        <td>
+                            @(node.IsPending ? "Pending" : "Joined")
+                            <div class="text-secondary small">Runtime: @RuntimeStatusText(node.RuntimeHeartbeatAt)</div>
+                            @if (node.RuntimeHeartbeatAt is { } heartbeatAt)
+                            {
+                                <div class="text-secondary small">Heartbeat: @AgeText(heartbeatAt)</div>
+                            }
+                            @if (node.RuntimeStartedAt is { } startedAt)
+                            {
+                                <div class="text-secondary small" title="@startedAt.ToString("u")">
+                                    Started: @AgeText(startedAt)</div>
+                            }
+                            @foreach (var check in node.RuntimeChecks)
+                            {
+                                <div class="small mt-2">
+                                    <div>
+                                        @check.Key: @CheckStatusText(check.Value.Status)
+                                        @if (check.Value.ValidUntil <= DateTimeOffset.UtcNow)
+                                        {
+                                            <span class="text-warning">(Expired)</span>
+                                        }
+                                    </div>
+                                    <div class="text-secondary">Checked: @AgeText(check.Value.CheckedAt)</div>
+                                    <div class="text-secondary">Valid until: @check.Value.ValidUntil.ToString("u")</div>
+                                    @if (!string.IsNullOrWhiteSpace(check.Value.Message))
+                                    {
+                                        <div class="text-break">@check.Value.Message</div>
+                                    }
+                                </div>
+                            }
+                        </td>
                         <td>
                             <div class="actions table-actions">
                                 @if (node.IsPending)
@@ -338,6 +384,8 @@
     private IReadOnlyList<ProtocolDomainRouteResponse> _protocolRoutes = [];
     private NodeCertificateDomainsResponse? _certificateDomains;
     private IAsyncDisposable? _subscription;
+    private readonly PeriodicTimer _freshnessTimer = new(TimeSpan.FromSeconds(5));
+    private Task? _freshnessTask;
     private NodeResponse? _editingNode;
     private UpdateNodeRequest _domainRequest = new();
     private EditContext? _domainEditContext;
@@ -384,6 +432,18 @@
         {
             _loading = false;
         }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _freshnessTask = RefreshFreshnessAsync();
+    }
+
+    private async Task RefreshFreshnessAsync()
+    {
+        while (await _freshnessTimer.WaitForNextTickAsync())
+            await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadNodesAsync()
@@ -614,8 +674,36 @@
         }
     }
 
+    private static string RuntimeStatusText(DateTimeOffset? heartbeatAt)
+    {
+        if (heartbeatAt is null)
+            return "No data";
+        return DateTimeOffset.UtcNow - heartbeatAt.Value <= TimeSpan.FromSeconds(90)
+            ? "Fresh"
+            : "Stale";
+    }
+
+    private static string CheckStatusText(NodeCheckStatus status)
+    {
+        return status switch
+        {
+            NodeCheckStatus.Healthy => "Healthy",
+            NodeCheckStatus.Unhealthy => "Unhealthy",
+            _ => "Unknown"
+        };
+    }
+
+    private static string AgeText(DateTimeOffset timestamp)
+    {
+        var age = DateTimeOffset.UtcNow - timestamp;
+        return age < TimeSpan.FromSeconds(1) ? "just now" : $"{age.TotalMinutes:0.#} min ago";
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _freshnessTimer.Dispose();
+        if (_freshnessTask is not null)
+            await _freshnessTask;
         if (_subscription is not null)
             await _subscription.DisposeAsync();
     }

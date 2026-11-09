@@ -61,29 +61,6 @@ public sealed class NodeNetworkService(
         return host.Value.ToAddress(status?.ManagementPort);
     }
 
-    public async Task RecordObservedPublicIpAsync(Guid nodeId, string? value,
-        CancellationToken cancellationToken = default) {
-        if (!IPAddress.TryParse(value, out var address))
-            return;
-
-        if (address.IsIPv4MappedToIPv6)
-            address = address.MapToIPv4();
-
-        using var session = documentStore.OpenAsyncSession();
-        var id = GetStatusId(nodeId);
-        var status = await session.LoadAsync<EntityNodeNetworkStatus>(id, cancellationToken)
-                     ?? new EntityNodeNetworkStatus { Id = id, NodeId = nodeId };
-
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-            status.PublicIpv4 = address.ToString();
-        else if (address.AddressFamily == AddressFamily.InterNetworkV6)
-            status.PublicIpv6 = address.ToString();
-
-        status.CheckedAt = DateTimeOffset.UtcNow;
-        status.LastError = null;
-        await session.StoreAsync(status, id, cancellationToken);
-        await session.SaveChangesAsync(cancellationToken);
-    }
 
     public async Task<EntityNodeNetworkStatus> RefreshLocalAsync(CancellationToken cancellationToken = default) {
         var nodeId = localConfiguration.Value.NodeId;

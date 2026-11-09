@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
@@ -15,6 +16,7 @@ public class NodeService(
     IDocumentStore documentStore,
     IOptions<LocalConfiguration> localConfiguration,
     NodeNetworkService nodeNetworkService,
+    NodeStatusReporter nodeStatusReporter,
     DomainValidationService domainValidationService,
     ManagedCertificateService managedCertificateService,
     ILogger<NodeService> logger) : IDisposable {
@@ -23,6 +25,7 @@ public class NodeService(
     private IDisposable? _changesSubscription;
     private CancellationTokenSource? _disposalCts;
     private IDisposable? _networkChangesSubscription;
+    private IDisposable? _runtimeChangesSubscription;
 
     public void Dispose() {
         lock (_lock) {
@@ -34,6 +37,8 @@ public class NodeService(
             _changesSubscription = null;
             _networkChangesSubscription?.Dispose();
             _networkChangesSubscription = null;
+            _runtimeChangesSubscription?.Dispose();
+            _runtimeChangesSubscription = null;
             _subscriptions.Clear();
         }
     }
@@ -89,6 +94,8 @@ public class NodeService(
                                     _changesSubscription = null;
                                     _networkChangesSubscription?.Dispose();
                                     _networkChangesSubscription = null;
+                                    _runtimeChangesSubscription?.Dispose();
+                                    _runtimeChangesSubscription = null;
                                 }
                             }
                         }
@@ -118,6 +125,9 @@ public class NodeService(
                     logger.LogInformation("Node network status changed: {Type} for {Id}", change.Type, change.Id);
                     NotifyNodesChanged();
                 }));
+            _runtimeChangesSubscription = documentStore.Changes()
+                .ForDocumentsInCollection<EntityNodeRuntimeState>()
+                .Subscribe(new ActionObserver<DocumentChange>(_ => NotifyNodesChanged()));
         }
         catch (Exception ex) {
             logger.LogError(ex, "Failed to initialize RavenDB changes subscription for nodes");
@@ -219,8 +229,11 @@ public class NodeService(
         IReadOnlyList<EntityClusterNode> nodes,
         CancellationToken cancellationToken = default) {
         var statuses = await nodeNetworkService.GetStatusesAsync(nodes.Select(node => node.NodeId), cancellationToken);
+        var runtimeStates =
+            await nodeStatusReporter.GetStatesAsync(nodes.Select(node => node.NodeId), cancellationToken);
         var responses = await Task.WhenAll(nodes.Select(async node => {
             statuses.TryGetValue(node.NodeId, out var status);
+            runtimeStates.TryGetValue(node.NodeId, out var runtime);
             return new NodeResponse {
                 Id = node.Id,
                 NodeId = node.NodeId,
@@ -230,6 +243,11 @@ public class NodeService(
                 PublicIpv6 = status?.PublicIpv6,
                 InternalAddresses = status?.InternalAddresses.AsReadOnly() ?? [],
                 NetworkCheckedAt = status?.CheckedAt,
+                RuntimeHeartbeatAt = runtime?.HeartbeatAt,
+                RuntimeStartedAt = runtime?.StartedAt,
+                RuntimeMetadata = runtime?.Metadata,
+                RuntimeChecks = runtime is null ? ReadOnlyDictionary<string, NodeCheckResult>.Empty : runtime.Checks,
+                RuntimeStatus = GetRuntimeStatus(runtime),
                 DomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
                     status?.PublicIpv6, cancellationToken),
                 Number = node.Number,
@@ -239,6 +257,14 @@ public class NodeService(
             };
         }));
         return responses.ToList().AsReadOnly();
+    }
+
+    private static NodeRuntimeStatus GetRuntimeStatus(EntityNodeRuntimeState? state) {
+        if (state is null)
+            return NodeRuntimeStatus.NoData;
+        return DateTimeOffset.UtcNow - state.HeartbeatAt <= TimeSpan.FromSeconds(90)
+            ? NodeRuntimeStatus.Fresh
+            : NodeRuntimeStatus.Stale;
     }
 
     public class NodeSubscription(NodeService service) : IDisposable {
