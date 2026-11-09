@@ -111,8 +111,8 @@ public sealed class UpdaterSocketService(
                 }
 
                 logger.LogInformation(
-                    "Updater request completed: operation {Operation}, update {UpdateId}, status {Status}, error {Error}, elapsed {ElapsedMilliseconds} ms",
-                    request.Operation, request.UpdateId, response.Status, response.Error,
+                    "Updater request completed: operation {Operation}, request {RequestUpdateId}, response {ResponseUpdateId}, status {Status}, error {Error}, elapsed {ElapsedMilliseconds} ms",
+                    request.Operation, request.UpdateId, response.UpdateId, response.Status, response.Error,
                     stopwatch.ElapsedMilliseconds);
                 await WriteAsync(writer, response, timeout.Token);
             }
@@ -208,12 +208,20 @@ public sealed class UpdaterSocketService(
     };
 
     private async Task RunOperationAsync(UpdaterResponse running, CancellationToken token) {
+        UpdaterResponse final;
         try {
             await containerUpdater.UpdateAsync(running.ImageDigest, token);
+            final = running with { Status = UpdaterStatus.Succeeded };
+            logger.LogInformation("Container update succeeded: update {UpdateId}, digest {ImageDigest}",
+                running.UpdateId, running.ImageDigest);
         }
-        catch (Exception) {
-            // ignored
+        catch (Exception exception) {
+            final = running with { Status = UpdaterStatus.Failed, Error = exception.Message };
+            logger.LogError(exception, "Container update failed: update {UpdateId}, digest {ImageDigest}",
+                running.UpdateId, running.ImageDigest);
         }
+
+        Volatile.Write(ref _state, final);
     }
 
     private static async Task RemoveStaleSocketAsync(string socketPath, CancellationToken token) {
