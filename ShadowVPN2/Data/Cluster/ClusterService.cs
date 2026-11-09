@@ -31,19 +31,35 @@ public class ClusterService(
             throw new ArgumentException("Domain is already assigned to another node.");
 
         var seeds = await GetJoinSeedsAsync(existingNodes);
+        var node = await ReserveNodeAsync(name, domain);
+
+        return SerializeJoinToken(node, seeds);
+    }
+
+    internal async Task<EntityClusterNode> ReserveNodeAsync(string name, HostName? domain) {
+        using var session = documentStore.OpenAsyncSession(new SessionOptions {
+            TransactionMode = TransactionMode.ClusterWide
+        });
+        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>(
+            "EntityClusterNodes/", pageSize: int.MaxValue);
+        var occupiedNumbers = nodes.Select(node => node.Number).ToHashSet();
+        var number = 1;
+        while (occupiedNumbers.Contains(number))
+            number++;
+        if (number > 244)
+            throw new InvalidOperationException("No free mesh IP addresses are available.");
+        var id = $"EntityClusterNodes/{number}";
+
         var node = new EntityClusterNode {
-            Id = "EntityClusterNodes|",
+            Id = id,
             NodeId = Guid.NewGuid(),
             Name = name,
             Domain = domain,
             JoinSecret = Guid.NewGuid()
         };
-        using var session = documentStore.OpenAsyncSession(new SessionOptions
-            { TransactionMode = TransactionMode.ClusterWide });
         await session.StoreAsync(node);
         await session.SaveChangesAsync();
-
-        return SerializeJoinToken(node, seeds);
+        return node;
     }
 
     public async Task<string> GetJoinTokenAsync(Guid nodeId, CancellationToken cancellationToken = default) {
