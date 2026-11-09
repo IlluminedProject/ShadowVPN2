@@ -110,7 +110,7 @@ public sealed class DockerApiClient : IDisposable {
 
         using var inspect = await _http.GetAsync($"images/{Uri.EscapeDataString(image)}/json", token);
         var result = await ReadAsync(inspect, DockerJsonContext.Default.DockerImage, token);
-        if (!result.RepoDigests.Contains(image))
+        if (image.Contains('@') && !result.RepoDigests.Contains(image, StringComparer.Ordinal))
             throw new InvalidOperationException("Pulled image does not resolve to the requested digest");
         _logger.LogInformation("Docker pull completed for {Image} in {ElapsedMilliseconds} ms", image,
             stopwatch.ElapsedMilliseconds);

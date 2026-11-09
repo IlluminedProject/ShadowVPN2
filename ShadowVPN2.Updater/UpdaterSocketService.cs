@@ -10,6 +10,7 @@ namespace ShadowVPN2.Updater;
 
 public sealed class UpdaterSocketService(
     ContainerUpdater containerUpdater,
+    SelfUpdater selfUpdater,
     IOptions<UpdaterOptions> options,
     ILogger<UpdaterSocketService> logger) : BackgroundService {
     private const int DefaultSocketTimeoutSeconds = 15;
@@ -17,7 +18,10 @@ public sealed class UpdaterSocketService(
     private readonly HashSet<Task> _connections = [];
     private readonly Lock _connectionsGate = new();
     private readonly SemaphoreSlim _startGate = new(1, 1);
+    private UpdaterRequest? _handoffRequest;
+    private Socket? _listener;
     private Task _operation = Task.CompletedTask;
+    private bool _socketReleased;
     private UpdaterResponse _state = new();
 
     private static TimeSpan GetOperationTimeout(UpdaterOperation operation) =>
@@ -36,6 +40,7 @@ public sealed class UpdaterSocketService(
                                         UnixFileMode.OtherExecute);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        _listener = listener;
         var bound = false;
         try {
             await RemoveStaleSocketAsync(socketPath, lifetime.Token);
@@ -48,7 +53,16 @@ public sealed class UpdaterSocketService(
 
             logger.LogInformation("Updater listening on {SocketPath}", socketPath);
             while (!lifetime.IsCancellationRequested) {
-                var connection = await listener.AcceptAsync(lifetime.Token);
+                Socket connection;
+                try {
+                    connection = await listener.AcceptAsync(lifetime.Token);
+                }
+                catch (Exception exception) when (_socketReleased &&
+                                                  exception is ObjectDisposedException or SocketException) {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, lifetime.Token);
+                    break;
+                }
+
                 var task = HandleConnectionAsync(connection, lifetime.Token);
                 lock (_connectionsGate) _connections.Add(task);
                 _ = task.ContinueWith(completed => {
@@ -64,13 +78,14 @@ public sealed class UpdaterSocketService(
             lock (_connectionsGate) connections = _connections.ToArray();
             await Task.WhenAll(connections);
             await _operation;
-            if (bound) File.Delete(socketPath);
+            if (bound && !_socketReleased) File.Delete(socketPath);
         }
     }
 
     private async Task HandleConnectionAsync(Socket connection, CancellationToken stoppingToken) {
         using (connection)
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken)) {
+            UpdaterRequest? request = null;
             try {
                 await using var stream = new NetworkStream(connection, false);
                 using var reader = new StreamReader(stream, Encoding.UTF8, false, 1024, true);
@@ -78,7 +93,6 @@ public sealed class UpdaterSocketService(
                 timeout.CancelAfter(TimeSpan.FromSeconds(15));
                 var line = await reader.ReadLineAsync(timeout.Token);
                 if (line is null) return;
-                UpdaterRequest request;
                 try {
                     request = JsonSerializer.Deserialize(line, UpdaterJsonContext.Default.UpdaterRequest) ??
                               throw new JsonException("An updater request is required");
@@ -121,6 +135,10 @@ public sealed class UpdaterSocketService(
                 logger.LogWarning(exception, "Updater socket request timed out");
             }
             catch (Exception exception) { logger.LogWarning(exception, "Updater socket request failed"); }
+            finally {
+                if (request is not null && ReferenceEquals(request, _handoffRequest))
+                    await selfUpdater.RetireAsync(CancellationToken.None);
+            }
         }
     }
 
@@ -159,7 +177,20 @@ public sealed class UpdaterSocketService(
 
     private async Task<UpdaterResponse> PrepareAsync(UpdaterRequest request, CancellationToken token) {
         if (request.UpdateId == Guid.Empty || !ImageDigest.IsValid(request.ImageDigest)) return Invalid(request);
+        await _startGate.WaitAsync(token);
         try {
+            if (_socketReleased || Volatile.Read(ref _state).Status == UpdaterStatus.Running) {
+                return new UpdaterResponse {
+                    UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Failed,
+                    Error = "Another update is running"
+                };
+            }
+
+            if (await selfUpdater.UpdateIfNeededAsync(ReleaseSocket, token)) {
+                _handoffRequest = request;
+                return await ForwardPrepareAsync(request, token);
+            }
+
             await containerUpdater.PrepareAsync(request.ImageDigest, token);
             return new UpdaterResponse {
                 UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Prepared
@@ -171,6 +202,7 @@ public sealed class UpdaterSocketService(
                 Error = exception.Message
             };
         }
+        finally { _startGate.Release(); }
     }
 
     private async Task<UpdaterResponse> StartAsync(UpdaterRequest request, CancellationToken stoppingToken) {
@@ -178,7 +210,7 @@ public sealed class UpdaterSocketService(
         await _startGate.WaitAsync(stoppingToken);
         try {
             var current = Volatile.Read(ref _state);
-            if (current.Status == UpdaterStatus.Running) {
+            if (_socketReleased || current.Status == UpdaterStatus.Running) {
                 return current with {
                     UpdateId = request.UpdateId, ImageDigest = request.ImageDigest, Status = UpdaterStatus.Failed,
                     Error = "Another update is running"
@@ -208,7 +240,7 @@ public sealed class UpdaterSocketService(
     };
 
     private async Task RunOperationAsync(UpdaterResponse running, CancellationToken token) {
-        UpdaterResponse final;
+        var final = running with { Status = UpdaterStatus.Failed };
         try {
             await containerUpdater.UpdateAsync(running.ImageDigest, token);
             final = running with { Status = UpdaterStatus.Succeeded };
@@ -220,8 +252,30 @@ public sealed class UpdaterSocketService(
             logger.LogError(exception, "Container update failed: update {UpdateId}, digest {ImageDigest}",
                 running.UpdateId, running.ImageDigest);
         }
+        finally {
+            Volatile.Write(ref _state, final);
+        }
+    }
 
-        Volatile.Write(ref _state, final);
+    private async Task<UpdaterResponse> ForwardPrepareAsync(UpdaterRequest request, CancellationToken token) {
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        await socket.ConnectAsync(new UnixDomainSocketEndPoint(options.Value.SocketPath), token);
+        await using var stream = new NetworkStream(socket, false);
+        await using var writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true);
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+        await writer.WriteLineAsync(
+            JsonSerializer.Serialize(request, UpdaterJsonContext.Default.UpdaterRequest).AsMemory(), token);
+        await writer.FlushAsync(token);
+        var line = await reader.ReadLineAsync(token) ??
+                   throw new IOException("The replacement updater closed the connection without a response");
+        return JsonSerializer.Deserialize(line, UpdaterJsonContext.Default.UpdaterResponse) ??
+               throw new IOException("The replacement updater returned an empty response");
+    }
+
+    private void ReleaseSocket() {
+        _socketReleased = true;
+        _listener!.Dispose();
+        File.Delete(Path.GetFullPath(options.Value.SocketPath));
     }
 
     private static async Task RemoveStaleSocketAsync(string socketPath, CancellationToken token) {

@@ -34,6 +34,7 @@ services:
         environment:
             Updater__SocketPath: /run/shadowvpn2/updater.sock
             Updater__ContainerName: shadowvpn2
+            Updater__ImageReference: ghcr.io/illuminedproject/shadowvpn2-updater:${UPDATER_IMAGE_TAG:-latest}
         volumes:
             - shadowvpn2-updater:/run/shadowvpn2
             - /var/run/docker.sock:/var/run/docker.sock

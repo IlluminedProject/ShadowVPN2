@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace ShadowVPN2.Updater.Docker;
 
 public sealed class DockerContainer {
@@ -19,6 +22,7 @@ public sealed class DockerHealthState {
 
 public sealed class DockerContainerConfig {
     public required string Image { get; init; }
+    public string[]? Env { get; init; }
     public Dictionary<string, string>? Labels { get; init; }
 }
 
@@ -30,6 +34,7 @@ public sealed class DockerHostConfig {
     public string[]? CapDrop { get; init; }
     public DockerDeviceMapping[]? Devices { get; init; }
     public string[]? Binds { get; init; }
+    public JsonElement[]? Mounts { get; init; }
     public Dictionary<string, string[]>? PortBindings { get; init; }
     public bool PublishAllPorts { get; init; }
     public string[]? Dns { get; init; }
@@ -54,6 +59,7 @@ public sealed class DockerRestartPolicy {
 }
 
 public sealed class DockerImage {
+    public string Id { get; init; } = string.Empty;
     public required string[] RepoDigests { get; init; }
     public string? Os { get; init; }
     public string? Architecture { get; init; }
@@ -63,17 +69,24 @@ public sealed class DockerImage {
 public sealed class DockerCreateRequest {
     public required string Image { get; init; }
     public required DockerCreateHostConfig HostConfig { get; init; }
+    public string[]? Env { get; init; }
     public Dictionary<string, string>? Labels { get; init; }
 }
 
 public sealed class DockerCreateHostConfig {
-    public required string Name { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DockerRestartPolicy? RestartPolicy { get; init; }
+
     public string? NetworkMode { get; init; }
     public bool Privileged { get; init; }
     public string[]? CapAdd { get; init; }
     public string[]? CapDrop { get; init; }
     public DockerDeviceMapping[]? Devices { get; init; }
     public string[]? Binds { get; init; }
+    public JsonElement[]? Mounts { get; init; }
     public Dictionary<string, string[]>? PortBindings { get; init; }
     public bool PublishAllPorts { get; init; }
     public string[]? Dns { get; init; }
