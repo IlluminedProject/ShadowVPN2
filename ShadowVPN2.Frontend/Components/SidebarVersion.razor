@@ -6,13 +6,14 @@
     <NavLink class="nav-link sidebar-version__current" href="/admin/updates">
         <span class="bi bi-info-circle-fill" aria-hidden="true"></span>
         <span class="sidebar-version__text">@VersionLabel</span>
+        @if (_availability?.UpdateAvailable == true)
+        {
+            <AuthorizeView Roles="Administrator">
+                <span class="bi bi-arrow-up-circle-fill text-warning flex-shrink-0" role="img"
+                      aria-label="Update available" title="Update available"></span>
+            </AuthorizeView>
+        }
     </NavLink>
-    @if (_availability?.UpdateAvailable == true)
-    {
-        <NavLink class="nav-link sidebar-version__update text-warning" href="/admin/updates">
-            <span class="bi bi-arrow-up-circle-fill" aria-hidden="true"></span> Update available
-        </NavLink>
-    }
 </div>
 
 @code {
