@@ -28,7 +28,8 @@ public sealed class ContainerUpdater(
             RepoDigests = image.RepoDigests,
             Os = image.Os,
             Architecture = image.Architecture,
-            Variant = image.Variant
+            Variant = image.Variant,
+            CreatedAt = image.CreatedAt
         };
         logger.LogDebug(
             "Inspected application container {ContainerName}: image {ImageId}, repository {Repository}, digests {RepoDigests}",

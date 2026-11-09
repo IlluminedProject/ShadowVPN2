@@ -15,6 +15,7 @@ public sealed class ClusterUpdateCoordinator(
     ClusterUpdateService updateService,
     IDocumentStore documentStore,
     UpdaterClient updaterClient,
+    RegistryImageClient registry,
     ResiliencePipelineProvider<string> resiliencePipelines,
     ILogger<ClusterUpdateCoordinator> logger) : BackgroundService {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -183,36 +184,39 @@ public sealed class ClusterUpdateCoordinator(
         var local = await updaterClient.GetLocalStatusAsync(update.Id, desiredDigest, cancellationToken);
         if (local.Status == UpdaterStatus.Failed)
             throw new InvalidOperationException($"Updater could not inspect local image: {local.Error}");
-        if (string.Equals(local.ImageDigest, desiredDigest, StringComparison.Ordinal))
+        if (string.Equals(local.ImageDigest, desiredDigest, StringComparison.Ordinal)) {
+            await updateService.CompleteCatchupAsync(localTag, update.Id, desiredDigest, cancellationToken);
             return false;
+        }
 
-        var catchup = CreateRequest(update, desiredDigest, Guid.NewGuid());
-        var status = await updaterClient.GetStatusAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
-        if (Matches(catchup, status) && status.Status == UpdaterStatus.Running)
+        var status = await updaterClient.GetStatusAsync(update.Id, desiredDigest, cancellationToken);
+        if (status.Status == UpdaterStatus.Running)
             return true;
-        if (Matches(catchup, status) && status.Status == UpdaterStatus.Prepared)
-            return await StartCatchupAsync(catchup, cancellationToken);
 
-        var prepared = await updaterClient.PrepareAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
-        if (prepared.Status is UpdaterStatus.Prepared or UpdaterStatus.Succeeded)
-            return await StartCatchupAsync(catchup, cancellationToken);
-        throw new InvalidOperationException($"Updater could not prepare catch-up image: {prepared.Error}");
-    }
-
-    private static ClusterUpdateResponse CreateRequest(ClusterUpdateResponse source, string imageDigest, Guid id) {
-        return new ClusterUpdateResponse {
-            Id = id, ImageDigest = imageDigest, DesiredImageDigest = imageDigest,
-            Status = source.Status, Nodes = source.Nodes, CurrentNodeTag = source.CurrentNodeTag,
-            Error = source.Error
-        };
-    }
-
-    private async Task<bool> StartCatchupAsync(ClusterUpdateResponse catchup,
-        CancellationToken cancellationToken) {
-        var started = await updaterClient.StartAsync(catchup.Id, catchup.ImageDigest, cancellationToken);
-        if (started.Status is UpdaterStatus.Running) return true;
-        if (started.Status is UpdaterStatus.Succeeded or UpdaterStatus.Failed)
+        var image = local.ImageInfo;
+        if (image?.CreatedAt is not { } currentCreated || string.IsNullOrEmpty(image.ImageRepository)) {
+            logger.LogWarning("Skipping automatic catch-up on node {NodeTag}: current image build time is unknown",
+                localTag);
             return false;
+        }
+
+        var targetCreated =
+            await registry.GetCreatedAsync(image.ImageRepository, desiredDigest, image, cancellationToken);
+        if (targetCreated is null || targetCreated <= currentCreated) {
+            logger.LogInformation(
+                "Skipping automatic catch-up on node {NodeTag}: target image is not known to be newer, current {CurrentCreated}, target {TargetCreated}, digest {ImageDigest}",
+                localTag, currentCreated, targetCreated, desiredDigest);
+            return false;
+        }
+
+        var prepared = await updaterClient.PrepareAsync(update.Id, desiredDigest, cancellationToken);
+        if (prepared.UpdateId != update.Id || prepared.ImageDigest != desiredDigest ||
+            prepared.Status is not (UpdaterStatus.Prepared or UpdaterStatus.Succeeded))
+            throw new InvalidOperationException($"Updater could not prepare catch-up image: {prepared.Error}");
+        var started = await updaterClient.StartAsync(update.Id, desiredDigest, cancellationToken);
+        if (started.UpdateId == update.Id && started.ImageDigest == desiredDigest &&
+            started.Status is UpdaterStatus.Running or UpdaterStatus.Succeeded)
+            return true;
         throw new InvalidOperationException($"Updater could not start catch-up: {started.Error}");
     }
 

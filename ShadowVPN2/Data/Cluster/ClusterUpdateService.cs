@@ -251,6 +251,31 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
         }
     }
 
+    public async Task CompleteCatchupAsync(string localTag, Guid updateId, string imageDigest,
+        CancellationToken cancellationToken) {
+        while (true) {
+            using var session = documentStore.OpenAsyncSession(new SessionOptions {
+                TransactionMode = TransactionMode.ClusterWide
+            });
+            var current = await session.LoadAsync<ClusterUpdateDocument>(ClusterUpdateDocument.DocumentId,
+                cancellationToken);
+            if (current?.State is not { } state || state.Id != updateId ||
+                (state.DesiredImageDigest ?? state.ImageDigest) != imageDigest)
+                return;
+            var node = state.Nodes.FirstOrDefault(node => node.NodeTag == localTag);
+            if (node?.Status != ClusterUpdateNodeStatus.Skipped) return;
+            node.Status = ClusterUpdateNodeStatus.Completed;
+            node.Error = null;
+            node.CompletedAt = DateTimeOffset.UtcNow;
+            try {
+                await session.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (ConcurrencyException) {
+            }
+        }
+    }
+
     public async Task<ClusterUpdateResponse> CompleteAlreadyUpdatedLocalAsync(string localTag,
         Guid updateId, CancellationToken cancellationToken) {
         while (true) {

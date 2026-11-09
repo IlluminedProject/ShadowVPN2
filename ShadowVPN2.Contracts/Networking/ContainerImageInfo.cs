@@ -6,4 +6,5 @@ public sealed class ContainerImageInfo {
     public string? Os { get; set; }
     public string? Architecture { get; set; }
     public string? Variant { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
 }

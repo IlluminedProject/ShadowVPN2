@@ -13,8 +13,8 @@ using Raven.Client.Documents.Session;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Infrastructure.Configurations;
-using ClusterUpdateNodeStatus = ShadowVPN2.Data.Cluster.ClusterUpdateNodeStatus;
 using Xunit;
+using ClusterUpdateNodeStatus = ShadowVPN2.Data.Cluster.ClusterUpdateNodeStatus;
 
 namespace ShadowVPN2.Tests;
 
@@ -28,6 +28,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
         var attempts = new AttemptLogger();
         var services = new ServiceCollection();
         services.AddLogging(logging => logging.AddProvider(attempts));
+        services.AddHttpClient();
         services.AddResiliencePipeline("cluster-update", pipeline => pipeline
             .AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 1, Delay = TimeSpan.FromMilliseconds(20) })
             .AddTimeout(TimeSpan.FromSeconds(10)));
@@ -37,6 +38,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             Options.Create(new UpdaterOptions { SocketPath = "/nonexistent/updater.sock" }),
             provider.GetRequiredService<ILogger<UpdaterClient>>());
         using var coordinator = new ClusterUpdateCoordinator(updateService, store, mockUpdaterClient,
+            new RegistryImageClient(provider.GetRequiredService<IHttpClientFactory>()),
             provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
             provider.GetRequiredService<ILogger<ClusterUpdateCoordinator>>());
         var requests = 0;
@@ -124,6 +126,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
         var attempts = new AttemptLogger();
         var services = new ServiceCollection();
         services.AddLogging(logging => logging.AddProvider(attempts));
+        services.AddHttpClient();
         services.AddResiliencePipeline("cluster-update", pipeline => pipeline
             .AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 1, Delay = TimeSpan.FromMilliseconds(20) })
             .AddTimeout(TimeSpan.FromSeconds(10)));
@@ -133,6 +136,7 @@ public sealed class ClusterUpdateCoordinatorTests(RavenServerFixture server) : I
             Options.Create(new UpdaterOptions { SocketPath = "/nonexistent/updater.sock" }),
             provider.GetRequiredService<ILogger<UpdaterClient>>());
         using var coordinator = new ClusterUpdateCoordinator(service, store, mockUpdaterClient,
+            new RegistryImageClient(provider.GetRequiredService<IHttpClientFactory>()),
             provider.GetRequiredService<ResiliencePipelineProvider<string>>(),
             provider.GetRequiredService<ILogger<ClusterUpdateCoordinator>>());
         var state = new ClusterUpdateState {
