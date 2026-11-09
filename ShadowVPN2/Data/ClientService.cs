@@ -31,15 +31,10 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         if (!includeAllUsers)
             query = query.Where(c => c.UserId == userId);
 
-        var clients = await query
-            .OrderBy(c => c.Id)
-            .ToListAsync(ct);
+        var clients = await query.ToListAsync(ct);
 
-        // RavenDB cannot translate a computed boolean expression used as an order key.
-        // Apply this presentation-only ordering after the query has executed.
-        return includeAllUsers
-            ? clients.OrderByDescending(c => c.UserId == userId).ThenBy(c => c.Id).ToList()
-            : clients;
+        return clients.OrderByDescending(c => includeAllUsers && c.UserId == userId)
+            .ThenBy(GetAddressSortKey).ToList();
     }
 
     public async Task<IReadOnlyList<EntityClient>> GetClientsByUserNumberAsync(int userNumber,
@@ -49,7 +44,7 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         // We can use a starts-with query on the ID.
         var results = await session.Advanced.LoadStartingWithAsync<EntityClient>($"Clients/{userNumber}/", null, 0,
             int.MaxValue, null, null, ct);
-        return results.ToList().AsReadOnly();
+        return results.OrderBy(GetAddressSortKey).ToArray();
     }
 
     public async Task<EntityClient?> GetClientAsync(string clientId, string userId, bool allowAllUsers = false,
@@ -251,6 +246,12 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
         }
     }
 
+    private static (int UserNumber, int ClientNumber) GetAddressSortKey(EntityClient client) {
+        var id = client.Id.AsSpan("Clients/".Length);
+        var separator = id.IndexOf('/');
+        return (int.Parse(id[..separator]), int.Parse(id[(separator + 1)..]));
+    }
+
     private static bool HasNaiveProxyCredentials(NaiveProxyClientSettings? settings) {
         return !string.IsNullOrWhiteSpace(settings?.Username) && !string.IsNullOrWhiteSpace(settings.Password);
     }
@@ -309,8 +310,8 @@ public class ClientService(IDocumentStore documentStore, ILogger<ClientService> 
                 var prefix = $"Clients/{userNumber}/";
                 _clients = IncludeAllUsers
                     ? _clients.Where(c => !c.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                        .Concat(clients).OrderByDescending(c => c.UserId == UserId).ThenBy(c => c.Id).ToArray()
-                    : clients;
+                        .Concat(clients).OrderByDescending(c => c.UserId == UserId).ThenBy(GetAddressSortKey).ToArray()
+                    : clients.OrderBy(GetAddressSortKey).ToArray();
                 if (ClientsUpdated != null)
                     await ClientsUpdated.Invoke(_clients);
             }
