@@ -66,13 +66,7 @@
                                 <div class="text-secondary small">@DomainStatusText(node.DomainStatus.State)</div>
                             }
                         </td>
-                        <td>
-                            <code class="text-break">@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code>
-                            @if (node.NetworkCheckedAt is { } networkCheckedAt)
-                            {
-                                <div class="text-secondary small">Network: @AgeText(networkCheckedAt)</div>
-                            }
-                        </td>
+                        <td><code class="text-break">@(node.PublicIpv4 ?? node.PublicIpv6 ?? "—")</code></td>
                         <td><code class="text-break">@node.AwgMeshIp</code></td>
                         <td>
                             @foreach (var route in _protocolRoutes.Where(route => route.NodeId == node.NodeId &&
@@ -82,14 +76,7 @@
                                 <div><code class="text-break">@route.Domain</code></div>
                             }
                         </td>
-                        <td>
-                            @(node.IsPending ? "Pending" : "Joined")
-                            <div class="text-secondary small">Runtime: @RuntimeStatusText(node.RuntimeStatus)</div>
-                            @if (node.RuntimeHeartbeatAt is { } heartbeatAt)
-                            {
-                                <div class="text-secondary small">Heartbeat: @AgeText(heartbeatAt)</div>
-                            }
-                        </td>
+                        <td>@(node.IsPending ? "Pending" : "Joined")</td>
                         <td>
                             <div class="actions table-actions">
                                 @if (node.IsPending)
@@ -625,22 +612,6 @@
         {
             _busy = false;
         }
-    }
-
-    private static string RuntimeStatusText(NodeRuntimeStatus status)
-    {
-        return status switch
-        {
-                NodeRuntimeStatus.Fresh => "Fresh",
-                NodeRuntimeStatus.Stale => "Stale",
-                _ => "No data"
-        };
-    }
-
-    private static string AgeText(DateTimeOffset timestamp)
-    {
-        var age = DateTimeOffset.UtcNow - timestamp;
-        return age < TimeSpan.FromSeconds(1) ? "just now" : $"{age.TotalMinutes:0.#} min ago";
     }
 
     public async ValueTask DisposeAsync()
