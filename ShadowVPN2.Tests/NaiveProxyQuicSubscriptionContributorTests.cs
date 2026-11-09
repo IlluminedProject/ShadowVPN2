@@ -34,7 +34,7 @@ public sealed class NaiveProxyQuicSubscriptionContributorTests {
         var client = new EntityClient { Name = "device", NaiveProxy = credentials };
 
         var connection = await contributor.CreateAsync(client, settings, HostName.Parse("203.0.113.10"),
-            HostName.Parse("node.example.com"));
+            HostName.Parse("node.example.com"), SubscriptionGenerationContext.Random);
 
         var naive = connection.Should().BeOfType<NaiveProxyConnectionInfo>().Subject;
         contributor.Protocol.Should().Be(settings.Protocol);

@@ -10,7 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Controllers;
+using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Data.Subscription.Exporters;
+using ShadowVPN2.Data.Subscription.Models.Connections;
 using ShadowVPN2.Data.Subscription.Renderers;
 using ShadowVPN2.Data.Subscription.Services;
 using ShadowVPN2.Infrastructure.Middleware;
@@ -44,7 +46,7 @@ public sealed class SubscriptionHttpTests {
 
         using var fallback = await host.Client.GetAsync(path);
         var links = Encoding.UTF8.GetString(Convert.FromBase64String(await fallback.Content.ReadAsStringAsync()));
-        Assert.StartsWith("hysteria2://", links);
+        Assert.Contains("hysteria2://", links);
         Assert.Equal("device", Encoding.UTF8.GetString(Convert.FromBase64String(
             Assert.Single(fallback.Headers.GetValues("profile-title"))["base64:".Length..])));
         Assert.Equal(new Uri(host.Client.BaseAddress!, path).AbsoluteUri,
@@ -112,6 +114,27 @@ public sealed class SubscriptionHttpTests {
         Assert.DoesNotContain("<html", await response.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task Wireguard_subscription_ports_are_stable_and_hwid_controls_announcement() {
+        await using var host = await SubscriptionHost.StartAsync();
+        var path = $"/s/{SubscriptionHost.Id}/base64";
+        using var first = await host.Client.GetAsync(path);
+        using var second = await host.Client.GetAsync(path);
+        Assert.Equal(await first.Content.ReadAsStringAsync(), await second.Content.ReadAsStringAsync());
+        var announcement = Encoding.UTF8.GetString(Convert.FromBase64String(
+            Assert.Single(first.Headers.GetValues("announce"))["base64:".Length..]));
+        Assert.Contains("Enable sending HWID", announcement);
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("x-hwid", "device-1");
+        using var device = await host.Client.SendAsync(request);
+        using var changedOs = new HttpRequestMessage(HttpMethod.Get, path);
+        changedOs.Headers.Add("x-hwid", "device-1");
+        changedOs.Headers.Add("x-ver-os", "updated-version");
+        using var updated = await host.Client.SendAsync(changedOs);
+        Assert.Equal(await device.Content.ReadAsStringAsync(), await updated.Content.ReadAsStringAsync());
+        Assert.False(device.Headers.Contains("announce"));
+    }
+
     private sealed class SubscriptionHost(WebApplication app, HttpClient client)
         : IAsyncDisposable {
         public static readonly Guid Id = Guid.Parse("b8bba7a4-88e2-4af5-a13b-c40f634eb431");
@@ -146,26 +169,46 @@ public sealed class SubscriptionHttpTests {
 
 
     private sealed class SubscriptionSource : ISubscriptionSource {
-        public Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) => Task.FromResult(
-            subscriptionId != SubscriptionHost.Id
-                ? null
-                : new SubscriptionResponse {
-                    ClientName = "device",
-                    Protocols = [
-                        new ProtocolSubscription {
-                            Protocol = "Hysteria2",
-                            Endpoints = [
-                                new SubscriptionEndpoint {
-                                    Name = "Main", Address = HostAddress.Parse("vpn.example.com"),
-                                    Connection = new Hysteria2ConnectionInfo {
-                                        ServerAddress = HostName.Parse("vpn.example.com"),
-                                        PortBinding = new PortBinding(443),
-                                        Password = "password"
+        public Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId,
+            SubscriptionGenerationContext context) {
+            return Task.FromResult(
+                subscriptionId != SubscriptionHost.Id
+                    ? null
+                    : new SubscriptionResponse {
+                        ClientName = "device",
+                        Protocols = [
+                            new ProtocolSubscription {
+                                Protocol = "Hysteria2",
+                                Endpoints = [
+                                    new SubscriptionEndpoint {
+                                        Name = "Main", Address = HostAddress.Parse("vpn.example.com"),
+                                        Connection = new Hysteria2ConnectionInfo {
+                                            ServerAddress = HostName.Parse("vpn.example.com"),
+                                            PortBinding = new PortBinding(443),
+                                            Password = "password"
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ]
-                });
+                                ]
+                            },
+                            new ProtocolSubscription {
+                                Protocol = "WireGuard",
+                                Endpoints = [
+                                    new SubscriptionEndpoint {
+                                        Name = "AWG", Address = HostAddress.Parse("vpn.example.com"),
+                                        Connection = new WireGuardConnectionInfo {
+                                            IsAmneziaWg = false,
+                                            ServerAddress = HostName.Parse("vpn.example.com"),
+                                            ServerPort = context.SelectWireGuardPort(new PortBinding(10000, 65535),
+                                                "Clients/1/2", SubscriptionHost.Id, HostName.Parse("vpn.example.com")),
+                                            PrivateKey = Convert.ToBase64String(new byte[32]),
+                                            ServerPublicKey = Convert.ToBase64String(new byte[32]),
+                                            AssignedIp = "100.64.1.2", Mtu = 1280
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    });
+        }
     }
 }

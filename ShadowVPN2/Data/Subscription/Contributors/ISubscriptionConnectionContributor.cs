@@ -13,5 +13,6 @@ public interface ISubscriptionConnectionContributor {
         ProtocolGlobalSettings settings,
         HostName host,
         HostName sni,
+        SubscriptionGenerationContext context,
         CancellationToken cancellationToken = default);
 }

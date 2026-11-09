@@ -17,7 +17,8 @@ public sealed class NaiveProxySubscriptionContributor(
     }
 
     public async Task<ProtocolConnectionInfo?> CreateAsync(EntityClient client, ProtocolGlobalSettings settings,
-        HostName host, HostName sni, CancellationToken cancellationToken = default) {
+        HostName host, HostName sni, SubscriptionGenerationContext context,
+        CancellationToken cancellationToken = default) {
         if (!client.IsEnabled) return null;
 
         var naiveSettings = settings as NaiveProxyGlobalSettings

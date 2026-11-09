@@ -1,4 +1,6 @@
+using System.Text;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Extensions;
 using ShadowVPN2.Data.Subscription;
 using ShadowVPN2.Data.Subscription.Models.Rules;
 using ShadowVPN2.Data.Subscription.Renderers;
@@ -33,21 +35,26 @@ public sealed class SubscriptionResponseMiddleware(RequestDelegate next) {
             context.Response.Headers.Allow = "GET, HEAD";
             return;
         }
+
         if (explicitFormat is null && responseType == SubscriptionResponseType.Block) {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;
         }
+
         if (explicitFormat is null && responseType == SubscriptionResponseType.NotFound) {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
+
         var selectedType = explicitFormat is null ? responseType : SubscriptionFormatParser.Parse(explicitFormat);
         if (selectedType is null || !renderers.TryGet(selectedType.Value, out var renderer)) {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
-        var subscription = await subscriptions.GetSubscriptionAsync(id);
+        var hardwareId = context.Request.Headers["x-hwid"].ToString();
+        var subscription = await subscriptions.GetSubscriptionAsync(id,
+            new SubscriptionGenerationContext(true, hardwareId));
         if (subscription is null) {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -64,14 +71,23 @@ public sealed class SubscriptionResponseMiddleware(RequestDelegate next) {
                 await context.Response.WriteAsync(exception.Message, context.RequestAborted);
             return;
         }
-        context.Response.Headers["profile-title"] = "base64:" +
-            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(subscription.ClientName));
-        context.Response.Headers["profile-web-page-url"] = Microsoft.AspNetCore.Http.Extensions.UriHelper.BuildAbsolute(
+
+        if (string.IsNullOrWhiteSpace(hardwareId)) {
+            context.Response.Headers["announce"] = EncodeHeader(
+                "Enable sending HWID to select ports individually for each device. Without HWID, devices using the same subscription share the same port selection.");
+        }
+
+        context.Response.Headers["profile-title"] = EncodeHeader(subscription.ClientName);
+        context.Response.Headers["profile-web-page-url"] = UriHelper.BuildAbsolute(
             context.Request.Scheme, context.Request.Host, context.Request.PathBase, $"/s/{id}");
         context.Response.ContentType = renderer.Descriptor.ContentType;
-        context.Response.ContentLength = System.Text.Encoding.UTF8.GetByteCount(content);
+        context.Response.ContentLength = Encoding.UTF8.GetByteCount(content);
         if (!HttpMethods.IsHead(context.Request.Method))
             await context.Response.WriteAsync(content, context.RequestAborted);
+    }
+
+    private static string EncodeHeader(string value) {
+        return "base64:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
     }
 
     private static bool TryParsePath(PathString path, out Guid id, out string? format) {

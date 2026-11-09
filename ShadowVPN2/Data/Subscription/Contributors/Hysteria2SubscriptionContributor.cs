@@ -17,6 +17,7 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
         ProtocolGlobalSettings settings,
         HostName host,
         HostName sni,
+        SubscriptionGenerationContext context,
         CancellationToken cancellationToken = default) {
         if (client.Hysteria2 is null)
             return Task.FromResult<ProtocolConnectionInfo?>(null);

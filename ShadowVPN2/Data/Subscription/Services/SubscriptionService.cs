@@ -19,7 +19,8 @@ public class SubscriptionService(
     GlobalConfigurationService globalConfigService,
     FreeTurnClientIdService freeTurnClientIdService,
     IEnumerable<ISubscriptionConnectionContributor> contributors) : ISubscriptionSource {
-    public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId) {
+    public async Task<SubscriptionResponse?> GetSubscriptionAsync(Guid subscriptionId,
+        SubscriptionGenerationContext context) {
         var client = await session.Query<EntityClient>()
             .FirstOrDefaultAsync(c => c.SubscriptionId == subscriptionId);
 
@@ -50,7 +51,7 @@ public class SubscriptionService(
                     mainHost,
                     mainHost.Host,
                     true,
-                    "Main");
+                    "Main", context);
                 if (mainEndpoint is not null) {
                     AddTransportConnections(mainEndpoint, settings, freeTurnTransports, client, mainHost);
                     if (mainEndpoint.PublishDirectConnection || mainEndpoint.Transports.Count > 0)
@@ -78,7 +79,7 @@ public class SubscriptionService(
                     host,
                     sni,
                     false,
-                    string.IsNullOrWhiteSpace(node.Name) ? host.ToString() : node.Name);
+                    string.IsNullOrWhiteSpace(node.Name) ? host.ToString() : node.Name, context);
                 if (nodeEndpoint is not null) {
                     AddTransportConnections(nodeEndpoint, settings, freeTurnTransports, client, host);
                     if (nodeEndpoint.PublishDirectConnection || nodeEndpoint.Transports.Count > 0)
@@ -108,8 +109,8 @@ public class SubscriptionService(
         HostAddress host,
         HostName sni,
         bool isMain,
-        string name) {
-        var connection = await contributor.CreateAsync(client, settings, host.Host, sni);
+        string name, SubscriptionGenerationContext context) {
+        var connection = await contributor.CreateAsync(client, settings, host.Host, sni, context);
         if (connection is null)
             return null;
 

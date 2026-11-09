@@ -8,14 +8,17 @@ using Contract = ShadowVPN2.Contracts.Subscriptions;
 
 namespace ShadowVPN2.Frontend;
 
-public sealed class SubscriptionApplicationService(ISubscriptionSource subscriptionService,
-    SubscriptionProtocolExporterRegistry exporters, SubscriptionRendererRegistry renderers)
+public sealed class SubscriptionApplicationService(
+    ISubscriptionSource subscriptionService,
+    SubscriptionProtocolExporterRegistry exporters,
+    SubscriptionRendererRegistry renderers)
     : ISubscriptionApplicationService {
     public Task<IReadOnlyList<Contract.SubscriptionFormatDescriptor>> GetFormatsAsync(
         CancellationToken cancellationToken = default) => Task.FromResult(renderers.Formats);
+
     public async Task<Contract.SubscriptionResponse?> GetSubscriptionAsync(Guid id,
         CancellationToken cancellationToken = default) {
-        var response = await subscriptionService.GetSubscriptionAsync(id);
+        var response = await subscriptionService.GetSubscriptionAsync(id, SubscriptionGenerationContext.Random);
         if (response is null)
             return null;
 
@@ -30,7 +33,8 @@ public sealed class SubscriptionApplicationService(ISubscriptionSource subscript
                     PublishDirectConnection = endpoint.PublishDirectConnection,
                     Connection = exporters.GetRequired(endpoint.Connection).ToContract(endpoint.Connection),
                     ShareUrl = endpoint.PublishDirectConnection
-                        ? exporters.GetRequired(endpoint.Connection).CreateShareUrl(endpoint.Connection, response.ClientName)
+                        ? exporters.GetRequired(endpoint.Connection)
+                            .CreateShareUrl(endpoint.Connection, response.ClientName)
                         : null,
                     Transports = endpoint.Transports.Select(MapTransport).ToArray()
                 }).ToArray()
