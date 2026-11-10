@@ -3,9 +3,12 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Changes;
 using Raven.Client.Documents.Operations.CompareExchange;
 using Raven.Client.Documents.Session;
+using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Data.Migrations;
+using ShadowVPN2.Entities;
 using ShadowVPN2.Exceptions;
 using Xunit;
 using ClusterUpdateNodeStatus = ShadowVPN2.Contracts.Networking.ClusterUpdateNodeStatus;
@@ -268,6 +271,54 @@ public sealed class ClusterUpdateStorageTests(RavenServerFixture server) : IClas
         await service.CancelAsync(started.Id, timeout.Token);
         Assert.Equal(ClusterUpdateDocument.DocumentId, (await notification.Task.WaitAsync(timeout.Token)).Id);
         Assert.Equal(ClusterUpdateStatus.Cancelled, (await service.GetAsync(timeout.Token))!.Status);
+    }
+
+    [RavenServerFact]
+    public async Task Start_skips_missing_and_expired_heartbeats_and_advances_to_first_online_node() {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        using var store = await server.CreateStoreAsync(timeout.Token);
+        var topology = await store.Maintenance.Server.SendAsync(new GetClusterTopologyOperation(), timeout.Token);
+        // The real server persists the operation; the supplied leader view has a voting quorum.
+        topology.Topology.Members.Clear();
+        var tags = new[] { "NAA", "NAB", "NAC", "NAD" };
+        foreach (var tag in tags)
+            topology.Topology.Members[tag] = store.Urls[0];
+        topology.NodeTag = topology.Leader = "NAD";
+        foreach (var tag in tags.Take(3))
+            topology.Status[tag] = new NodeStatus { Connected = true };
+        var now = DateTimeOffset.UtcNow;
+        using (var session = store.OpenAsyncSession()) {
+            for (var number = 0; number < tags.Length; number++) {
+                var nodeId = Guid.NewGuid();
+                await session.StoreAsync(new EntityClusterNode {
+                    Id = $"EntityClusterNodes/{number}", NodeId = nodeId, Name = tags[number]
+                }, timeout.Token);
+                if (number is 0 or 2) {
+                    await session.StoreAsync(new EntityNodeRuntimeState {
+                        Id = NodeStatusReporter.GetStateId(nodeId),
+                        NodeId = nodeId, InstanceId = "test-instance",
+                        HeartbeatAt = number == 0 ? now.AddMinutes(-5) : now
+                    }, timeout.Token);
+                }
+            }
+
+            await session.SaveChangesAsync(timeout.Token);
+        }
+
+        var service = new ClusterUpdateService(store);
+        var started = await service.StartAsync(new StartClusterUpdateRequest {
+            BackwardCompatible = true, ImageDigest = Digest
+        }, topology, "NAD", timeout.Token);
+
+        Assert.Equal(ClusterUpdateNodeStatus.Skipped, started.Nodes.Single(node => node.NodeTag == "NAA").Status);
+        Assert.Equal(ClusterUpdateNodeStatus.Skipped, started.Nodes.Single(node => node.NodeTag == "NAB").Status);
+        Assert.Equal(ClusterUpdateNodeStatus.Preparing, started.Nodes.Single(node => node.NodeTag == "NAC").Status);
+        Assert.Equal(ClusterUpdateNodeStatus.Preparing, started.Nodes.Single(node => node.NodeTag == "NAD").Status);
+        Assert.Equal("NAC", started.CurrentNodeTag);
+        var persisted = await service.GetAsync(timeout.Token);
+        Assert.Equal(Digest, persisted!.DesiredImageDigest);
+        Assert.Equal(started.Nodes.Select(node => node.Status), persisted.Nodes.Select(node => node.Status));
+        Assert.Equal("NAC", persisted.CurrentNodeTag);
     }
 
     private static async Task MigrateAsync(IDocumentStore store, CancellationToken cancellationToken) {

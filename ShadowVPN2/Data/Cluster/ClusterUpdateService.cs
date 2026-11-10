@@ -6,6 +6,7 @@ using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
 using Raven.Client.Http;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Entities;
 using ShadowVPN2.Exceptions;
 using SessionOptions = Raven.Client.Documents.Session.SessionOptions;
 
@@ -83,20 +84,39 @@ public sealed class ClusterUpdateService(IDocumentStore documentStore, ILogger<C
         if (current?.State is { } previous)
             await RecordHistoryAsync(previous, cancellationToken);
 
+        var configuredNodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>(
+            "EntityClusterNodes/", pageSize: int.MaxValue, token: cancellationToken);
+        var runtimeStates = await session.LoadAsync<EntityNodeRuntimeState>(
+            configuredNodes.Select(node => NodeStatusReporter.GetStateId(node.NodeId)), cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var onlineTags = configuredNodes.Where(node => runtimeStates.TryGetValue(
+                                                           NodeStatusReporter.GetStateId(node.NodeId),
+                                                           out var runtime) && runtime is not null &&
+                                                       now - runtime.HeartbeatAt <= TimeSpan.FromSeconds(90))
+            .Select(node => ClusterService.GetNodeTag(node.Number)).ToHashSet(StringComparer.Ordinal);
+        onlineTags.Add(localNodeTag);
         var state = new ClusterUpdateState {
             Id = Guid.NewGuid(),
             ImageDigest = request.ImageDigest,
             DesiredImageDigest = request.ImageDigest,
             Nodes = orderedMembers.Select(tag =>
                     new ClusterUpdateNodeState {
-                        NodeTag = tag, Status = ClusterUpdateNodeStatus.Preparing,
-                        PreparingAt = DateTimeOffset.UtcNow
+                        NodeTag = tag,
+                        Status = onlineTags.Contains(tag)
+                            ? ClusterUpdateNodeStatus.Preparing
+                            : ClusterUpdateNodeStatus.Skipped,
+                        PreparingAt = onlineTags.Contains(tag) ? now : null,
+                        CompletedAt = onlineTags.Contains(tag) ? null : now,
+                        Error = onlineTags.Contains(tag) ? null : "Node has no fresh heartbeat"
                     })
                 .ToList(),
             Status = ClusterUpdateStatus.Preparing,
             StartedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+        while (state.CurrentNodeIndex < state.Nodes.Count &&
+               state.Nodes[state.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Skipped)
+            state.CurrentNodeIndex++;
         if (current is null) {
             await session.StoreAsync(new ClusterUpdateDocument { State = state }, ClusterUpdateDocument.DocumentId,
                 cancellationToken);
