@@ -91,3 +91,8 @@
 .nav-scrollable ::deep .sidebar-version {
     margin-top: auto;
 }
+
+.nav-item ::deep .sidebar-version__text {
+    min-width: 0;
+    flex: 1;
+}
