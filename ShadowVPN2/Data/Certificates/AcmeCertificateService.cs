@@ -38,7 +38,7 @@ public sealed class AcmeCertificateService(
             var legacyRecords = existing.Where(entity => entity.Domain is null).ToArray();
             if (legacyRecords.Length > 0) {
                 using var cleanup = documentStore.OpenAsyncSession();
-                foreach (var legacy in legacyRecords) cleanup.Delete(legacy);
+                foreach (var legacy in legacyRecords) cleanup.Delete(legacy.Id);
                 await cleanup.SaveChangesAsync(cancellationToken);
             }
 
@@ -49,7 +49,7 @@ public sealed class AcmeCertificateService(
                 .ToArray();
             if (staleRecords.Length > 0) {
                 using var cleanup = documentStore.OpenAsyncSession();
-                foreach (var stale in staleRecords) cleanup.Delete(stale);
+                foreach (var stale in staleRecords) cleanup.Delete(stale.Id);
                 await cleanup.SaveChangesAsync(cancellationToken);
             }
 
