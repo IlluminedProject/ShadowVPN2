@@ -14,12 +14,15 @@ public sealed class NodeStatusReporter(
     IOptions<LocalConfiguration> localConfiguration,
     IEnumerable<INodeStatusCheck> checks,
     UpdaterClient updaterClient,
+    NodeDomainDnsCheck domainDnsCheck,
     ILogger<NodeStatusReporter> logger) : BackgroundService {
     private static readonly TimeSpan PublishInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(10);
     private readonly string _instanceId = Guid.NewGuid().ToString("N");
+    private readonly SemaphoreSlim _publishRequested = new(0, 1);
     private readonly ConcurrentDictionary<string, NodeCheckResult> _results = new(StringComparer.Ordinal);
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
+    private volatile DnsCheckOutcome _dnsOutcome = new(null, null);
     private NodeRuntimeMetadata _metadata = new();
 
     public static string GetStateId(Guid nodeId) {
@@ -41,12 +44,13 @@ public sealed class NodeStatusReporter(
         await LoadMetadataAsync(stoppingToken);
         var registered = checks.ToDictionary(check => check.Id, StringComparer.Ordinal);
         var workers = registered.Values
-            .Select(check => Task.Run(() => RunCheckAsync(check, stoppingToken), stoppingToken)).ToArray();
+            .Select(check => Task.Run(() => RunCheckAsync(check, stoppingToken), stoppingToken))
+            .Append(Task.Run(() => RunDnsCheckAsync(stoppingToken), stoppingToken)).ToArray();
         try {
-            using var timer = new PeriodicTimer(PublishInterval);
-            do {
+            while (!stoppingToken.IsCancellationRequested) {
                 await PublishAsync(stoppingToken);
-            } while (await timer.WaitForNextTickAsync(stoppingToken));
+                await _publishRequested.WaitAsync(PublishInterval, stoppingToken);
+            }
         }
         finally {
             await Task.WhenAll(workers);
@@ -82,6 +86,37 @@ public sealed class NodeStatusReporter(
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
+    private async Task RunDnsCheckAsync(CancellationToken stoppingToken) {
+        using var timer = new PeriodicTimer(PublishInterval);
+        do {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            timeout.CancelAfter(CheckTimeout);
+            try {
+                var snapshot = await domainDnsCheck.CheckAsync(timeout.Token);
+                timeout.Token.ThrowIfCancellationRequested();
+                _dnsOutcome = new DnsCheckOutcome(snapshot, null);
+                if (snapshot?.State == DomainValidationState.LookupFailed)
+                    logger.LogWarning("Node DNS lookup failed: {Error}", snapshot.Error);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) {
+                return;
+            }
+            catch (Exception exception) {
+                logger.LogWarning(exception, "Node DNS check failed");
+                var now = DateTimeOffset.UtcNow;
+                _dnsOutcome = new DnsCheckOutcome(null, new NodeCheckResult {
+                    Status = NodeCheckStatus.Unknown,
+                    CheckedAt = now,
+                    ValidUntil = now.Add(PublishInterval),
+                    Message = exception is OperationCanceledException ? "DNS check timed out" : "DNS check failed"
+                });
+            }
+
+            if (_publishRequested.CurrentCount == 0)
+                _publishRequested.Release();
+        } while (await timer.WaitForNextTickAsync(stoppingToken));
+    }
+
     private async Task LoadMetadataAsync(CancellationToken stoppingToken) {
         try {
             var image = await updaterClient.GetImageInfoAsync(stoppingToken);
@@ -111,10 +146,28 @@ public sealed class NodeStatusReporter(
     private async Task PublishAsync(CancellationToken cancellationToken) {
         try {
             var nodeId = localConfiguration.Value.NodeId;
+            var dns = _dnsOutcome;
+            var results = new Dictionary<string, NodeCheckResult>(_results.ToArray());
+            if (dns.Snapshot is { } snapshot) {
+                results[NodeDomainDnsCheck.CheckId] = new NodeCheckResult {
+                    Status = snapshot.MatchesNode switch {
+                        true => NodeCheckStatus.Healthy,
+                        false => NodeCheckStatus.Unhealthy,
+                        null => NodeCheckStatus.Unknown
+                    },
+                    CheckedAt = snapshot.CheckedAt,
+                    ValidUntil = snapshot.ValidUntil,
+                    Message = snapshot.Error ?? snapshot.State.ToString()
+                };
+            }
+            else if (dns.Failure is { } failure) {
+                results[NodeDomainDnsCheck.CheckId] = failure;
+            }
+
             var state = new EntityNodeRuntimeState {
                 Id = GetStateId(nodeId), NodeId = nodeId, InstanceId = _instanceId,
                 StartedAt = _startedAt, HeartbeatAt = DateTimeOffset.UtcNow,
-                Metadata = _metadata, Checks = new Dictionary<string, NodeCheckResult>(_results.ToArray())
+                Metadata = _metadata, Checks = results, DomainDns = dns.Snapshot
             };
             using var session = documentStore.OpenAsyncSession();
             await session.StoreAsync(state, state.Id, cancellationToken);
@@ -126,4 +179,6 @@ public sealed class NodeStatusReporter(
             logger.LogWarning(exception, "Failed to publish node runtime state");
         }
     }
+
+    private sealed record DnsCheckOutcome(DomainCheckResponse? Snapshot, NodeCheckResult? Failure);
 }

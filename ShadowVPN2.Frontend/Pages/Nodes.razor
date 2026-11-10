@@ -73,7 +73,12 @@
                             <code class="text-break">@(node.Domain?.ToString() ?? "—")</code>
                             @if (node.DomainStatus is not null)
                             {
-                                <div class="text-secondary small">@DomainStatusText(node.DomainStatus.State)</div>
+                                <div class="text-secondary small">@DomainDnsDetails.StatusText(node.DomainStatus)</div>
+                            }
+                            else
+                            {
+                                <div
+                                    class="text-secondary small">@(node.Domain is null ? "No domain configured" : "Pending check")</div>
                             }
                         </td>
                         <td>
@@ -255,24 +260,20 @@
                         <h3 id="node-dns-heading" class="h5">DNS</h3>
                         <p class="small text-body-secondary">Check DNS saves a changed hostname before checking. Cancel
                             discards only changes that have not been saved.</p>
-                        <dl class="app-details">
-                            <dt>Status</dt>
-                            <dd>@(_editingNode.DomainStatus is null ? "Not checked" : DomainStatusText(_editingNode.DomainStatus.State))</dd>
-                            <dt>Resolved addresses</dt>
-                            <dd>
-                                @if (_editingNode.DomainStatus?.ResolvedAddresses.Count > 0)
-                                {
-                                    @foreach (var address in _editingNode.DomainStatus.ResolvedAddresses)
-                                    {
-                                        <div><code class="text-break">@address</code></div>
-                                    }
-                                }
-                                else
-                                {
-                                    <span>—</span>
-                                }
-                            </dd>
-                        </dl>
+                        <h4 class="h6">Node DNS status</h4>
+                        @if (_editingNode.DomainStatus is { } nodeDomainStatus)
+                        {
+                            <DomainDnsDetails Status="nodeDomainStatus"/>
+                        }
+                        else
+                        {
+                            <p class="text-body-secondary">@(_editingNode.Domain is null ? "No domain configured" : "Pending check")</p>
+                        }
+                        @if (_manualDomainCheck is { } manualDomainCheck)
+                        {
+                            <h4 class="h6">Manual DNS check</h4>
+                            <DomainDnsDetails Status="manualDomainCheck"/>
+                        }
                     </section>
                     <section aria-labelledby="node-certificates-heading">
                         <h3 id="node-certificates-heading" class="h5">Certificates</h3>
@@ -387,6 +388,7 @@
     private readonly PeriodicTimer _freshnessTimer = new(TimeSpan.FromSeconds(5));
     private Task? _freshnessTask;
     private NodeResponse? _editingNode;
+    private DomainCheckResponse? _manualDomainCheck;
     private UpdateNodeRequest _domainRequest = new();
     private EditContext? _domainEditContext;
     private readonly AddNodeForm _newNode = new();
@@ -406,6 +408,13 @@
     private string LoginUrl =>
         $"/Account/Login?returnUrl={Uri.EscapeDataString(new Uri(Navigation.Uri).PathAndQuery)}";
 
+    private void ApplyNodeUpdates(IReadOnlyList<NodeResponse> nodes)
+    {
+        _nodes = nodes.OrderBy(node => node.Number).ToArray();
+        if (_editingNode is { } editingNode)
+            _editingNode = _nodes.FirstOrDefault(node => node.NodeId == editingNode.NodeId);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -414,7 +423,7 @@
             _protocolRoutes = await NodesApi.GetProtocolDomainRoutesAsync();
             _subscription = await NodeRealtime.SubscribeAsync(nodes => InvokeAsync(() =>
             {
-                _nodes = nodes.OrderBy(node => node.Number).ToArray();
+                ApplyNodeUpdates(nodes);
                 StateHasChanged();
             }));
         }
@@ -524,6 +533,7 @@
             return;
 
         _editingNode = null;
+        _manualDomainCheck = null;
         _dialogError = null;
     }
 
@@ -531,6 +541,7 @@
     private async Task EditNodeAsync(NodeResponse node)
     {
         _editingNode = node;
+        _manualDomainCheck = null;
         _domainRequest = new UpdateNodeRequest { Name = node.Name, Domain = node.Domain };
         _domainEditContext = new EditContext(_domainRequest);
         _certificateDomains = null;
@@ -593,8 +604,7 @@
         {
             if (_domainRequest.Domain != _editingNode.Domain)
                 await NodesApi.UpdateAsync(_editingNode.NodeId, _domainRequest);
-            else
-                _editingNode.DomainStatus = await NodesApi.CheckDomainAsync(_editingNode.NodeId);
+            _manualDomainCheck = await NodesApi.CheckDomainAsync(_editingNode.NodeId);
             await ReloadAsync();
             _editingNode = _nodes.FirstOrDefault(node => node.NodeId == _editingNode.NodeId);
         }
@@ -616,20 +626,6 @@
         _protocolRoutes = await NodesApi.GetProtocolDomainRoutesAsync();
     }
 
-    private static string DomainStatusText(DomainValidationState state)
-    {
-        return state switch
-        {
-            DomainValidationState.Valid => "Domain points to this node",
-            DomainValidationState.PartialMatch => "Some DNS records point to this node",
-            DomainValidationState.NoDomain => "No domain configured",
-            DomainValidationState.PublicIpUnknown => "Public IP is unknown",
-            DomainValidationState.NoRecords => "No A/AAAA records",
-            DomainValidationState.Mismatch => "Domain points elsewhere",
-            DomainValidationState.LookupFailed => "DNS lookup failed",
-            _ => state.ToString()
-        };
-    }
 
     private void ConfirmDeleteNodeAsync(NodeResponse node)
     {

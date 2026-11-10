@@ -7,5 +7,7 @@ public enum DomainValidationState {
     PublicIpUnknown,
     NoRecords,
     Mismatch,
-    LookupFailed
+    LookupFailed,
+    NameNotFound,
+    NetworkStateStale
 }

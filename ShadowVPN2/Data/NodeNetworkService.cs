@@ -17,6 +17,9 @@ public sealed class NodeNetworkService(
     IServer server,
     IOptions<LocalConfiguration> localConfiguration,
     ILogger<NodeNetworkService> logger) : BackgroundService {
+    public static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan NetworkStateMaxAge = RefreshInterval * 2;
+
     public static string GetStatusId(Guid nodeId) {
         return $"NodeNetworkStatuses/{nodeId:D}";
     }
@@ -104,7 +107,7 @@ public sealed class NodeNetworkService(
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
-        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(15));
+        using var timer = new PeriodicTimer(RefreshInterval);
         while (!stoppingToken.IsCancellationRequested) {
             try {
                 await RefreshLocalAsync(stoppingToken);

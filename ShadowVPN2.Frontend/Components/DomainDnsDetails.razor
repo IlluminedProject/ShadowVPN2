@@ -1,0 +1,123 @@
+<dl class="app-details">
+    <dt>Domain</dt>
+    <dd><code class="text-break">@(Status.Domain?.ToString() ?? "—")</code></dd>
+    <dt>Status</dt>
+    <dd>@StatusText(Status)</dd>
+    <dt>Matches node</dt>
+    <dd>@(IsApplicable ? Status.MatchesNode switch { true => "Yes", false => "No", null => "Unknown" } : "Not applicable")</dd>
+    <dt>DNS lookup</dt>
+    <dd>@(IsApplicable ? Status.IsComplete ? "Complete" : "Incomplete" : "Not applicable")</dd>
+    <dt>DNS freshness</dt>
+    <dd>@(IsApplicable ? Status.ValidUntil <= DateTimeOffset.UtcNow ? "Expired" : "Fresh" : "Not applicable")</dd>
+    <dt>Checked</dt>
+    <dd>@Status.CheckedAt.ToString("u")</dd>
+    <dt>Valid until</dt>
+    <dd>@(IsApplicable ? Status.ValidUntil.ToString("u") : "Not applicable")</dd>
+    <dt>Expected IPv4</dt>
+    <dd><code class="text-break">@(Status.ExpectedIpv4 ?? "—")</code></dd>
+    <dt>Expected IPv6</dt>
+    <dd><code class="text-break">@(Status.ExpectedIpv6 ?? "—")</code></dd>
+    <dt>Network checked</dt>
+    <dd>@(Status.NetworkCheckedAt?.ToString("u") ?? "Unknown")</dd>
+    <dt>Observer node</dt>
+    <dd><code class="text-break">@(Status.ObserverNodeId?.ToString() ?? "Unknown")</code></dd>
+    <dt>A records</dt>
+    <dd>
+        @if (IsApplicable)
+        {
+            @DnsFamilyDetails(Status.A)
+        }
+        else
+        {
+            <span>Not applicable</span>
+        }
+    </dd>
+    <dt>AAAA records</dt>
+    <dd>
+        @if (IsApplicable)
+        {
+            @DnsFamilyDetails(Status.Aaaa)
+        }
+        else
+        {
+            <span>Not applicable</span>
+        }
+    </dd>
+    @if (!string.IsNullOrWhiteSpace(Status.Error))
+    {
+        <dt>Error</dt>
+        <dd class="text-break">@Status.Error</dd>
+    }
+</dl>
+
+@code {
+    [Parameter, EditorRequired] public DomainCheckResponse Status { get; set; } = default!;
+    private bool IsApplicable => Status.State != DomainValidationState.NoDomain;
+
+    public static string StatusText(DomainCheckResponse status)
+    {
+        var text = status.State switch
+        {
+            DomainValidationState.Valid => "Domain points to this node",
+            DomainValidationState.PartialMatch => "Some DNS records point to this node",
+            DomainValidationState.NoDomain => "No domain configured",
+            DomainValidationState.PublicIpUnknown => "Public IP is unknown",
+            DomainValidationState.NoRecords => "No A/AAAA records",
+            DomainValidationState.NameNotFound => "Domain name not found",
+            DomainValidationState.NetworkStateStale => "Node network information is stale",
+            DomainValidationState.Mismatch => "Domain points elsewhere",
+            DomainValidationState.LookupFailed => "DNS lookup failed",
+            _ => status.State.ToString()
+        };
+        return status.State != DomainValidationState.NoDomain && status.ValidUntil <= DateTimeOffset.UtcNow
+            ? $"Expired: {text}"
+            : text;
+    }
+
+    private static RenderFragment DnsFamilyDetails(DnsFamilyResult? family) => @<div>
+                                                                                   @if (family is null)
+                                                                                   {
+                                                                                       <span>Not checked</span>
+                                                                                   }
+                                                                                   else
+                                                                                   {
+                                                                                       @if (family.NameNotFound)
+                                                                                       {
+                                                                                           <div>Domain name not found
+                                                                                           </div>
+                                                                                       }
+
+                                                                                       @if (family.Addresses.Count == 0)
+                                                                                       {
+                                                                                           <div>No addresses</div>
+                                                                                       }
+                                                                                       else
+                                                                                       {
+                                                                                           @foreach (var address in family.Addresses)
+                                                                                           {
+                                                                                               <div>
+                                                                                                   <code
+                                                                                                       class="text-break">@address</code>
+                                                                                               </div>
+                                                                                           }
+                                                                                       }
+
+                                                                                       @foreach (var canonicalName in family.CanonicalNames)
+                                                                                       {
+                                                                                           <div>Canonical name: <code
+                                                                                                   class="text-break">@canonicalName</code>
+                                                                                           </div>
+                                                                                       }
+
+                                                                                       <div class="text-body-secondary">
+                                                                                           Valid
+                                                                                           until: @family.ValidUntil.ToString("u")</div>
+                                                                                       @if (!string.IsNullOrWhiteSpace(family.Error))
+                                                                                       {
+                                                                                           <div class="text-break">
+                                                                                               Error: @family.Error</div>
+                                                                                       }
+                                                                                   }
+                                                                               </div>;
+
+}

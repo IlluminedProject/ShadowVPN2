@@ -196,8 +196,12 @@ public class NodeService(
             .FirstOrDefaultAsync(candidate => candidate.NodeId == nodeId, cancellationToken);
         node = node.OrThrowNotFound("Node not found");
         var status = await nodeNetworkService.GetStatusAsync(nodeId, cancellationToken);
-        return await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4, status?.PublicIpv6,
-            cancellationToken);
+        var snapshot = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4, status?.PublicIpv6,
+            cancellationToken, status?.LastError is null ? status?.CheckedAt : null,
+            true);
+        if (node.Domain is not null && (status is null || status.LastError is not null))
+            snapshot = snapshot with { State = DomainValidationState.NetworkStateStale };
+        return snapshot with { ObserverNodeId = localConfiguration.Value.NodeId };
     }
 
     public async Task EnsureLocalAwgPublicKeyAsync() {
@@ -231,9 +235,10 @@ public class NodeService(
         var statuses = await nodeNetworkService.GetStatusesAsync(nodes.Select(node => node.NodeId), cancellationToken);
         var runtimeStates =
             await nodeStatusReporter.GetStatesAsync(nodes.Select(node => node.NodeId), cancellationToken);
-        var responses = await Task.WhenAll(nodes.Select(async node => {
+        var responses = nodes.Select(node => {
             statuses.TryGetValue(node.NodeId, out var status);
             runtimeStates.TryGetValue(node.NodeId, out var runtime);
+            var domainStatus = GetDomainStatus(node, status, runtime?.DomainDns);
             return new NodeResponse {
                 Id = node.Id,
                 NodeId = node.NodeId,
@@ -246,17 +251,54 @@ public class NodeService(
                 RuntimeHeartbeatAt = runtime?.HeartbeatAt,
                 RuntimeStartedAt = runtime?.StartedAt,
                 RuntimeMetadata = runtime?.Metadata,
-                RuntimeChecks = runtime is null ? ReadOnlyDictionary<string, NodeCheckResult>.Empty : runtime.Checks,
+                RuntimeChecks = GetRuntimeChecks(node, runtime, domainStatus),
                 RuntimeStatus = GetRuntimeStatus(runtime),
-                DomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
-                    status?.PublicIpv6, cancellationToken),
+                DomainStatus = domainStatus,
                 Number = node.Number,
                 AwgPublicKey = node.AwgPublicKey,
                 AwgMeshIp = node.AwgMeshIp,
                 IsPending = node.JoinSecret.HasValue
             };
-        }));
+        });
         return responses.ToList().AsReadOnly();
+    }
+
+    private static DomainCheckResponse? GetDomainStatus(EntityClusterNode node, EntityNodeNetworkStatus? network,
+        DomainCheckResponse? snapshot) {
+        if (node.Domain is null || snapshot is null || node.Domain != snapshot.Domain ||
+            network?.PublicIpv4 != snapshot.ExpectedIpv4 || network?.PublicIpv6 != snapshot.ExpectedIpv6)
+            return null;
+
+        var now = DateTimeOffset.UtcNow;
+        if (network is null || network.LastError is not null ||
+            now - network.CheckedAt > NodeNetworkService.NetworkStateMaxAge ||
+            snapshot.NetworkCheckedAt is null ||
+            now - snapshot.NetworkCheckedAt.Value > NodeNetworkService.NetworkStateMaxAge)
+            return snapshot with { State = DomainValidationState.NetworkStateStale };
+
+        return snapshot;
+    }
+
+    private static IReadOnlyDictionary<string, NodeCheckResult> GetRuntimeChecks(EntityClusterNode node,
+        EntityNodeRuntimeState? runtime, DomainCheckResponse? domainStatus) {
+        if (runtime is null)
+            return ReadOnlyDictionary<string, NodeCheckResult>.Empty;
+        if (node.Domain is not null && domainStatus?.MatchesNode is not null)
+            return runtime.Checks;
+        if (!runtime.Checks.TryGetValue(NodeDomainDnsCheck.CheckId, out var dnsCheck))
+            return runtime.Checks;
+
+        var checks = new Dictionary<string, NodeCheckResult>(runtime.Checks);
+        if (node.Domain is null)
+            checks.Remove(NodeDomainDnsCheck.CheckId);
+        else {
+            checks[NodeDomainDnsCheck.CheckId] = dnsCheck with {
+                Status = NodeCheckStatus.Unknown,
+                Message = domainStatus?.State.ToString() ?? "DNS result does not match current node inputs"
+            };
+        }
+
+        return checks;
     }
 
     private static NodeRuntimeStatus GetRuntimeStatus(EntityNodeRuntimeState? state) {

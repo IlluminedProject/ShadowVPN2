@@ -38,22 +38,33 @@ public sealed class ProtocolDomainService(
                        .FirstOrDefaultAsync(candidate => candidate.NodeId == nodeId, cancellationToken)
                    ?? throw new KeyNotFoundException("Node not found");
         var status = await nodeNetworkService.GetStatusAsync(nodeId, cancellationToken);
+        if (status is null || status.LastError is not null ||
+            DateTimeOffset.UtcNow - status.CheckedAt > NodeNetworkService.NetworkStateMaxAge)
+            return new NodeCertificateDomainsResponse { NodeId = nodeId, Domains = [] };
         var globalConfiguration = await globalConfigurationService.GetAsync(cancellationToken);
         var domains = new HashSet<HostName>();
 
         var nodeDomainStatus = await domainValidationService.CheckAsync(node.Domain, status?.PublicIpv4,
-            status?.PublicIpv6, cancellationToken);
-        if (nodeDomainStatus.State == DomainValidationState.Valid && nodeDomainStatus.Domain != null)
+            status?.PublicIpv6, cancellationToken,
+            status?.LastError is null ? status?.CheckedAt : null);
+        if (nodeDomainStatus.MatchesNode == true && nodeDomainStatus.Domain != null)
             domains.Add(nodeDomainStatus.Domain.Value);
 
         var globalDomainStatus = await domainValidationService.CheckAsync(globalConfiguration.GlobalDomain,
-            status?.PublicIpv4, status?.PublicIpv6, cancellationToken);
-        if (globalDomainStatus.State == DomainValidationState.Valid && globalDomainStatus.Domain != null)
+            status?.PublicIpv4, status?.PublicIpv6, cancellationToken,
+            status?.LastError is null ? status?.CheckedAt : null);
+        if (globalDomainStatus.MatchesNode == true && globalDomainStatus.Domain != null)
             domains.Add(globalDomainStatus.Domain.Value);
 
         foreach (var route in await GetRoutesAsync(cancellationToken)) {
-            if (route.Enabled && route.State == ProtocolDomainRouteState.Valid && route.NodeId == nodeId &&
-                route.Domain != null)
+            if (!route.Enabled || route.State != ProtocolDomainRouteState.Valid || route.NodeId != nodeId ||
+                route.Domain is null)
+                continue;
+
+            var routeDomainStatus = await domainValidationService.CheckAsync(route.Domain, status?.PublicIpv4,
+                status?.PublicIpv6, cancellationToken,
+                status?.LastError is null ? status?.CheckedAt : null);
+            if (routeDomainStatus.MatchesNode == true)
                 domains.Add(route.Domain.Value);
         }
 

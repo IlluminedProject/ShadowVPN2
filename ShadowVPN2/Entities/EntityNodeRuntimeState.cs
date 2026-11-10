@@ -9,5 +9,6 @@ public sealed class EntityNodeRuntimeState : IEntityId {
     public DateTimeOffset StartedAt { get; set; }
     public NodeRuntimeMetadata Metadata { get; set; } = new();
     public Dictionary<string, NodeCheckResult> Checks { get; set; } = [];
+    public DomainCheckResponse? DomainDns { get; set; }
     public required string Id { get; init; }
 }
