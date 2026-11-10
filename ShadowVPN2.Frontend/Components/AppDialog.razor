@@ -36,7 +36,7 @@
     {
         if (firstRender)
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/app-dialog.js");
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/ui/js/app-dialog.js");
             _reference = DotNetObjectReference.Create(this);
             await _module.InvokeVoidAsync("open", _element, _reference, Busy, LightDismiss);
         }

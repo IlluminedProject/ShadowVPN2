@@ -99,7 +99,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            _clipboardModule = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/subscription-copy.js");
+            _clipboardModule = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ui/js/subscription-copy.js");
     }
 
     private void RefreshConfiguration()

@@ -150,9 +150,9 @@
     {
         if (_subscription is not null)
         {
-            _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/dropdown.js");
+            _dropdownModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ui/js/dropdown.js");
             await _dropdownModule.InvokeVoidAsync("initialize", "subscription-dropdown");
-            _copyModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ShadowVPN2.Frontend/js/subscription-copy.js");
+            _copyModule ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./_content/ui/js/subscription-copy.js");
             await _copyModule.InvokeVoidAsync("initialize", "subscription-page");
         }
 
