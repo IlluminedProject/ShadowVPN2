@@ -309,6 +309,13 @@ public class ClusterService(
     }
 
     private async Task RemoveNodeFromRavenDbClusterAsync(string nodeTag, CancellationToken cancellationToken) {
+        var topology = await documentStore.Maintenance.Server
+            .SendAsync(new GetClusterTopologyOperation(), cancellationToken);
+        if (!topology.Topology.Members.ContainsKey(nodeTag)) {
+            logger.LogInformation("Node {NodeTag} is already absent from RavenDB cluster topology", nodeTag);
+            return;
+        }
+
         using var certificate = X509CertificateLoader.LoadPkcs12FromFile(
             LocalConfiguration.CertificatePfxPath.Value, null);
         var peers = await PeerCertificateTrustService.LoadAsync(cancellationToken);
