@@ -391,9 +391,7 @@ else
     }
 
 
-    private bool CanStartUpdate => _availability?.UpdateAvailable == true &&
-                                   (_status is null || _status.Nodes.Any(node =>
-                                       node.Status is not ClusterUpdateNodeStatus.Completed and not ClusterUpdateNodeStatus.Skipped));
+    private bool CanStartUpdate => _availability?.UpdateAvailable == true && !IsActive(_status);
     private ClusterUpdateNodeResponse? CurrentNode => _status?.Status == ClusterUpdateStatus.Running
         ? _status.Nodes.FirstOrDefault(node => node.NodeTag == _status.CurrentNodeTag && node.Status == ClusterUpdateNodeStatus.Claimed)
         : null;
