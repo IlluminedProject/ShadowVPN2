@@ -139,6 +139,23 @@ public sealed class ClusterUpdateTransitionsTests {
     }
 
     [Fact]
+    public void Complete_skips_unavailable_nodes_before_next_claim() {
+        var state = CreateState("NAA", "NAB", "NAC");
+        state.Nodes[0].Status = Data.Cluster.ClusterUpdateNodeStatus.Claimed;
+        state.Nodes[1].Status = Data.Cluster.ClusterUpdateNodeStatus.Skipped;
+        state.Nodes[2].Status = Data.Cluster.ClusterUpdateNodeStatus.Prepared;
+
+        var updated = ClusterUpdateTransitions.Complete(state, new CompleteClusterUpdateRequest {
+            UpdateId = state.Id,
+            Succeeded = true,
+            ImageDigest = Digest
+        });
+
+        updated.CurrentNodeIndex.Should().Be(2);
+        ClusterUpdateTransitions.IsClaimable(updated, "NAC").Should().BeTrue();
+    }
+
+    [Fact]
     public void Preparation_failure_finishes_other_nodes_and_preserves_the_error() {
         var state = CreateState("NAA", "NAB", "NAC");
         state.Status = ClusterUpdateStatus.Preparing;

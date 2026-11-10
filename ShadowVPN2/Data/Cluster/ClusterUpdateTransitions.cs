@@ -93,7 +93,7 @@ public static class ClusterUpdateTransitions {
         node.Status = ClusterUpdateNodeStatus.Completed;
         node.Error = null;
         node.CompletedAt = DateTimeOffset.UtcNow;
-        completed.CurrentNodeIndex++;
+        AdvancePastSkipped(completed);
         completed.UpdatedAt = node.CompletedAt.Value;
         if (completed.CurrentNodeIndex == completed.Nodes.Count)
             completed.Status = ClusterUpdateStatus.Completed;
@@ -110,7 +110,7 @@ public static class ClusterUpdateTransitions {
         node.CompletedAt = DateTimeOffset.UtcNow;
         completed.UpdatedAt = node.CompletedAt.Value;
         if (succeeded) {
-            completed.CurrentNodeIndex++;
+            AdvancePastSkipped(completed);
             if (completed.CurrentNodeIndex == completed.Nodes.Count)
                 completed.Status = ClusterUpdateStatus.Completed;
         }
@@ -139,6 +139,13 @@ public static class ClusterUpdateTransitions {
         }
 
         return updated;
+    }
+
+    private static void AdvancePastSkipped(ClusterUpdateState state) {
+        state.CurrentNodeIndex++;
+        while (state.CurrentNodeIndex < state.Nodes.Count &&
+               state.Nodes[state.CurrentNodeIndex].Status == ClusterUpdateNodeStatus.Skipped)
+            state.CurrentNodeIndex++;
     }
 
     public static ClusterUpdateResponse ToResponse(ClusterUpdateState state) {
