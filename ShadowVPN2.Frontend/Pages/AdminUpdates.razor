@@ -1,6 +1,5 @@
 @page "/admin/updates"
 @using System.Net
-@using ShadowVPN2.Contracts.Networking
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "Settings.View")]
 @inject IApplicationUpdateService Updates
@@ -113,6 +112,7 @@ else
                         <tr>
                             <th scope="col">Node</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Current image</th>
                             <th scope="col">Error</th>
                         </tr>
                         </thead>
@@ -125,6 +125,7 @@ else
                                     <div class="text-body-secondary small fw-normal">RavenDB tag: @node.NodeTag</div>
                                 </th>
                                 <td>@node.Status</td>
+                                <td><code class="text-break">@(node.CurrentImageDigest ?? "Unknown")</code></td>
                                 <td>@(node.Error ?? "")</td>
                             </tr>
                         }

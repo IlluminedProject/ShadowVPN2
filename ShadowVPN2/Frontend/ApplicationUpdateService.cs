@@ -2,6 +2,7 @@ using System.Net;
 using Raven.Client.Documents;
 using ShadowVPN2.Contracts.Application;
 using ShadowVPN2.Contracts.Networking;
+using ShadowVPN2.Data;
 using ShadowVPN2.Data.Cluster;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Exceptions;
@@ -65,6 +66,8 @@ public sealed class ApplicationUpdateService(
                 new GetClusterTopologyOperation(), cancellationToken);
             using var session = documentStore.OpenAsyncSession();
             var nodes = await session.Query<EntityClusterNode>().ToListAsync(cancellationToken);
+            var runtimeIds = nodes.Select(node => NodeStatusReporter.GetStateId(node.NodeId));
+            var runtimeStates = await session.LoadAsync<EntityNodeRuntimeState>(runtimeIds, cancellationToken);
             foreach (var node in status.Nodes) {
                 if (!topology.Topology.Members.TryGetValue(node.NodeTag, out var url) ||
                     !Uri.TryCreate(url, UriKind.Absolute, out var address))
@@ -73,6 +76,9 @@ public sealed class ApplicationUpdateService(
                     string.Equals(candidate.AwgMeshIp, address.Host, StringComparison.OrdinalIgnoreCase));
                 node.NodeName = configured?.Name;
                 node.NodeAddress = configured?.Domain?.ToString() ?? address.Host;
+                if (configured is not null && runtimeStates.TryGetValue(
+                        NodeStatusReporter.GetStateId(configured.NodeId), out var runtime))
+                    node.CurrentImageDigest = runtime?.Metadata.ContainerImageDigest;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
