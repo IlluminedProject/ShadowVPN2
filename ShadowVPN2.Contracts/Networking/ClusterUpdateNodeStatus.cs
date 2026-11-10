@@ -11,5 +11,6 @@ public enum ClusterUpdateNodeStatus {
     Preparing,
     Prepared,
     Skipped,
-    Cancelled
+    Cancelled,
+    Aborted
 }

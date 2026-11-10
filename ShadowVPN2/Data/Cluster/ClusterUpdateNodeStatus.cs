@@ -8,5 +8,6 @@ public enum ClusterUpdateNodeStatus {
     Preparing = 4,
     Prepared = 5,
     Skipped = 6,
-    Cancelled = 7
+    Cancelled = 7,
+    Aborted = 8
 }

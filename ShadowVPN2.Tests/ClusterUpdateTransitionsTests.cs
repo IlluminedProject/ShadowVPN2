@@ -22,7 +22,7 @@ public sealed class ClusterUpdateTransitionsTests {
         failed.Status.Should().Be(ClusterUpdateStatus.Failed);
         failed.Nodes[0].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Completed);
         failed.Nodes[1].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Failed);
-        failed.Nodes[2].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Skipped);
+        failed.Nodes[2].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Aborted);
         failed.Error.Should().Contain("2 attempts").And.Contain("TLS rejected");
         state.Nodes[1].ReconciliationFailures.Should().Be(0);
     }
@@ -120,7 +120,7 @@ public sealed class ClusterUpdateTransitionsTests {
         updated.Nodes[0].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Failed);
         updated.Status.Should().Be(ClusterUpdateStatus.Failed);
         updated.CurrentNodeIndex.Should().Be(0);
-        updated.Nodes[1].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Skipped);
+        updated.Nodes[1].Status.Should().Be(Data.Cluster.ClusterUpdateNodeStatus.Aborted);
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public sealed class ClusterUpdateTransitionsTests {
         updated.Status.Should().Be(ClusterUpdateStatus.Failed);
         updated.Error.Should().Be("Docker image pull failed");
         updated.Nodes.Select(node => node.Status).Should().Equal(
-            Data.Cluster.ClusterUpdateNodeStatus.Skipped, Data.Cluster.ClusterUpdateNodeStatus.Failed,
-            Data.Cluster.ClusterUpdateNodeStatus.Skipped);
+            Data.Cluster.ClusterUpdateNodeStatus.Aborted, Data.Cluster.ClusterUpdateNodeStatus.Failed,
+            Data.Cluster.ClusterUpdateNodeStatus.Aborted);
         updated.Nodes[1].Error.Should().Be(updated.Error);
         updated.Nodes.Should().OnlyContain(node => node.CompletedAt == updated.UpdatedAt);
         state.Status.Should().Be(ClusterUpdateStatus.Preparing);
@@ -213,7 +213,7 @@ public sealed class ClusterUpdateTransitionsTests {
         updated.Status.Should().Be(ClusterUpdateStatus.Failed);
         updated.Nodes.Select(node => node.Status).Should().Equal(
             Data.Cluster.ClusterUpdateNodeStatus.Completed, Data.Cluster.ClusterUpdateNodeStatus.Failed,
-            Data.Cluster.ClusterUpdateNodeStatus.Skipped);
+            Data.Cluster.ClusterUpdateNodeStatus.Aborted);
         updated.Nodes[0].CompletedAt.Should().Be(state.StartedAt);
         updated.Nodes[1].Error.Should().Be("Container health check failed");
         updated.Nodes[2].CompletedAt.Should().Be(updated.UpdatedAt);
@@ -240,7 +240,7 @@ public sealed class ClusterUpdateTransitionsTests {
 
         updated.Status.Should().Be(ClusterUpdateStatus.Cancelled);
         updated.Nodes.Select(node => node.Status).Should().Equal(
-            Data.Cluster.ClusterUpdateNodeStatus.Completed, Data.Cluster.ClusterUpdateNodeStatus.Cancelled,
+            Data.Cluster.ClusterUpdateNodeStatus.Completed, Data.Cluster.ClusterUpdateNodeStatus.Aborted,
             Data.Cluster.ClusterUpdateNodeStatus.Failed);
         updated.Nodes[0].CompletedAt.Should().Be(state.StartedAt);
         updated.Nodes[1].CompletedAt.Should().Be(updated.UpdatedAt);
@@ -250,8 +250,8 @@ public sealed class ClusterUpdateTransitionsTests {
     }
 
     [Theory]
-    [InlineData(ClusterUpdateStatus.Failed, "Skipped")]
-    [InlineData(ClusterUpdateStatus.Cancelled, "Cancelled")]
+    [InlineData(ClusterUpdateStatus.Failed, "Aborted")]
+    [InlineData(ClusterUpdateStatus.Cancelled, "Aborted")]
     public void Legacy_terminal_responses_normalize_unfinished_nodes_without_mutating_persisted_state(
         ClusterUpdateStatus operationStatus, string expectedStatus) {
         var state = CreateState("NAA", "NAB", "NAC", "NAD", "NAE", "NAF");

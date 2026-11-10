@@ -177,8 +177,7 @@ public static class ClusterUpdateTransitions {
             return nodeStatus;
 
         return operationStatus switch {
-            ClusterUpdateStatus.Failed => ClusterUpdateNodeStatus.Skipped,
-            ClusterUpdateStatus.Cancelled => ClusterUpdateNodeStatus.Cancelled,
+            ClusterUpdateStatus.Failed or ClusterUpdateStatus.Cancelled => ClusterUpdateNodeStatus.Aborted,
             _ => nodeStatus
         };
     }
