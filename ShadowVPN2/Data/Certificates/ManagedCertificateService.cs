@@ -11,6 +11,7 @@ namespace ShadowVPN2.Data.Certificates;
 public sealed class ManagedCertificateService(
     IDocumentStore documentStore,
     ILogger<ManagedCertificateService> logger) : IHostedService, IDisposable {
+    private readonly X509Certificate2 _bootstrapCertificate = CreateBootstrapCertificate();
     private readonly List<X509Certificate2> _certificates = [];
     private readonly Lock _lock = new();
 
@@ -25,10 +26,13 @@ public sealed class ManagedCertificateService(
 
     private IDisposable? _subscription;
 
+
     public void Dispose() {
         _subscription?.Dispose();
+        _bootstrapCertificate.Dispose();
         foreach (var certificate in _certificates) certificate.Dispose();
     }
+
 
     public async Task StartAsync(CancellationToken cancellationToken) {
         await ReloadAsync(cancellationToken);
@@ -42,6 +46,10 @@ public sealed class ManagedCertificateService(
     public Task StopAsync(CancellationToken cancellationToken) {
         _subscription?.Dispose();
         return Task.CompletedTask;
+    }
+
+    public X509Certificate2 GetBootstrapCertificate() {
+        return _bootstrapCertificate;
     }
 
     public event Func<Task>? CertificatesChanged;
@@ -65,6 +73,13 @@ public sealed class ManagedCertificateService(
     public IReadOnlyList<ManagedCertificateMaterial> GetForNodeDomains(Guid nodeId) {
         lock (_lock)
             return _materialsByNode.GetValueOrDefault(nodeId) ?? [];
+    }
+
+    public X509Certificate2? GetDefaultCertificate(Guid nodeId) {
+        lock (_lock) {
+            var material = _materialsByNode.GetValueOrDefault(nodeId)?.FirstOrDefault();
+            return material is null ? null : _certificatesByDomain.GetValueOrDefault(material.Domains[0]);
+        }
     }
 
     public async Task<IReadOnlyList<EntityManagedCertificate>> GetEntitiesAsync(Guid nodeId,
@@ -224,6 +239,17 @@ public sealed class ManagedCertificateService(
 
     internal static string GetId(Guid nodeId, HostName domain) {
         return $"ManagedCertificates/{nodeId:D}/{Uri.EscapeDataString(domain.ToString()!)}";
+    }
+
+    private static X509Certificate2 CreateBootstrapCertificate() {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest("CN=temporary.invalid", key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, false));
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName("temporary.invalid");
+        request.CertificateExtensions.Add(san.Build());
+        return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(12));
     }
 
     private static bool IsSingleDomainCertificate(string certificatePem, string privateKeyPem, HostName domain) {

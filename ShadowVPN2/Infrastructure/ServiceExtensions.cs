@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -145,15 +144,20 @@ public static class ServiceExtensions {
                 listenOptions.Use(next =>
                     new HttpsRedirectConnectionMiddleware(next).OnConnectionAsync);
                 listenOptions.UseHttps(httpsOptions => {
-                    httpsOptions.ServerCertificateSelector = (connection, serverName) =>
-                        services.GetRequiredService<ManagedCertificateService>()
-                            .GetCertificate(HostName.ParseOptional(serverName)) ??
-                        (connection?.LocalEndPoint is IPEndPoint endpoint
+                    httpsOptions.ServerCertificateSelector = (connection, serverName) => {
+                        var managedCertificates = services.GetRequiredService<ManagedCertificateService>();
+                        var localCertificate = managedCertificates.GetCertificate(HostName.ParseOptional(serverName)) ??
+                                               managedCertificates.GetDefaultCertificate(
+                                                   services.GetRequiredService<IOptions<LocalConfiguration>>().Value
+                                                       .NodeId);
+                        if (localCertificate is not null) return localCertificate;
+
+                        var sharedPortCertificate = connection?.LocalEndPoint is IPEndPoint endpoint
                             ? services.GetRequiredService<NaiveProxySharedPortExtension>()
                                 .GetFallbackCertificate(endpoint.Port)
-                            : null) ??
-                        X509CertificateLoader.LoadPkcs12FromFile(LocalConfiguration.CertificatePfxPath.Value, null,
-                            X509KeyStorageFlags.Exportable);
+                            : null;
+                        return sharedPortCertificate ?? managedCertificates.GetBootstrapCertificate();
+                    };
                 });
             });
         });
