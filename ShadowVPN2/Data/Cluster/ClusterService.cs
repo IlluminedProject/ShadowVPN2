@@ -106,13 +106,23 @@ public class ClusterService(
 
     public async Task<ClusterJoinResponse> ExchangeTokenAsync(ClusterJoinRequest request,
         CancellationToken cancellationToken = default) {
+        EntityClusterNode? pendingNodeSnapshot;
+        using (var lookupSession = documentStore.OpenAsyncSession()) {
+            var nodes = await lookupSession.Advanced.LoadStartingWithAsync<EntityClusterNode>(
+                "EntityClusterNodes/", pageSize: int.MaxValue, token: cancellationToken);
+            pendingNodeSnapshot = nodes.FirstOrDefault(node => node.JoinSecret == request.Secret);
+        }
+
+        if (pendingNodeSnapshot == null)
+            throw new KeyNotFoundException("Invalid join secret");
+
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
-        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-            pageSize: int.MaxValue, token: cancellationToken);
-        var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
-        if (pendingNode == null)
+        var pendingNode = await session.LoadAsync<EntityClusterNode>(pendingNodeSnapshot.Id, cancellationToken);
+        if (pendingNode == null || pendingNode.JoinSecret != request.Secret)
             throw new KeyNotFoundException("Invalid join secret");
+        var localNode = await session.LoadAsync<EntityClusterNode>(
+            $"EntityClusterNodes/{localConfiguration.Value.NodeNumber}", cancellationToken);
 
         using var certificate = RavenDbCertificates.LoadNodeCertificate(request.CertificatePem,
             IPAddress.Parse(pendingNode.AwgMeshIp));
@@ -120,8 +130,8 @@ public class ClusterService(
         // legitimately replace temporary credentials after a process failure.
         pendingNode.CertificatePem = certificate.ExportCertificatePem();
         pendingNode.AwgPublicKey = request.AwgPublicKey;
-        var localNode = nodes.FirstOrDefault(n => n.NodeId == localConfiguration.Value.NodeId);
-        if (localNode != null && !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
+        if (localNode?.NodeId == localConfiguration.Value.NodeId &&
+            !string.IsNullOrEmpty(localConfiguration.Value.AwgPrivateKey))
             localNode.AwgPublicKey = AwgKeyGenerator.GetPublicKey(localConfiguration.Value.AwgPrivateKey);
         await session.SaveChangesAsync(cancellationToken);
         await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pendingNode.NodeId,
@@ -131,21 +141,21 @@ public class ClusterService(
             SecurityClearance.ClusterNode), cancellationToken);
 
         var globalConfig = await globalConfigurationService.GetAsync(cancellationToken);
-        var peerNodes = nodes.Where(node => node.NodeId != pendingNode.NodeId && !node.JoinSecret.HasValue
-                                                                              && node.AwgPublicKey != null).ToArray();
-        var statuses = await nodeNetworkService.GetStatusesAsync(peerNodes.Select(node => node.NodeId),
+        var peerNodes = await nodeService.GetNodesAsync();
+        var peers = new List<AwgPeerInfo>(peerNodes.Count);
+        var peerStatuses = await nodeNetworkService.GetStatusesAsync(
+            peerNodes.Where(node => node.NodeId != pendingNode.NodeId).Select(node => node.NodeId),
             cancellationToken);
-        var peers = new List<AwgPeerInfo>(peerNodes.Length);
-        foreach (var node in peerNodes) {
-            statuses.TryGetValue(node.NodeId, out var status);
-            var host = node.Domain ?? HostName.ParseOptional(status?.PublicIpv4 ?? status?.PublicIpv6);
+        foreach (var peer in peerNodes.Where(node => node.NodeId != pendingNode.NodeId && node.AwgPublicKey != null)) {
+            peerStatuses.TryGetValue(peer.NodeId, out var status);
+            var host = peer.Domain ?? HostName.ParseOptional(status?.PublicIpv4 ?? status?.PublicIpv6);
             if (host.HasValue)
-                peers.Add(new AwgPeerInfo(node.AwgPublicKey!, node.AwgMeshIp,
+                peers.Add(new AwgPeerInfo(peer.AwgPublicKey!, peer.AwgMeshIp,
                     host.Value.ToAddress(status?.ManagementPort)));
         }
 
         return new ClusterJoinResponse {
-            PeerCertificates = nodes.Where(node => node.CertificatePem != null)
+            PeerCertificates = peerNodes.Where(node => node.CertificatePem != null)
                 .Select(node => new NodeCertificateTrust(node.NodeId, node.AwgMeshIp, node.CertificatePem!)).ToList(),
             AwgPeers = peers,
             AwgSettings = globalConfig.AwgSettings,
@@ -154,12 +164,18 @@ public class ClusterService(
     }
 
     public async Task FinishJoinAsync(ClusterFinishJoinRequest request) {
+        string pendingNodeId;
+        using (var lookupSession = documentStore.OpenAsyncSession()) {
+            var nodes = await lookupSession.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
+                pageSize: int.MaxValue);
+            pendingNodeId = nodes.FirstOrDefault(node => node.JoinSecret == request.Secret)?.Id
+                            ?? throw new KeyNotFoundException("Invalid join secret");
+        }
+
         using var session = documentStore.OpenAsyncSession(new SessionOptions
             { TransactionMode = TransactionMode.ClusterWide });
-        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-            pageSize: int.MaxValue);
-        var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
-        if (pendingNode == null)
+        var pendingNode = await session.LoadAsync<EntityClusterNode>(pendingNodeId);
+        if (pendingNode == null || pendingNode.JoinSecret != request.Secret)
             throw new KeyNotFoundException("Invalid join secret");
         if (pendingNode.CertificatePem == null || pendingNode.AwgPublicKey == null)
             throw new InvalidOperationException("The join certificate exchange has not completed.");
@@ -176,24 +192,31 @@ public class ClusterService(
     }
 
     public async Task CompleteJoinAsync(ClusterCompleteJoinRequest request) {
-        using var session = documentStore.OpenAsyncSession(new SessionOptions
-            { TransactionMode = TransactionMode.ClusterWide });
-        var nodes = await session.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
-            pageSize: int.MaxValue);
-        var pendingNode = nodes.FirstOrDefault(n => n.JoinSecret == request.Secret);
-        if (pendingNode == null) {
-            var completedNode = nodes.FirstOrDefault(n => n.NodeId == request.NodeId && n.JoinMembershipCommitted &&
-                                                          n.CertificatePem != null);
-            if (completedNode == null)
-                throw new KeyNotFoundException("Invalid or already completed join secret");
-            using var completedCertificate = RavenDbCertificates.LoadNodeCertificate(request.CertificatePem,
-                IPAddress.Parse(completedNode.AwgMeshIp));
-            if (!string.Equals(completedNode.CertificatePem, completedCertificate.ExportCertificatePem(),
-                    StringComparison.Ordinal))
-                throw new InvalidOperationException("Join completion credentials do not match the completed node.");
-            return;
+        string? pendingNodeId;
+        using (var lookupSession = documentStore.OpenAsyncSession()) {
+            var nodes = await lookupSession.Advanced.LoadStartingWithAsync<EntityClusterNode>("EntityClusterNodes/",
+                pageSize: int.MaxValue);
+            pendingNodeId = nodes.FirstOrDefault(node => node.JoinSecret == request.Secret)?.Id;
+            if (pendingNodeId == null) {
+                var completedNode = nodes.FirstOrDefault(node => node.NodeId == request.NodeId &&
+                                                                 node.JoinMembershipCommitted &&
+                                                                 node.CertificatePem != null);
+                if (completedNode == null)
+                    throw new KeyNotFoundException("Invalid or already completed join secret");
+                using var completedCertificate = RavenDbCertificates.LoadNodeCertificate(request.CertificatePem,
+                    IPAddress.Parse(completedNode.AwgMeshIp));
+                if (!string.Equals(completedNode.CertificatePem, completedCertificate.ExportCertificatePem(),
+                        StringComparison.Ordinal))
+                    throw new InvalidOperationException("Join completion credentials do not match the completed node.");
+                return;
+            }
         }
 
+        using var session = documentStore.OpenAsyncSession(new SessionOptions
+            { TransactionMode = TransactionMode.ClusterWide });
+        var pendingNode = await session.LoadAsync<EntityClusterNode>(pendingNodeId);
+        if (pendingNode == null || pendingNode.JoinSecret != request.Secret)
+            throw new KeyNotFoundException("Invalid or already completed join secret");
         using var certificate = RavenDbCertificates.LoadNodeCertificate(request.CertificatePem,
             IPAddress.Parse(pendingNode.AwgMeshIp));
         if (pendingNode.NodeId != request.NodeId || pendingNode.CertificatePem != certificate.ExportCertificatePem())
