@@ -51,6 +51,7 @@ public static class ApplicationServices {
         builder.Services.AddSingleton<RavenMigrationRunner>();
         builder.Services.AddRavenMigration<AwgHeaderNullabilityMigration>();
         builder.Services.AddRavenMigration<ClusterUpdateDocumentMigration>();
+        builder.Services.AddRavenMigration<ManagedCertificateMigration>();
         builder.SetupAuthentication();
         builder.SetupIdentity();
         builder.SetupAuthorization();

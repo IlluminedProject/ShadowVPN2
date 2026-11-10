@@ -7,7 +7,6 @@ using Raven.Client.Documents;
 using Raven.Client.ServerWide.Operations;
 using Raven.Client.ServerWide.Operations.Certificates;
 using ShadowVPN2.Contracts.Networking;
-using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure;
 using ShadowVPN2.Infrastructure.Configurations;
@@ -295,10 +294,11 @@ public class ClusterService(
             session.Delete(status);
         }
 
-        var certificateId = ManagedCertificateService.GetId(nodeId);
-        var certificate = await session.LoadAsync<EntityManagedCertificate>(certificateId, cancellationToken);
-        if (certificate != null) {
-            logger.LogDebug("Deleting managed certificate for node {NodeId}", nodeId);
+        var certificates = await session.Query<EntityManagedCertificate>()
+            .Where(certificate => certificate.NodeId == nodeId).ToListAsync(cancellationToken);
+        foreach (var certificate in certificates) {
+            logger.LogDebug("Deleting managed certificate {CertificateId} for node {NodeId}", certificate.Id,
+                nodeId);
             session.Delete(certificate);
         }
 

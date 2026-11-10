@@ -33,18 +33,34 @@ public sealed class AcmeCertificateService(
                 return;
             }
 
-            var current = await managedCertificateService.GetEntityAsync(nodeId, cancellationToken);
-            var domainsChanged = current == null || !current.Domains.ToHashSet().SetEquals(desired.Domains);
-            if (domainsChanged && await managedCertificateService.TryReuseAsync(nodeId, desired.Domains,
-                    cancellationToken))
-                current = await managedCertificateService.GetEntityAsync(nodeId, cancellationToken);
+            var domains = desired.Domains;
+            var existing = await managedCertificateService.GetEntitiesAsync(nodeId, cancellationToken);
+            var legacyRecords = existing.Where(entity => entity.Domain is null).ToArray();
+            if (legacyRecords.Length > 0) {
+                using var cleanup = documentStore.OpenAsyncSession();
+                foreach (var legacy in legacyRecords) cleanup.Delete(legacy);
+                await cleanup.SaveChangesAsync(cancellationToken);
+            }
 
-            domainsChanged = current == null || !current.Domains.ToHashSet().SetEquals(desired.Domains);
-            var expiresSoon = current == null || current.NotAfter <=
-                DateTimeOffset.UtcNow.AddDays(settings.RenewalThresholdDays);
-            if (!domainsChanged && !expiresSoon) return;
+            existing = existing.Where(entity => entity.Domain is not null).ToList();
+            await managedCertificateService.TryReuseAsync(nodeId, domains, cancellationToken);
+            existing = await managedCertificateService.GetEntitiesAsync(nodeId, cancellationToken);
+            var staleRecords = existing.Where(entity => entity.Domain is { } domain && !domains.Contains(domain))
+                .ToArray();
+            if (staleRecords.Length > 0) {
+                using var cleanup = documentStore.OpenAsyncSession();
+                foreach (var stale in staleRecords) cleanup.Delete(stale);
+                await cleanup.SaveChangesAsync(cancellationToken);
+            }
 
-            await IssueAsync(nodeId, desired.Domains, settings, cancellationToken);
+            for (var index = 0; index < domains.Count; index++) {
+                var domain = domains[index];
+                var current = existing.FirstOrDefault(entity => entity.Domain == domain);
+                if (current is not null && current.NotAfter >
+                    DateTimeOffset.UtcNow.AddDays(settings.RenewalThresholdDays)) continue;
+                await IssueAsync(nodeId, domain, index, settings, cancellationToken);
+                existing = await managedCertificateService.GetEntitiesAsync(nodeId, cancellationToken);
+            }
         }
         finally {
             _renewalLock.Release();
@@ -77,12 +93,12 @@ public sealed class AcmeCertificateService(
         }
     }
 
-    private async Task IssueAsync(Guid nodeId, IReadOnlyList<HostName> domains, AcmeSettings settings,
+    private async Task IssueAsync(Guid nodeId, HostName domain, int domainOrder, AcmeSettings settings,
         CancellationToken cancellationToken) {
         await challengeServer.StartAsync(settings.HttpPort, cancellationToken);
         try {
             var acme = await CreateContextAsync(settings, cancellationToken);
-            var order = await acme.NewOrder(domains.Select(domain => domain.ToString()).ToList());
+            var order = await acme.NewOrder([domain.ToString()]);
             var authorizations = (await order.Authorizations()).ToList();
             var challenges = new List<IChallengeContext>(authorizations.Count);
             foreach (var authorization in authorizations) {
@@ -97,9 +113,9 @@ public sealed class AcmeCertificateService(
 
             var certificateKey = KeyFactory.NewKey(KeyAlgorithm.ES256);
             var certificate = await order.Generate(new CsrInfo(), certificateKey, retryCount: 10);
-            await managedCertificateService.SaveAsync(nodeId, domains, certificate.ToPem(), certificateKey.ToPem(),
-                cancellationToken);
-            logger.LogInformation("ACME certificate issued for {Domains}", string.Join(", ", domains));
+            await managedCertificateService.SaveAsync(nodeId, [domain], certificate.ToPem(), certificateKey.ToPem(),
+                cancellationToken, domainOrder);
+            logger.LogInformation("ACME certificate issued for {Domain}", domain);
         }
         finally {
             await challengeServer.StopAsync(CancellationToken.None);

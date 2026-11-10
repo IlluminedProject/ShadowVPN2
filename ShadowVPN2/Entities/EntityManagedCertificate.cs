@@ -5,7 +5,9 @@ namespace ShadowVPN2.Entities;
 
 public sealed class EntityManagedCertificate : IEntityId {
     public required Guid NodeId { get; set; }
+    public HostName? Domain { get; set; }
     public List<HostName> Domains { get; set; } = [];
+    public int DomainOrder { get; set; }
     public string CertificatePem { get; set; } = "";
     public string PrivateKeyPem { get; set; } = "";
     public DateTimeOffset NotBefore { get; set; }

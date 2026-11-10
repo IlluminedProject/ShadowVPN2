@@ -18,17 +18,18 @@ public sealed class CertificatesController(
     IOptions<LocalConfiguration> localConfiguration) : ControllerBase {
     [HttpGet("local")]
     public async Task<ManagedCertificateResponse?> GetLocal(CancellationToken cancellationToken) {
-        var certificate = await managedCertificateService.GetEntityAsync(localConfiguration.Value.NodeId,
+        var certificates = await managedCertificateService.GetEntitiesAsync(localConfiguration.Value.NodeId,
             cancellationToken);
-        return certificate == null
+        return certificates.Count == 0
             ? null
             : new ManagedCertificateResponse {
-                NodeId = certificate.NodeId,
-                Domains = certificate.Domains.AsReadOnly(),
-                NotBefore = certificate.NotBefore,
-                NotAfter = certificate.NotAfter,
-                LastAttemptAt = certificate.LastAttemptAt,
-                LastError = certificate.LastError
+                NodeId = localConfiguration.Value.NodeId,
+                Domains = certificates.SelectMany(certificate => certificate.Domains).Distinct().ToArray(),
+                NotBefore = certificates.Min(certificate => certificate.NotBefore),
+                NotAfter = certificates.Min(certificate => certificate.NotAfter),
+                LastAttemptAt = certificates.Max(certificate => certificate.LastAttemptAt),
+                LastError = certificates.Select(certificate => certificate.LastError)
+                    .FirstOrDefault(error => error is not null)
             };
     }
 

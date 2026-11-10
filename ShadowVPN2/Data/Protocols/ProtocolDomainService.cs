@@ -68,9 +68,11 @@ public sealed class ProtocolDomainService(
                 domains.Add(route.Domain.Value);
         }
 
+        var orderedDomains = domains.OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList();
+        if (node.Domain is { } preferred && orderedDomains.Remove(preferred)) orderedDomains.Insert(0, preferred);
         return new NodeCertificateDomainsResponse {
             NodeId = nodeId,
-            Domains = domains.OrderBy(domain => domain.ToString(), StringComparer.Ordinal).ToList().AsReadOnly()
+            Domains = orderedDomains.AsReadOnly()
         };
     }
 

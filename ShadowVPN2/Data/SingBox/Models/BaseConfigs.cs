@@ -33,6 +33,18 @@ public class InboundTlsConfig {
 
     [JsonPropertyName("server_name")] public string? ServerName { get; set; }
 
+    [JsonPropertyName("certificates")] public List<InboundTlsCertificateConfig>? Certificates { get; set; }
+
+    [JsonPropertyName("certificate_path")] public string? CertificatePath { get; set; }
+
+    [JsonPropertyName("key_path")] public string? KeyPath { get; set; }
+
+    [JsonPropertyName("certificate")] public List<string>? Certificate { get; set; }
+
+    [JsonPropertyName("key")] public List<string>? Key { get; set; }
+}
+
+public class InboundTlsCertificateConfig {
     [JsonPropertyName("certificate_path")] public string? CertificatePath { get; set; }
 
     [JsonPropertyName("key_path")] public string? KeyPath { get; set; }

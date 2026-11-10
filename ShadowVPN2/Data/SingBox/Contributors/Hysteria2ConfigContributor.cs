@@ -26,8 +26,20 @@ public class Hysteria2ConfigContributor(
 
         foreach (var h2 in h2Instances) {
             var configuredDomain = h2.MainDomain ?? globalConfiguration.MainDomain;
-            var managedCertificate = managedCertificateService.GetForDomain(configuredDomain) ??
-                                     managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
+            var nodeCertificates = managedCertificateService.GetForNodeDomains(localConfiguration.Value.NodeId);
+            var certificates = nodeCertificates.Select(material => new InboundTlsCertificateConfig {
+                Certificate = PemToLines(material.CertificatePem),
+                Key = PemToLines(material.PrivateKeyPem)
+            }).ToList();
+            if (certificates.Count == 0) {
+                certificates.Add(new InboundTlsCertificateConfig {
+                    Certificate = PemToLines(h2.TlsCertificatePem),
+                    Key = PemToLines(h2.TlsKeyPem)
+                });
+            }
+
+            var serverName = configuredDomain?.ToString() ?? nodeCertificates.FirstOrDefault()?.Domains[0].ToString() ??
+                "shadowvpn.local";
             var inbound = new Hysteria2InboundConfig {
                 Tag = $"hysteria2-{h2.ListenPort.ListenPort}",
                 Listen = "0.0.0.0",
@@ -41,8 +53,8 @@ public class Hysteria2ConfigContributor(
                     : null,
                 Tls = new InboundTlsConfig {
                     Enabled = true,
-                    Certificate = PemToLines(managedCertificate?.CertificatePem ?? h2.TlsCertificatePem),
-                    Key = PemToLines(managedCertificate?.PrivateKeyPem ?? h2.TlsKeyPem)
+                    ServerName = serverName,
+                    Certificates = certificates
                 }
             };
 

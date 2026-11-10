@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using ShadowVPN2.Contracts.Networking;
 using ShadowVPN2.Data.Certificates;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
@@ -20,6 +19,7 @@ public sealed class NaiveProxyConfigContributor(
         if (settingsList.Length == 0) return;
 
         var globalConfiguration = await globalConfigurationService.GetAsync();
+        var nodeCertificates = managedCertificateService.GetForNodeDomains(localConfiguration.Value.NodeId);
         foreach (var settings in settingsList) {
             var (fallbackCertificatePem, fallbackKeyPem) = settings switch {
                 NaiveProxyGlobalSettings naive => (naive.TlsCertificatePem, naive.TlsKeyPem),
@@ -28,27 +28,19 @@ public sealed class NaiveProxyConfigContributor(
             };
             var quicEnabled = settings is NaiveProxyQuicGlobalSettings;
             var configuredDomain = settings.MainDomain ?? globalConfiguration.MainDomain;
-            var managedCertificate = managedCertificateService.GetForDomain(configuredDomain) ??
-                                     managedCertificateService.GetForNode(localConfiguration.Value.NodeId);
-            HostName? certificateDomain = configuredDomain is { } domain
-                ? domain
-                : configuredDomain is null && managedCertificate?.Domains.Count > 0
-                    ? managedCertificate.Domains[0]
-                    : null;
+            var certificates = nodeCertificates.Select(material => new InboundTlsCertificateConfig {
+                Certificate = PemToLines(material.CertificatePem),
+                Key = PemToLines(material.PrivateKeyPem)
+            }).ToList();
+            if (certificates.Count == 0) {
+                certificates.Add(new InboundTlsCertificateConfig {
+                    Certificate = PemToLines(fallbackCertificatePem),
+                    Key = PemToLines(fallbackKeyPem)
+                });
+            }
 
-            string certificatePem;
-            string privateKeyPem;
-            string serverName;
-            if (certificateDomain is not null && managedCertificate is not null) {
-                certificatePem = managedCertificate.CertificatePem;
-                privateKeyPem = managedCertificate.PrivateKeyPem;
-                serverName = certificateDomain.ToString()!;
-            }
-            else {
-                certificatePem = fallbackCertificatePem;
-                privateKeyPem = fallbackKeyPem;
-                serverName = "shadowvpn.local";
-            }
+            var serverName = configuredDomain?.ToString() ?? nodeCertificates.FirstOrDefault()?.Domains[0].ToString() ??
+                "shadowvpn.local";
 
             config.Inbounds.Add(new NaiveProxyInboundConfig {
                 Tag = $"{(quicEnabled ? "naive-quic" : "naive")}-{settings.ListenPort.ListenPort}",
@@ -63,8 +55,7 @@ public sealed class NaiveProxyConfigContributor(
                 Tls = new InboundTlsConfig {
                     Enabled = true,
                     ServerName = serverName,
-                    Certificate = PemToLines(certificatePem),
-                    Key = PemToLines(privateKeyPem)
+                    Certificates = certificates
                 }
             });
         }

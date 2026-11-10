@@ -31,12 +31,13 @@ public sealed class NaiveProxySharedPortExtension(IServer server) : ISingBoxExte
                 backendPorts.Add(publicPort, backendPort);
             }
 
-            var pem = (Certificate: string.Join('\n', tls.Certificate ??
-                                                      throw new InvalidOperationException(
-                                                          "Shared NaiveProxy listener requires a PEM certificate")),
-                Key: string.Join('\n', tls.Key ??
-                                       throw new InvalidOperationException(
-                                           "Shared NaiveProxy listener requires a PEM key")));
+            var firstCertificate = tls.Certificates?.FirstOrDefault();
+            var pem = (Certificate: string.Join('\n', firstCertificate?.Certificate ?? tls.Certificate ??
+                    throw new InvalidOperationException(
+                        "Shared NaiveProxy listener requires a PEM certificate")),
+                Key: string.Join('\n', firstCertificate?.Key ?? tls.Key ??
+                    throw new InvalidOperationException(
+                        "Shared NaiveProxy listener requires a PEM key")));
             if (!certificates.TryGetValue(pem, out var certificate)) {
                 certificate = X509Certificate2.CreateFromPem(pem.Certificate, pem.Key);
                 if (OperatingSystem.IsWindows()) {
