@@ -1,5 +1,10 @@
 using System.Security.Cryptography.X509Certificates;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Conventions;
+using Raven.Client.Http;
+using Raven.Client.ServerWide.Commands;
+using Raven.Client.ServerWide.Operations;
+using Sparrow.Json;
 
 namespace ShadowVPN2.Infrastructure.RavenDb;
 
@@ -27,7 +32,30 @@ public sealed class RavenDbClusterAdminClient(
         string expectedThumbprint,
         Func<X509Certificate2, X509Certificate2, bool> certificateMatcher,
         CancellationToken cancellationToken = default) {
-        logger.LogInformation("Adding node {NodeUrl} with tag {NodeTag} to RavenDB cluster", nodeAddress, nodeTag);
+        var normalizedNodeAddress = nodeAddress.TrimEnd('/');
+        var topology = await documentStore.Maintenance.Server.SendAsync(
+            new GetClusterTopologyOperation(), cancellationToken);
+        var existingNode = topology.Topology.Members.FirstOrDefault(member =>
+            string.Equals(member.Value.TrimEnd('/'), normalizedNodeAddress, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(existingNode.Key) &&
+            !string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
+            logger.LogWarning("Removing stale RavenDB node {OldNodeTag} for URL {NodeUrl}", existingNode.Key,
+                normalizedNodeAddress);
+            await RemoveNodeFromClusterAsync(existingNode.Key, clientCertificate,
+                peerCertificates.Select(certificate => new X509Certificate2(certificate)).ToArray(), certificateMatcher,
+                cancellationToken);
+        }
+
+        if (string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
+            logger.LogInformation("Node {NodeTag} already exists in RavenDB cluster topology", nodeTag);
+            foreach (var certificate in peerCertificates)
+                certificate.Dispose();
+            return;
+        }
+
+
+        logger.LogInformation("Adding node {NodeUrl} with tag {NodeTag} to RavenDB cluster", normalizedNodeAddress,
+            nodeTag);
 
         try {
             using var httpClient = CreateAuthenticatedClient(clientCertificate, peerCertificates, certificateMatcher);
@@ -108,5 +136,12 @@ public sealed class RavenDbClusterAdminClient(
         };
 
         return new HttpClient(handler);
+    }
+}
+
+internal sealed class GetClusterTopologyOperation : IServerOperation<ClusterTopologyResponse> {
+    public RavenCommand<ClusterTopologyResponse> GetCommand(DocumentConventions conventions,
+        JsonOperationContext context) {
+        return new GetClusterTopologyCommand();
     }
 }

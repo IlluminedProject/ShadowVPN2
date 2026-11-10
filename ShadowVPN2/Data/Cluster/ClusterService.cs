@@ -166,10 +166,13 @@ public class ClusterService(
         await PeerCertificateTrustService.UpsertAsync(new NodeCertificateTrust(pendingNode.NodeId,
             pendingNode.AwgMeshIp, pendingNode.CertificatePem));
         var nodeTag = GetNodeTag(pendingNode.Number);
-        await AddNodeToRavenDbClusterAsync($"https://{pendingNode.AwgMeshIp}:8888", nodeTag);
-        await documentStore.Maintenance.Server.SendAsync(new AddDatabaseNodeOperation(documentStore.Database, nodeTag));
-        pendingNode.JoinMembershipCommitted = true;
-        await session.SaveChangesAsync();
+        if (!pendingNode.JoinMembershipCommitted) {
+            await AddNodeToRavenDbClusterAsync($"https://{pendingNode.AwgMeshIp}:8888", nodeTag);
+            await documentStore.Maintenance.Server.SendAsync(
+                new AddDatabaseNodeOperation(documentStore.Database, nodeTag));
+            pendingNode.JoinMembershipCommitted = true;
+            await session.SaveChangesAsync();
+        }
     }
 
     public async Task CompleteJoinAsync(ClusterCompleteJoinRequest request) {
