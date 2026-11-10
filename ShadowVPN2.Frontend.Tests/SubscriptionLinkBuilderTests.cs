@@ -21,7 +21,8 @@ public sealed class SubscriptionLinkBuilderTests {
             ObfsType = "salamander",
             ObfsPassword = "obfs&key",
             Sni = HostName.Parse("sni.example.com"),
-            PinSha256 = "AA:BB"
+            PinSha256 = "AA:BB",
+            Insecure = true
         };
 
         var result = SubscriptionLinkBuilder.CreateHysteria2ShareUrl(connection, "my device");
@@ -37,6 +38,7 @@ public sealed class SubscriptionLinkBuilderTests {
         query["obfs-password"].ToString().Should().Be("obfs&key");
         query["sni"].ToString().Should().Be("sni.example.com");
         query["name"].ToString().Should().Be("my device");
+        query["insecure"].ToString().Should().Be("1");
     }
 
     [Fact]

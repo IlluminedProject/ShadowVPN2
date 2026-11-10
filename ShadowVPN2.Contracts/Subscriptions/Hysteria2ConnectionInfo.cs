@@ -10,4 +10,5 @@ public sealed class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
     public string? ObfsPassword { get; set; }
     public HostName? Sni { get; set; }
     public string? PinSha256 { get; set; }
+    public bool Insecure { get; set; }
 }

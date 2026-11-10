@@ -25,9 +25,8 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
         var h2 = settings as Hysteria2GlobalSettings
                  ?? throw new ArgumentException("Invalid Hysteria2 settings", nameof(settings));
         var password = client.Hysteria2.Password ?? client.Id;
-        var fingerprint = managedCertificateService.GetCertificate(sni) == null
-            ? h2.GetCertificateFingerprint()
-            : null;
+        var hasTrustedCertificate = managedCertificateService.GetCertificate(sni) is not null;
+        var fingerprint = hasTrustedCertificate ? null : h2.GetCertificateFingerprint();
         return Task.FromResult<ProtocolConnectionInfo?>(new Hysteria2ConnectionInfo {
             ServerAddress = host,
             PortBinding = h2.ListenPort,
@@ -35,7 +34,8 @@ public sealed class Hysteria2SubscriptionContributor(ManagedCertificateService m
             ObfsType = h2.ObfsType,
             ObfsPassword = h2.ObfsPassword,
             Sni = sni,
-            PinSha256 = fingerprint
+            PinSha256 = fingerprint,
+            Insecure = !hasTrustedCertificate
         });
     }
 }

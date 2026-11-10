@@ -11,6 +11,7 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
     public string? ObfsPassword { get; set; }
     public HostName? Sni { get; set; }
     public string? PinSha256 { get; set; }
+    public bool Insecure { get; set; }
 
     public string CreateShareUrl(string clientName) {
         return Contract.Hysteria2ShareUrlBuilder.Build(ToContract(), clientName);
@@ -24,7 +25,8 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
             ObfsType = ObfsType,
             ObfsPassword = ObfsPassword,
             Sni = Sni,
-            PinSha256 = PinSha256
+            PinSha256 = PinSha256,
+            Insecure = Insecure
         };
     }
 
@@ -36,7 +38,8 @@ public class Hysteria2ConnectionInfo : ProtocolConnectionInfo {
             ObfsType = ObfsType,
             ObfsPassword = ObfsPassword,
             Sni = Sni,
-            PinSha256 = PinSha256
+            PinSha256 = PinSha256,
+            Insecure = Insecure
         };
     }
 }

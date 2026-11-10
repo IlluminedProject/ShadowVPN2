@@ -22,6 +22,16 @@ public sealed class SubscriptionFormatServiceTests {
     }
 
     [Fact]
+    public void Base64_hysteria2_links_do_not_disable_tls_validation() {
+        var response = CreateResponse();
+        var encoded = new SubscriptionFormatService().Render(response, SubscriptionFormat.Base64);
+        var link = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+
+        link.Should().NotContain("insecure=");
+        link.Should().NotContain("allowInsecure=");
+    }
+
+    [Fact]
     public void Mihomo_provider_contains_proxy_entries_without_free_turn() {
         var response = CreateResponse();
         var yaml = new SubscriptionFormatService().Render(response, SubscriptionFormat.MihomoProvider);
