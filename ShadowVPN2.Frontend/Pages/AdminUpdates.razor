@@ -113,7 +113,6 @@ else
                             <th scope="col">Node</th>
                             <th scope="col">Status</th>
                             <th scope="col">Current image</th>
-                            <th scope="col">Error</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -124,10 +123,23 @@ else
                                     <div>@NodeLabel(node)</div>
                                     <div class="text-body-secondary small fw-normal">RavenDB tag: @node.NodeTag</div>
                                 </th>
-                                <td>@node.Status</td>
+                                <td>
+                                    <span class="d-inline-flex align-items-center gap-2 text-nowrap">
+                                        <span class="bi @NodeStatusIcon(node.Status)" aria-hidden="true"></span>
+                                        <span>@node.Status</span>
+                                    </span>
+                                </td>
                                 <td><code class="text-break">@(node.CurrentImageDigest ?? "Unknown")</code></td>
-                                <td>@(node.Error ?? "")</td>
                             </tr>
+                            @if (!string.IsNullOrWhiteSpace(node.Error))
+                            {
+                                <tr>
+                                    <td colspan="3" class="text-danger text-break pt-0">
+                                        <span class="bi bi-exclamation-triangle-fill me-2"
+                                              aria-hidden="true"></span>@node.Error
+                                    </td>
+                                </tr>
+                            }
                         }
                         </tbody>
                     </table>
@@ -417,6 +429,25 @@ else
         {
             _cancellation.Dispose();
         }
+    }
+
+}
+
+@code {
+
+    private static string NodeStatusIcon(ClusterUpdateNodeStatus status)
+    {
+        return status switch
+        {
+            ClusterUpdateNodeStatus.Completed => "bi-check-circle-fill text-success",
+            ClusterUpdateNodeStatus.Failed => "bi-x-circle-fill text-danger",
+            ClusterUpdateNodeStatus.Preparing => "bi-arrow-repeat text-info",
+            ClusterUpdateNodeStatus.Prepared => "bi-check-circle text-info",
+            ClusterUpdateNodeStatus.Claimed => "bi-arrow-repeat text-primary",
+            ClusterUpdateNodeStatus.Skipped => "bi-skip-forward-circle text-body-secondary",
+            ClusterUpdateNodeStatus.Cancelled => "bi-slash-circle text-body-secondary",
+            _ => "bi-hourglass text-body-secondary"
+        };
     }
 
 }
