@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Raven.Client.Documents;
+using Raven.Client.Exceptions;
 using Raven.Client.ServerWide.Operations;
 using Raven.Client.ServerWide.Operations.Certificates;
 using ShadowVPN2.Contracts.Networking;
@@ -184,10 +185,27 @@ public class ClusterService(
         var nodeTag = GetNodeTag(pendingNode.Number);
         if (!pendingNode.JoinMembershipCommitted) {
             await AddNodeToRavenDbClusterAsync($"https://{pendingNode.AwgMeshIp}:8888", nodeTag);
-            await documentStore.Maintenance.Server.SendAsync(
-                new AddDatabaseNodeOperation(documentStore.Database, nodeTag));
+            await AddDatabaseNodeWithPropagationRetryAsync(nodeTag);
             pendingNode.JoinMembershipCommitted = true;
             await session.SaveChangesAsync();
+        }
+    }
+
+    private async Task AddDatabaseNodeWithPropagationRetryAsync(string nodeTag) {
+        for (var attempt = 0;; attempt++) {
+            try {
+                await documentStore.Maintenance.Server.SendAsync(
+                    new AddDatabaseNodeOperation(documentStore.Database, nodeTag));
+                return;
+            }
+            catch (RavenException ex) when (
+                attempt < 9 &&
+                ex.ToString().Contains("is not part of the cluster", StringComparison.Ordinal)) {
+                logger.LogWarning(
+                    "RavenDB database topology is waiting for cluster member {NodeTag}, retry {Retry}",
+                    nodeTag, attempt + 1);
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+            }
         }
     }
 
