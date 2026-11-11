@@ -116,6 +116,7 @@ public sealed class ContainerUpdater(
 
             var createRequest = new DockerCreateRequest {
                 Image = image,
+                Healthcheck = original.Config.Healthcheck,
                 HostConfig = new DockerCreateHostConfig {
                     Name = original.HostConfig.RestartPolicy.Name,
                     NetworkMode = original.HostConfig.NetworkMode,
