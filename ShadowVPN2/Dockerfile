@@ -106,7 +106,11 @@ COPY . .
 RUN --mount=type=cache,id=shadowvpn2-debug-nuget,target=/root/.nuget/packages \
     dotnet restore "ShadowVPN2/ShadowVPN2.csproj" \
     && dotnet build "ShadowVPN2/ShadowVPN2.csproj" -c $BUILD_CONFIGURATION --no-restore \
+    && mkdir -p /opt/aspnet-internal-assets \
+    && cp -a /root/.nuget/packages/microsoft.aspnetcore.app.internal.assets/. /opt/aspnet-internal-assets/ \
     && chmod o+x /root
+RUN mkdir -p /root/.nuget/packages/microsoft.aspnetcore.app.internal.assets \
+    && cp -a /opt/aspnet-internal-assets/. /root/.nuget/packages/microsoft.aspnetcore.app.internal.assets/
 WORKDIR /src/ShadowVPN2
 CMD ["dotnet", "/src/ShadowVPN2/bin/Debug/net10.0/ShadowVPN2.dll"]
 
