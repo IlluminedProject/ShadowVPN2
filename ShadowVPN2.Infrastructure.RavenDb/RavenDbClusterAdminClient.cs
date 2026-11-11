@@ -37,35 +37,28 @@ public sealed class RavenDbClusterAdminClient(
             new GetClusterTopologyOperation(), cancellationToken);
         var existingNode = topology.Topology.Members.FirstOrDefault(member =>
             string.Equals(member.Value.TrimEnd('/'), normalizedNodeAddress, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(existingNode.Key) &&
-            !string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
-            logger.LogWarning("Removing stale RavenDB node {OldNodeTag} for URL {NodeUrl}", existingNode.Key,
-                normalizedNodeAddress);
-            await RemoveNodeFromClusterAsync(existingNode.Key, clientCertificate,
-                peerCertificates.Select(certificate => new X509Certificate2(certificate)).ToArray(), certificateMatcher,
-                cancellationToken);
-        }
-
-        if (string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
-            logger.LogInformation("Node {NodeTag} already exists in RavenDB cluster topology", nodeTag);
-            foreach (var certificate in peerCertificates)
-                certificate.Dispose();
-            return;
-        }
-
-
-        logger.LogInformation("Adding node {NodeUrl} with tag {NodeTag} to RavenDB cluster", normalizedNodeAddress,
-            nodeTag);
-
         try {
+            if (!string.IsNullOrEmpty(existingNode.Key) &&
+                !string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
+                throw new InvalidOperationException(
+                    $"RavenDB URL {normalizedNodeAddress} is already assigned to node {existingNode.Key}; " +
+                    $"refusing to replace an existing cluster member with {nodeTag}");
+            }
+
+            if (string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
+                logger.LogInformation("Node {NodeTag} already exists in RavenDB cluster topology", nodeTag);
+                return;
+            }
+
+            logger.LogInformation("Adding node {NodeUrl} with tag {NodeTag} to RavenDB cluster", normalizedNodeAddress,
+                nodeTag);
+
             using var httpClient = CreateAuthenticatedClient(clientCertificate, peerCertificates, certificateMatcher);
             var ravenUrl = documentStore.Urls.First();
-
             var requestUrl =
                 $"{ravenUrl}/admin/cluster/node?url={Uri.EscapeDataString(nodeAddress.TrimEnd('/'))}" +
                 $"&tag={Uri.EscapeDataString(nodeTag)}" +
                 $"&expectedThumbprint={expectedThumbprint}";
-
             using var response = await httpClient.PutAsync(requestUrl, null, cancellationToken);
             if (!response.IsSuccessStatusCode) {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -73,12 +66,28 @@ public sealed class RavenDbClusterAdminClient(
                     $"Failed to add node to cluster: {response.StatusCode} {errorBody}");
             }
 
-            logger.LogInformation("Successfully added node {NodeTag} to RavenDB cluster", nodeTag);
+            await WaitForClusterMembershipAsync(nodeTag, normalizedNodeAddress, cancellationToken);
+            logger.LogInformation("RavenDB cluster membership confirmed for node {NodeTag}", nodeTag);
         }
         finally {
-            foreach (var cert in peerCertificates)
-                cert.Dispose();
+            foreach (var certificate in peerCertificates)
+                certificate.Dispose();
         }
+    }
+
+    private async Task WaitForClusterMembershipAsync(string nodeTag, string nodeAddress,
+        CancellationToken cancellationToken) {
+        for (var attempt = 0; attempt < 50; attempt++) {
+            var topology = await documentStore.Maintenance.Server.SendAsync(
+                new GetClusterTopologyOperation(), cancellationToken);
+            if (topology.Topology.Members.TryGetValue(nodeTag, out var address) &&
+                string.Equals(address.TrimEnd('/'), nodeAddress, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+        }
+
+        throw new TimeoutException($"RavenDB cluster membership for node {nodeTag} was not confirmed.");
     }
 
     /// <summary>
