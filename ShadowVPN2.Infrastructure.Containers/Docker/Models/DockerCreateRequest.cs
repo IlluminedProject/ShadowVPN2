@@ -5,4 +5,5 @@ public sealed class DockerCreateRequest {
     public required DockerCreateHostConfig HostConfig { get; init; }
     public string[]? Env { get; init; }
     public Dictionary<string, string>? Labels { get; init; }
+    public DockerHealthcheck? Healthcheck { get; init; }
 }

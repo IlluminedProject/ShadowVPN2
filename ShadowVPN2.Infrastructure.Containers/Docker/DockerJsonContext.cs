@@ -11,4 +11,5 @@ namespace ShadowVPN2.Infrastructure.Containers.Docker;
 [JsonSerializable(typeof(DockerCreateHostConfig))]
 [JsonSerializable(typeof(DockerCreateResponse))]
 [JsonSerializable(typeof(DockerRestartPolicy))]
+[JsonSerializable(typeof(DockerHealthcheck))]
 internal partial class DockerJsonContext : JsonSerializerContext;
