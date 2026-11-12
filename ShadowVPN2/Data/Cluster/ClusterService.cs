@@ -185,9 +185,6 @@ public class ClusterService(
         var nodeTag = GetNodeTag(pendingNode.Number);
         if (!pendingNode.JoinMembershipCommitted) {
             await AddNodeToRavenDbClusterAsync($"https://{pendingNode.AwgMeshIp}:8888", nodeTag);
-            await AddDatabaseNodeWithPropagationRetryAsync(nodeTag);
-            pendingNode.JoinMembershipCommitted = true;
-            await session.SaveChangesAsync();
         }
     }
 

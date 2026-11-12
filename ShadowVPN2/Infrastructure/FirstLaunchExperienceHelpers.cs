@@ -13,6 +13,7 @@ using ShadowVPN2.Data.SingBox;
 using ShadowVPN2.Data.SingBox.Models;
 using ShadowVPN2.Entities;
 using ShadowVPN2.Infrastructure.Configurations;
+using ShadowVPN2.Infrastructure.RavenDb;
 using TruePath.SystemIo;
 using ILogger = Serilog.ILogger;
 
@@ -133,7 +134,12 @@ public static class FirstLaunchExperienceHelpers {
         var seed = token.Seeds.Single(candidate => candidate.Address.ToString() == connectedTo);
         using var httpClient = CreateHttpClient(seed);
         await FinishJoin(token, connectedTo, httpClient);
-        await WaitRavenDbReplication(documentStore, ClusterService.GetNodeTag(token.NodeNumber));
+
+        var adminClient = services.GetRequiredService<RavenDbClusterAdminClient>();
+        var nodeTag = ClusterService.GetNodeTag(token.NodeNumber);
+        await adminClient.WaitForClusterMembershipAsync(nodeTag);
+        await adminClient.AddDatabaseNodeAsync(documentStore.Database, nodeTag);
+        await WaitRavenDbReplication(documentStore, nodeTag);
 
         var state = services.GetRequiredService<JoinStartupState>();
         if (state.TemporaryCertificatePath == null || state.TemporaryAwgPrivateKey == null ||
@@ -161,6 +167,7 @@ public static class FirstLaunchExperienceHelpers {
         _logger.Information("Node successfully joined cluster. Rebooting to complete setup");
         Environment.Exit(0);
     }
+
 
     private static async Task BootstrapSingBox(int nodeNumber, AwgGlobalSettings awgSettings,
         IEnumerable<AwgPeerInfo> peers, IEnumerable<HostAddress> seedAddresses, string awgPrivateKey,

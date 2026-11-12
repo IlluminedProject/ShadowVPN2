@@ -65,9 +65,6 @@ public sealed class RavenDbClusterAdminClient(
                 throw new InvalidOperationException(
                     $"Failed to add node to cluster: {response.StatusCode} {errorBody}");
             }
-
-            await WaitForClusterMembershipAsync(nodeTag, normalizedNodeAddress, cancellationToken);
-            logger.LogInformation("RavenDB cluster membership confirmed for node {NodeTag}", nodeTag);
         }
         finally {
             foreach (var certificate in peerCertificates)
@@ -75,19 +72,36 @@ public sealed class RavenDbClusterAdminClient(
         }
     }
 
-    private async Task WaitForClusterMembershipAsync(string nodeTag, string nodeAddress,
-        CancellationToken cancellationToken) {
-        for (var attempt = 0; attempt < 50; attempt++) {
+
+    public async Task WaitForClusterMembershipAsync(string nodeTag,
+        CancellationToken cancellationToken = default) {
+        for (var attempt = 0; attempt < 60; attempt++) {
             var topology = await documentStore.Maintenance.Server.SendAsync(
                 new GetClusterTopologyOperation(), cancellationToken);
-            if (topology.Topology.Members.TryGetValue(nodeTag, out var address) &&
-                string.Equals(address.TrimEnd('/'), nodeAddress, StringComparison.OrdinalIgnoreCase))
+            if (topology.Topology.Members.ContainsKey(nodeTag) && !string.IsNullOrEmpty(topology.Leader))
                 return;
 
-            await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+            logger.LogInformation("Waiting for RavenDB cluster membership for node {NodeTag}, retry {Retry}",
+                nodeTag, attempt + 1);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
 
-        throw new TimeoutException($"RavenDB cluster membership for node {nodeTag} was not confirmed.");
+        throw new TimeoutException($"RavenDB node {nodeTag} did not become a cluster member.");
+    }
+
+    public async Task AddDatabaseNodeAsync(string databaseName, string nodeTag,
+        CancellationToken cancellationToken = default) {
+        var record = await documentStore.Maintenance.Server.SendAsync(
+            new GetDatabaseRecordOperation(databaseName), cancellationToken);
+        if (record?.Topology.Members.Contains(nodeTag) == true) {
+            logger.LogInformation("Node {NodeTag} is already in database {DatabaseName} topology", nodeTag,
+                databaseName);
+            return;
+        }
+
+        await documentStore.Maintenance.Server.SendAsync(
+            new AddDatabaseNodeOperation(databaseName, nodeTag), cancellationToken);
+        logger.LogInformation("Added node {NodeTag} to database {DatabaseName} topology", nodeTag, databaseName);
     }
 
     /// <summary>
