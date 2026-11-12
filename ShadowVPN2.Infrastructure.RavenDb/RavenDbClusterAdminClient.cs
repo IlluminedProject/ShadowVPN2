@@ -27,6 +27,7 @@ public sealed class RavenDbClusterAdminClient(
     public async Task AddNodeToClusterAsync(
         string nodeAddress,
         string nodeTag,
+        IReadOnlySet<string> activeNodeTags,
         X509Certificate2 clientCertificate,
         X509Certificate2[] peerCertificates,
         string expectedThumbprint,
@@ -40,9 +41,16 @@ public sealed class RavenDbClusterAdminClient(
         try {
             if (!string.IsNullOrEmpty(existingNode.Key) &&
                 !string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {
-                throw new InvalidOperationException(
-                    $"RavenDB URL {normalizedNodeAddress} is already assigned to node {existingNode.Key}; " +
-                    $"refusing to replace an existing cluster member with {nodeTag}");
+                if (activeNodeTags.Contains(existingNode.Key)) {
+                    throw new InvalidOperationException(
+                        $"RavenDB URL {normalizedNodeAddress} is already assigned to active node {existingNode.Key}; " +
+                        $"refusing to replace it with {nodeTag}");
+                }
+
+                logger.LogWarning("Removing stale RavenDB node {NodeTag} for URL {NodeUrl}", existingNode.Key,
+                    normalizedNodeAddress);
+                await RemoveNodeFromClusterAsync(existingNode.Key, clientCertificate, peerCertificates,
+                    certificateMatcher, cancellationToken);
             }
 
             if (string.Equals(existingNode.Key, nodeTag, StringComparison.Ordinal)) {

@@ -258,7 +258,12 @@ public class ClusterService(
                 "The joining node certificate is missing from the local trust snapshot.");
         }
 
-        await ravenDbClusterAdminClient.AddNodeToClusterAsync(nodeAddress, nodeTag, certificate, pins,
+        using var lookupSession = documentStore.OpenAsyncSession();
+        var activeNodeTags = (await lookupSession.Advanced.LoadStartingWithAsync<EntityClusterNode>(
+                "EntityClusterNodes/", pageSize: int.MaxValue))
+            .Select(node => GetNodeTag(node.Number))
+            .ToHashSet(StringComparer.Ordinal);
+        await ravenDbClusterAdminClient.AddNodeToClusterAsync(nodeAddress, nodeTag, activeNodeTags, certificate, pins,
             pins[pendingIndex].Thumbprint, (remote, pin) => RavenDbCertificates.MatchesPin(remote, pin));
     }
 
